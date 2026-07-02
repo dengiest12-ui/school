@@ -80,11 +80,39 @@ struct ParentTask: Identifiable, Hashable {
     let kind: Kind
 }
 
+enum EventResponse: String, CaseIterable, Hashable {
+    case undecided = "Жду ответа"
+    case going = "Идем"
+    case declined = "Не сможем"
+    case question = "Есть вопрос"
+}
+
 struct ClassEvent: Identifiable, Hashable {
-    let id = UUID()
-    let title: String
-    let dateLabel: String
-    let detail: String
+    let id: UUID
+    var title: String
+    var dateLabel: String
+    var detail: String
+    var type: String
+    var place: String
+    var response: EventResponse
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        dateLabel: String,
+        detail: String,
+        type: String = "Событие",
+        place: String = "",
+        response: EventResponse = .undecided
+    ) {
+        self.id = id
+        self.title = title
+        self.dateLabel = dateLabel
+        self.detail = detail
+        self.type = type
+        self.place = place
+        self.response = response
+    }
 }
 
 struct CollectionSummary: Identifiable, Hashable {
@@ -150,9 +178,27 @@ enum SampleData {
     ]
 
     static let events = [
-        ClassEvent(title: "Экскурсия в музей", dateLabel: "Чт, 9 июля", detail: "Сбор у школы в 09:10"),
-        ClassEvent(title: "Контрольная по математике", dateLabel: "Пт, 10 июля", detail: "Повторить таблицу умножения"),
-        ClassEvent(title: "День рождения Сони", dateLabel: "Пн, 13 июля", detail: "Поздравление после уроков")
+        ClassEvent(
+            title: "Экскурсия в музей",
+            dateLabel: "Чт, 9 июля",
+            detail: "Сбор у школы в 09:10",
+            type: "Экскурсия",
+            place: "Музей космонавтики"
+        ),
+        ClassEvent(
+            title: "Контрольная по математике",
+            dateLabel: "Пт, 10 июля",
+            detail: "Повторить таблицу умножения",
+            type: "Контрольная",
+            place: "Каб. 21"
+        ),
+        ClassEvent(
+            title: "День рождения Сони",
+            dateLabel: "Пн, 13 июля",
+            detail: "Поздравление после уроков",
+            type: "Праздник",
+            place: "Класс"
+        )
     ]
 
     static let collections = [
