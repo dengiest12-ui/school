@@ -29,6 +29,19 @@
 - [ТЗ](docs/school_class_family_app_tz.md)
 - [Чеклист проекта](docs/project_checklist.md)
 
+## iOS-приложение
+
+Проект: `SchoolApp.xcodeproj`  
+Схема: `SchoolApp`  
+Минимальная версия: iOS 17  
+Проверенный симулятор: iPhone 17, iOS 26.5
+
+Локальная сборка:
+
+```sh
+xcodebuild -project SchoolApp.xcodeproj -scheme SchoolApp -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath .build/DerivedData build
+```
+
 ## Рабочий принцип
 
 Сначала фиксируем границы MVP и проверяем главный сценарий:
@@ -39,4 +52,3 @@
 4. Добавляет ДЗ вручную или по фото.
 5. Создает событие или сбор.
 6. Родители получают понятное "что завтра".
-
