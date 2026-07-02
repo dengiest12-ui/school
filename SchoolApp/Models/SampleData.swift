@@ -115,13 +115,61 @@ struct ClassEvent: Identifiable, Hashable {
     }
 }
 
+enum CollectionStatus: String, CaseIterable, Hashable {
+    case active = "Идет сбор"
+    case dueSoon = "Срок близко"
+    case closed = "Закрыт"
+}
+
+struct CollectionExpense: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var amount: String
+    var note: String
+
+    init(id: UUID = UUID(), title: String, amount: String, note: String) {
+        self.id = id
+        self.title = title
+        self.amount = amount
+        self.note = note
+    }
+}
+
 struct CollectionSummary: Identifiable, Hashable {
-    let id = UUID()
-    let title: String
-    let amount: String
-    let deadline: String
-    let paidCount: Int
-    let totalCount: Int
+    let id: UUID
+    var title: String
+    var amount: String
+    var deadline: String
+    var paidCount: Int
+    var totalCount: Int
+    var recipient: String
+    var detail: String
+    var status: CollectionStatus
+    var expenses: [CollectionExpense]
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        amount: String,
+        deadline: String,
+        paidCount: Int,
+        totalCount: Int,
+        recipient: String,
+        detail: String,
+        status: CollectionStatus = .active,
+        expenses: [CollectionExpense] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.amount = amount
+        self.deadline = deadline
+        self.paidCount = paidCount
+        self.totalCount = totalCount
+        self.recipient = recipient
+        self.detail = detail
+        self.status = status
+        self.expenses = expenses
+    }
 }
 
 struct FeedItem: Identifiable, Hashable {
@@ -202,8 +250,29 @@ enum SampleData {
     ]
 
     static let collections = [
-        CollectionSummary(title: "Театр", amount: "500 руб.", deadline: "до пятницы", paidCount: 14, totalCount: 25),
-        CollectionSummary(title: "Подарок учителю", amount: "300 руб.", deadline: "до 15 июля", paidCount: 18, totalCount: 25)
+        CollectionSummary(
+            title: "Театр",
+            amount: "500 руб.",
+            deadline: "до пятницы",
+            paidCount: 14,
+            totalCount: 25,
+            recipient: "Мария, родкомитет",
+            detail: "Билеты на спектакль и автобус до театра.",
+            status: .dueSoon,
+            expenses: [
+                CollectionExpense(title: "Билеты", amount: "10 000 руб.", note: "Предоплата театру")
+            ]
+        ),
+        CollectionSummary(
+            title: "Подарок учителю",
+            amount: "300 руб.",
+            deadline: "до 15 июля",
+            paidCount: 18,
+            totalCount: 25,
+            recipient: "Ольга, родкомитет",
+            detail: "Общий подарок и открытка от класса.",
+            expenses: []
+        )
     ]
 
     static let feed = [
