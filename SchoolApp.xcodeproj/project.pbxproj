@@ -19,6 +19,7 @@
 		BBBB0000000000000000000A /* HomeworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000A /* HomeworkView.swift */; };
 		BBBB0000000000000000000B /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000B /* CalendarView.swift */; };
 		BBBB0000000000000000000C /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000C /* MoreView.swift */; };
+		BBBB0000000000000000000D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000E /* OnboardingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 		CCCC0000000000000000000B /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		CCCC0000000000000000000C /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		CCCC0000000000000000000D /* SchoolApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SchoolApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCCC0000000000000000000E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +113,7 @@
 				EEEE0000000000000000000A /* Homework */,
 				EEEE0000000000000000000B /* Calendar */,
 				EEEE0000000000000000000D /* More */,
+				EEEE0000000000000000000E /* Onboarding */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -161,6 +164,14 @@
 				CCCC0000000000000000000C /* MoreView.swift */,
 			);
 			path = More;
+			sourceTree = "<group>";
+		};
+		EEEE0000000000000000000E /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				CCCC0000000000000000000E /* OnboardingView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -244,6 +255,7 @@
 				BBBB0000000000000000000A /* HomeworkView.swift in Sources */,
 				BBBB0000000000000000000B /* CalendarView.swift in Sources */,
 				BBBB0000000000000000000C /* MoreView.swift in Sources */,
+				BBBB0000000000000000000D /* OnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -444,4 +456,3 @@
 	};
 	rootObject = AAAABBBBCCCC000000000000 /* Project object */;
 }
-

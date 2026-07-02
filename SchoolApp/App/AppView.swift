@@ -1,13 +1,27 @@
 import SwiftUI
 
 struct AppView: View {
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selectedTab: AppTab
+    @State private var completedForcedOnboarding = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         _selectedTab = State(initialValue: initialTab)
     }
 
     var body: some View {
+        Group {
+            if showsOnboarding {
+                OnboardingView(onFinish: completeOnboarding)
+            } else {
+                mainApp
+            }
+        }
+        .tint(SchoolTheme.success)
+        .preferredColorScheme(.light)
+    }
+
+    private var mainApp: some View {
         ZStack(alignment: .bottom) {
             NavigationStack {
                 selectedTab.content
@@ -24,8 +38,19 @@ struct AppView: View {
                 .padding(.bottom, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .tint(SchoolTheme.success)
-        .preferredColorScheme(.light)
+    }
+
+    private var showsOnboarding: Bool {
+        if Self.forcesOnboarding {
+            return !completedForcedOnboarding
+        }
+
+        return !hasCompletedOnboarding && !Self.skipsOnboarding
+    }
+
+    private func completeOnboarding() {
+        hasCompletedOnboarding = true
+        completedForcedOnboarding = true
     }
 
     private static func launchTab() -> AppTab {
@@ -40,6 +65,15 @@ struct AppView: View {
         }
 
         return tab
+    }
+
+    private static var forcesOnboarding: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding")
+    }
+
+    private static var skipsOnboarding: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-qa-skip-onboarding") || arguments.contains("-qa-tab")
     }
 }
 
