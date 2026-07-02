@@ -9,8 +9,10 @@ enum SchoolTheme {
     static let graphite = Color(red: 0.15, green: 0.17, blue: 0.22)
     static let muted = Color(red: 0.45, green: 0.47, blue: 0.52)
     static let line = Color.black.opacity(0.07)
-    static let surface = Color(.secondarySystemGroupedBackground)
-    static let card = Color(.systemBackground)
+    static let surface = Color.white
+    static let card = Color.white
+    static let tabBar = Color.white
     static let page = Color(red: 0.97, green: 0.98, blue: 0.97)
     static let cardRadius: CGFloat = 22
+    static let bottomScrollPadding: CGFloat = 118
 }

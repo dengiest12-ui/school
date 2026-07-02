@@ -13,7 +13,7 @@ struct HomeworkView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 22)
-            .padding(.bottom, 28)
+            .padding(.bottom, SchoolTheme.bottomScrollPadding)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
     }

@@ -13,7 +13,7 @@ struct ClassRoomView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 22)
-            .padding(.bottom, 28)
+            .padding(.bottom, SchoolTheme.bottomScrollPadding)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
     }
@@ -56,12 +56,31 @@ struct ClassRoomView: View {
     }
 
     private var sectionPicker: some View {
-        Picker("Раздел", selection: $selectedSection) {
-            ForEach(ClassSection.allCases) { section in
-                Text(section.title).tag(section)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ClassSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        Text(section.title)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(selectedSection == section ? SchoolTheme.graphite : SchoolTheme.muted)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 9)
+                            .frame(height: 38)
+                            .background(
+                                selectedSection == section ? SchoolTheme.card : Color.clear,
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(4)
+            .background(Color.black.opacity(0.055), in: Capsule())
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .pickerStyle(.segmented)
     }
 
     @ViewBuilder

@@ -55,4 +55,19 @@ enum AppTab: String, CaseIterable, Identifiable {
             Label("Еще", systemImage: "ellipsis")
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .today:
+            "house.fill"
+        case .classRoom:
+            "person.2"
+        case .homework:
+            "clipboard"
+        case .calendar:
+            "calendar"
+        case .more:
+            "ellipsis"
+        }
+    }
 }
