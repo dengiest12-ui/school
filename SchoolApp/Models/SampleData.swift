@@ -15,13 +15,31 @@ struct HomeworkItem: Identifiable, Hashable {
         case review = "Проверить"
     }
 
-    let id = UUID()
-    let subject: String
-    let title: String
-    let dueLabel: String
-    let source: String
-    let status: Status
-    let bring: String?
+    let id: UUID
+    var subject: String
+    var title: String
+    var dueLabel: String
+    var source: String
+    var status: Status
+    var bring: String?
+
+    init(
+        id: UUID = UUID(),
+        subject: String,
+        title: String,
+        dueLabel: String,
+        source: String,
+        status: Status,
+        bring: String?
+    ) {
+        self.id = id
+        self.subject = subject
+        self.title = title
+        self.dueLabel = dueLabel
+        self.source = source
+        self.status = status
+        self.bring = bring
+    }
 }
 
 struct ScheduleItem: Identifiable, Hashable {
