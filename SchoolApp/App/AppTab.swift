@@ -44,16 +44,15 @@ enum AppTab: String, CaseIterable, Identifiable {
     var label: some View {
         switch self {
         case .today:
-            Label("Сегодня", systemImage: "sun.max")
+            Label("Сегодня", systemImage: "house.fill")
         case .classRoom:
-            Label("Класс", systemImage: "person.3")
+            Label("Класс", systemImage: "person.2")
         case .homework:
-            Label("ДЗ", systemImage: "checklist")
+            Label("ДЗ", systemImage: "clipboard")
         case .calendar:
             Label("Календарь", systemImage: "calendar")
         case .more:
-            Label("Еще", systemImage: "ellipsis.circle")
+            Label("Еще", systemImage: "ellipsis")
         }
     }
 }
-

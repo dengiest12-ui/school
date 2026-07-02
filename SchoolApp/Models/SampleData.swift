@@ -4,6 +4,8 @@ struct ChildSummary: Identifiable, Hashable {
     let id = UUID()
     let name: String
     let className: String
+    let school: String
+    let avatarText: String
 }
 
 struct HomeworkItem: Identifiable, Hashable {
@@ -27,6 +29,23 @@ struct ScheduleItem: Identifiable, Hashable {
     let time: String
     let title: String
     let detail: String
+}
+
+struct ChatPreviewItem: Identifiable, Hashable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let timeLabel: String
+    let icon: String
+    let colorName: String
+    let hasUnread: Bool
+}
+
+struct DayChip: Identifiable, Hashable {
+    let id = UUID()
+    let weekday: String
+    let day: String
+    let isSelected: Bool
 }
 
 struct ParentTask: Identifiable, Hashable {
@@ -68,14 +87,14 @@ struct FeedItem: Identifiable, Hashable {
 
 enum SampleData {
     static let children = [
-        ChildSummary(name: "Миша", className: "2Б"),
-        ChildSummary(name: "Аня", className: "4А")
+        ChildSummary(name: "Миша", className: "3Б", school: "Школа 1254", avatarText: "М"),
+        ChildSummary(name: "Аня", className: "4А", school: "Школа 1254", avatarText: "А")
     ]
 
     static let homework = [
         HomeworkItem(
             subject: "Математика",
-            title: "Стр. 45, номера 6, 7, 8",
+            title: "№ 47, 48 (с. 78)",
             dueLabel: "завтра",
             source: "AI из фото доски",
             status: .pending,
@@ -83,15 +102,15 @@ enum SampleData {
         ),
         HomeworkItem(
             subject: "Русский язык",
-            title: "Упр. 123, выучить правило",
+            title: "Упр. 132 (с. 96)",
             dueLabel: "завтра",
             source: "Учитель",
             status: .review,
             bring: nil
         ),
         HomeworkItem(
-            subject: "Технология",
-            title: "Подготовить аппликацию",
+            subject: "Окружающий мир",
+            title: "Подготовить рассказ о растении",
             dueLabel: "пятница",
             source: "Родитель",
             status: .pending,
@@ -100,16 +119,16 @@ enum SampleData {
     ]
 
     static let schedule = [
-        ScheduleItem(time: "08:30", title: "Математика", detail: "каб. 204"),
-        ScheduleItem(time: "09:25", title: "Русский язык", detail: "каб. 204"),
-        ScheduleItem(time: "10:30", title: "Физкультура", detail: "форма обязательна"),
-        ScheduleItem(time: "17:00", title: "Шахматы", detail: "кружок")
+        ScheduleItem(time: "08:30", title: "Математика", detail: "Каб. 21"),
+        ScheduleItem(time: "09:25", title: "Русский язык", detail: "Каб. 15"),
+        ScheduleItem(time: "10:35", title: "Физкультура", detail: "Спортзал - нужна форма"),
+        ScheduleItem(time: "11:30", title: "Окружающий мир", detail: "Каб. 12")
     ]
 
     static let parentTasks = [
-        ParentTask(title: "Принести картон", dueLabel: "завтра", kind: .bring),
-        ParentTask(title: "Сдать 500 руб. на театр", dueLabel: "до пятницы", kind: .pay),
-        ParentTask(title: "Подписать согласие на экскурсию", dueLabel: "сегодня", kind: .sign)
+        ParentTask(title: "Завтра принести сменную обувь для спортзала", dueLabel: "Сегодня", kind: .bring),
+        ParentTask(title: "Сдать до пятницы: проект «Моя семья»", dueLabel: "23 мая", kind: .sign),
+        ParentTask(title: "500 руб. на экскурсию", dueLabel: "до пятницы", kind: .pay)
     ]
 
     static let events = [
@@ -128,5 +147,41 @@ enum SampleData {
         FeedItem(title: "Сбор на театр", subtitle: "500 руб. до пятницы, отчет будет в приложении.", tag: "Родкомитет"),
         FeedItem(title: "AI-дайджест чата", subtitle: "3 важных пункта: форма, картон, согласие.", tag: "Тихий чат")
     ]
-}
 
+    static let chats = [
+        ChatPreviewItem(
+            title: "Родители 3Б",
+            message: "Мария: Напоминаю про экскурсию в пятницу",
+            timeLabel: "09:12",
+            icon: "person.3.fill",
+            colorName: "green",
+            hasUnread: true
+        ),
+        ChatPreviewItem(
+            title: "Классный руководитель",
+            message: "Спасибо всем, кто сдал деньги на книги!",
+            timeLabel: "Вчера",
+            icon: "graduationcap.fill",
+            colorName: "blue",
+            hasUnread: true
+        ),
+        ChatPreviewItem(
+            title: "Родительский комитет",
+            message: "Итоги голосования по празднику",
+            timeLabel: "Вчера",
+            icon: "building.columns.fill",
+            colorName: "teal",
+            hasUnread: false
+        )
+    ]
+
+    static let weekDays = [
+        DayChip(weekday: "Пн", day: "19", isSelected: false),
+        DayChip(weekday: "Вт", day: "20", isSelected: false),
+        DayChip(weekday: "Ср", day: "21", isSelected: false),
+        DayChip(weekday: "Чт", day: "22", isSelected: true),
+        DayChip(weekday: "Пт", day: "23", isSelected: false),
+        DayChip(weekday: "Сб", day: "24", isSelected: false),
+        DayChip(weekday: "Вс", day: "25", isSelected: false)
+    ]
+}

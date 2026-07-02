@@ -8,18 +8,15 @@ struct AppView: View {
             ForEach(AppTab.allCases) { tab in
                 NavigationStack {
                     tab.content
-                        .navigationTitle(tab.title)
-                        .toolbarTitleDisplayMode(.inline)
                 }
                 .tabItem { tab.label }
                 .tag(tab)
             }
         }
-        .tint(SchoolTheme.accent)
+        .tint(SchoolTheme.success)
     }
 }
 
 #Preview {
     AppView()
 }
-
