@@ -2,20 +2,117 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
+private struct ClassPhotoItem: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var author: String
+    var dateLabel: String
+    var status: String
+    var attachment: String?
+
+    init(id: UUID = UUID(), title: String, author: String, dateLabel: String, status: String = "В альбоме", attachment: String? = nil) {
+        self.id = id
+        self.title = title
+        self.author = author
+        self.dateLabel = dateLabel
+        self.status = status
+        self.attachment = attachment
+    }
+}
+
+private struct PhotoAlbumSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var subtitle: String
+    var iconName: String
+    var colorName: String
+    var photos: [ClassPhotoItem]
+
+    init(id: UUID = UUID(), title: String, subtitle: String, iconName: String, colorName: String, photos: [ClassPhotoItem]) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.iconName = iconName
+        self.colorName = colorName
+        self.photos = photos
+    }
+
+    static let sample = [
+        PhotoAlbumSummary(
+            title: "Экскурсии",
+            subtitle: "Музей, театр и выезды класса",
+            iconName: "photo.on.rectangle",
+            colorName: "blue",
+            photos: [
+                ClassPhotoItem(title: "Музей космонавтики", author: "Мария, родкомитет", dateLabel: "12 сентября"),
+                ClassPhotoItem(title: "Автобус перед школой", author: "Екатерина", dateLabel: "12 сентября")
+            ]
+        ),
+        PhotoAlbumSummary(
+            title: "Праздники",
+            subtitle: "Дни рождения, 1 сентября, выпускные",
+            iconName: "party.popper",
+            colorName: "orange",
+            photos: [
+                ClassPhotoItem(title: "День учителя", author: "Анна", dateLabel: "5 октября")
+            ]
+        ),
+        PhotoAlbumSummary(
+            title: "Будни класса",
+            subtitle: "Проекты, уроки, стенды и поделки",
+            iconName: "camera",
+            colorName: "teal",
+            photos: [
+                ClassPhotoItem(title: "Проект по окружающему миру", author: "Учитель", dateLabel: "Вчера")
+            ]
+        ),
+        PhotoAlbumSummary(
+            title: "Документы",
+            subtitle: "Согласия, памятки и важные сканы",
+            iconName: "doc.text",
+            colorName: "green",
+            photos: [
+                ClassPhotoItem(title: "Памятка на экскурсию", author: "Учитель", dateLabel: "Сегодня")
+            ]
+        )
+    ]
+}
+
 private struct ClassRoomStoreSnapshot: Codable {
     var feedItems: [FeedItem]
     var collections: [CollectionSummary]
     var chatThreads: [ChatThread]
     var digestItems: [ChatDigestItem]
     var members: [ClassMemberSummary]
+    var photoAlbums: [PhotoAlbumSummary]
 
-    static let sample = ClassRoomStoreSnapshot(
-        feedItems: SampleData.feed,
-        collections: SampleData.collections,
-        chatThreads: SampleData.chatThreads,
-        digestItems: SampleData.chatDigestItems,
-        members: SampleData.classMembers
-    )
+    init(
+        feedItems: [FeedItem] = SampleData.feed,
+        collections: [CollectionSummary] = SampleData.collections,
+        chatThreads: [ChatThread] = SampleData.chatThreads,
+        digestItems: [ChatDigestItem] = SampleData.chatDigestItems,
+        members: [ClassMemberSummary] = SampleData.classMembers,
+        photoAlbums: [PhotoAlbumSummary] = PhotoAlbumSummary.sample
+    ) {
+        self.feedItems = feedItems
+        self.collections = collections
+        self.chatThreads = chatThreads
+        self.digestItems = digestItems
+        self.members = members
+        self.photoAlbums = photoAlbums
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        feedItems = try container.decodeIfPresent([FeedItem].self, forKey: .feedItems) ?? SampleData.feed
+        collections = try container.decodeIfPresent([CollectionSummary].self, forKey: .collections) ?? SampleData.collections
+        chatThreads = try container.decodeIfPresent([ChatThread].self, forKey: .chatThreads) ?? SampleData.chatThreads
+        digestItems = try container.decodeIfPresent([ChatDigestItem].self, forKey: .digestItems) ?? SampleData.chatDigestItems
+        members = try container.decodeIfPresent([ClassMemberSummary].self, forKey: .members) ?? SampleData.classMembers
+        photoAlbums = try container.decodeIfPresent([PhotoAlbumSummary].self, forKey: .photoAlbums) ?? PhotoAlbumSummary.sample
+    }
+
+    static let sample = ClassRoomStoreSnapshot()
 }
 
 private enum ClassRoomLocalStore {
@@ -62,6 +159,14 @@ private enum ClassRoomLocalStore {
         }
     }
 
+    static var photoAlbums: [PhotoAlbumSummary] {
+        get { snapshot.photoAlbums }
+        set {
+            snapshot.photoAlbums = newValue
+            save()
+        }
+    }
+
     static func resetIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-qa-reset-class-store") else {
             return
@@ -100,6 +205,7 @@ struct ClassRoomView: View {
     @State private var chatThreads: [ChatThread]
     @State private var digestItems: [ChatDigestItem]
     @State private var members: [ClassMemberSummary]
+    @State private var photoAlbums: [PhotoAlbumSummary]
     @State private var activeSheet: ClassRoomSheet?
 
     init(userRole: AppUserRole = .parent) {
@@ -112,6 +218,7 @@ struct ClassRoomView: View {
         _chatThreads = State(initialValue: ClassRoomLocalStore.chatThreads)
         _digestItems = State(initialValue: ClassRoomLocalStore.digestItems)
         _members = State(initialValue: ClassRoomLocalStore.members)
+        _photoAlbums = State(initialValue: ClassRoomLocalStore.photoAlbums)
         _activeSheet = State(initialValue: launchSheet)
     }
 
@@ -188,6 +295,10 @@ struct ClassRoomView: View {
                         title: "Приглашения закрыты",
                         detail: "Участников приглашает администратор класса, учитель или родкомитет."
                     )
+                }
+            case .photoAlbum(let album):
+                PhotoAlbumSheet(album: album, userRole: userRole) { updatedAlbum in
+                    updatePhotoAlbum(updatedAlbum)
                 }
             }
         }
@@ -512,11 +623,35 @@ struct ClassRoomView: View {
     }
 
     private var photosContent: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            photoTile("Экскурсии", "photo.on.rectangle", SchoolTheme.accent)
-            photoTile("Праздники", "party.popper", SchoolTheme.warning)
-            photoTile("Будни класса", "camera", SchoolTheme.teal)
-            photoTile("Документы", "doc.text", SchoolTheme.success)
+        VStack(spacing: 12) {
+            DashboardCard {
+                HStack(spacing: 12) {
+                    collectionMetric(value: "\(photoAlbums.count)", title: "альбома", color: SchoolTheme.accent)
+                    Divider()
+                    collectionMetric(value: "\(photoAlbums.reduce(0) { $0 + $1.photos.count })", title: "фото", color: SchoolTheme.success)
+                    Divider()
+                    collectionMetric(value: "закрыт", title: "доступ", color: SchoolTheme.teal)
+                }
+                .frame(height: 62)
+            }
+
+            roleRestrictionCard(
+                title: "Только участники класса",
+                detail: "Фото и документы класса видны только тем, кто находится в закрытой комнате класса. Публичной ссылки на альбомы нет.",
+                iconName: "lock.shield.fill",
+                color: SchoolTheme.teal
+            )
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(photoAlbums) { album in
+                    Button {
+                        activeSheet = .photoAlbum(album)
+                    } label: {
+                        photoTile(album)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -614,14 +749,25 @@ struct ClassRoomView: View {
         return "\(count) \(suffix)"
     }
 
-    private func photoTile(_ title: String, _ icon: String, _ color: Color) -> some View {
+    private func photoTile(_ album: PhotoAlbumSummary) -> some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 18) {
-                IconBadge(systemName: icon, color: color)
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(SchoolTheme.graphite)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                IconBadge(systemName: album.iconName, color: color(for: album.colorName))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(album.title)
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .lineLimit(1)
+                    Text("\(album.photos.count) фото")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color(for: album.colorName))
+                    Text(album.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -691,6 +837,15 @@ struct ClassRoomView: View {
         ClassRoomLocalStore.feedItems = feedItems
     }
 
+    private func updatePhotoAlbum(_ updatedAlbum: PhotoAlbumSummary) {
+        guard let index = photoAlbums.firstIndex(where: { $0.id == updatedAlbum.id }) else {
+            return
+        }
+
+        photoAlbums[index] = updatedAlbum
+        ClassRoomLocalStore.photoAlbums = photoAlbums
+    }
+
     private func openCreateAction() {
         switch selectedSection {
         case .collections:
@@ -740,6 +895,10 @@ struct ClassRoomView: View {
             SchoolTheme.teal
         case "red":
             SchoolTheme.danger
+        case "orange":
+            SchoolTheme.warning
+        case "blue":
+            SchoolTheme.accent
         default:
             SchoolTheme.accent
         }
@@ -805,7 +964,379 @@ struct ClassRoomView: View {
             return .inviteMembers
         }
 
+        if arguments.contains("-qa-photo-album") || arguments.contains("-qa-class-photo-dialog") || arguments.contains("-qa-class-photo-file-importer"),
+           let firstAlbum = PhotoAlbumSummary.sample.first {
+            return .photoAlbum(firstAlbum)
+        }
+
         return nil
+    }
+}
+
+private struct PhotoAlbumSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let userRole: AppUserRole
+    let onSave: (PhotoAlbumSummary) -> Void
+
+    @State private var album: PhotoAlbumSummary
+    @State private var newTitle = "Фото с мероприятия"
+    @State private var attachmentStatus: String?
+    @State private var isPhotoDialogVisible = false
+    @State private var isImagePickerVisible = false
+    @State private var isFileImporterVisible = false
+    @State private var photoPickerSource: UIImagePickerController.SourceType = .photoLibrary
+
+    init(album: PhotoAlbumSummary, userRole: AppUserRole, onSave: @escaping (PhotoAlbumSummary) -> Void) {
+        self.userRole = userRole
+        self.onSave = onSave
+        _album = State(initialValue: album)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    CollectionSheetHeader(
+                        icon: album.iconName,
+                        color: color(for: album.colorName),
+                        title: album.title,
+                        subtitle: album.subtitle
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            albumMetric(value: "\(album.photos.count)", title: "фото", color: color(for: album.colorName))
+                            Divider()
+                            albumMetric(value: "закрыт", title: "доступ", color: SchoolTheme.teal)
+                            Divider()
+                            albumMetric(value: "\(reportedCount)", title: "жалоб", color: SchoolTheme.danger)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            IconBadge(systemName: "lock.shield.fill", color: SchoolTheme.teal, size: 42)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Доступ только классу")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Text("Фото не публикуются наружу. Жалоба помечает фото для модерации администратором класса.")
+                                    .font(.caption)
+                                    .foregroundStyle(SchoolTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Фото")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            if album.photos.isEmpty {
+                                emptyPhotoRow
+                            } else {
+                                ForEach(album.photos) { photo in
+                                    photoRow(photo)
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            CollectionTextField(title: "Название", iconName: "text.badge.plus", color: color(for: album.colorName), text: $newTitle)
+
+                            if let attachmentStatus {
+                                Label(attachmentStatus, systemImage: "checkmark.circle.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(SchoolTheme.success)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    isPhotoDialogVisible = true
+                                } label: {
+                                    Label("Фото", systemImage: "camera.fill")
+                                        .font(.caption.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 42)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.success)
+
+                                Button {
+                                    isFileImporterVisible = true
+                                } label: {
+                                    Label("Файл", systemImage: "paperclip")
+                                        .font(.caption.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 42)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.accent)
+                            }
+
+                            Button {
+                                addPhoto()
+                            } label: {
+                                Label("Добавить в альбом", systemImage: "plus")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 48)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(color(for: album.colorName))
+                            .disabled(newTitle.trimmed.isEmpty)
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Готово", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Альбом")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+            .confirmationDialog("Добавить фото", isPresented: $isPhotoDialogVisible, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Сделать фото") {
+                        showPhotoPicker(.camera)
+                    }
+                }
+
+                Button("Выбрать из галереи") {
+                    showPhotoPicker(.photoLibrary)
+                }
+
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Фото будет добавлено только в закрытый альбом класса.")
+            }
+            .sheet(isPresented: $isImagePickerVisible) {
+                ClassAlbumPhotoPicker(sourceType: photoPickerSource) { displayName in
+                    attachmentStatus = "Фото выбрано: \(displayName)"
+                }
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.image, .pdf, .item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
+            }
+            .onAppear {
+                runQAImporterChecks()
+            }
+        }
+    }
+
+    private var reportedCount: Int {
+        album.photos.filter { $0.status == "Жалоба" }.count
+    }
+
+    private var emptyPhotoRow: some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: "photo.on.rectangle.angled", color: SchoolTheme.muted, size: 40)
+            Text("В альбоме пока нет фото")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+            Spacer()
+        }
+    }
+
+    private func photoRow(_ photo: ClassPhotoItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: "photo.fill", color: statusColor(photo.status), size: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 7) {
+                        Text(photo.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        StatusBadge(text: photo.status, color: statusColor(photo.status))
+                    }
+                    Text("\(photo.author) - \(photo.dateLabel)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+                    if let attachment = photo.attachment {
+                        Text(attachment)
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                photoAction("Скачать", "arrow.down.circle.fill", SchoolTheme.success) {
+                    update(photo, status: "Скачано")
+                }
+                photoAction("Поделиться", "square.and.arrow.up.fill", SchoolTheme.accent) {
+                    update(photo, status: "Поделиться")
+                }
+                photoAction("Жалоба", "exclamationmark.bubble.fill", SchoolTheme.danger) {
+                    update(photo, status: "Жалоба")
+                }
+                photoAction("Удалить", "trash.fill", SchoolTheme.warning) {
+                    delete(photo)
+                }
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+
+    private func photoAction(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private func albumMetric(value: String, title: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func addPhoto() {
+        album.photos.insert(
+            ClassPhotoItem(
+                title: newTitle.trimmed,
+                author: userRole.title,
+                dateLabel: "Сегодня",
+                attachment: attachmentStatus
+            ),
+            at: 0
+        )
+        newTitle = ""
+        attachmentStatus = nil
+        onSave(album)
+    }
+
+    private func update(_ photo: ClassPhotoItem, status: String) {
+        guard let index = album.photos.firstIndex(where: { $0.id == photo.id }) else {
+            return
+        }
+
+        album.photos[index].status = status
+        onSave(album)
+    }
+
+    private func delete(_ photo: ClassPhotoItem) {
+        album.photos.removeAll { $0.id == photo.id }
+        onSave(album)
+    }
+
+    private func save() {
+        onSave(album)
+        dismiss()
+    }
+
+    private func showPhotoPicker(_ sourceType: UIImagePickerController.SourceType) {
+        photoPickerSource = sourceType
+        isImagePickerVisible = true
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                attachmentStatus = "Файл не выбран"
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            attachmentStatus = "Файл выбран: \(url.lastPathComponent.isEmpty ? "документ" : url.lastPathComponent)"
+        case .failure:
+            attachmentStatus = "Не удалось выбрать файл"
+        }
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status {
+        case "Скачано":
+            SchoolTheme.success
+        case "Поделиться":
+            SchoolTheme.accent
+        case "Жалоба":
+            SchoolTheme.danger
+        default:
+            color(for: album.colorName)
+        }
+    }
+
+    private func color(for colorName: String) -> Color {
+        switch colorName {
+        case "green":
+            SchoolTheme.success
+        case "teal":
+            SchoolTheme.teal
+        case "orange":
+            SchoolTheme.warning
+        default:
+            SchoolTheme.accent
+        }
+    }
+
+    private func runQAImporterChecks() {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            if arguments.contains("-qa-class-photo-dialog") {
+                isPhotoDialogVisible = true
+            }
+
+            if arguments.contains("-qa-class-photo-file-importer") {
+                isFileImporterVisible = true
+            }
+        }
     }
 }
 
@@ -1454,8 +1985,58 @@ private struct ReceiptPhotoPicker: UIViewControllerRepresentable {
     }
 }
 
+private struct ClassAlbumPhotoPicker: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+
+    let sourceType: UIImagePickerController.SourceType
+    let onPick: (String) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ClassAlbumPhotoPicker
+
+        init(parent: ClassAlbumPhotoPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let pickedURL = info[.imageURL] as? URL
+            let defaultName = parent.sourceType == .camera ? "снимок \(Date().classPhotoTimestamp)" : "фото класса"
+            parent.onPick(pickedURL?.lastPathComponent ?? defaultName)
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
+}
+
 private extension Date {
     var receiptAttachmentTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM HH:mm"
+        return formatter.string(from: self)
+    }
+
+    var classPhotoTimestamp: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd.MM HH:mm"
         return formatter.string(from: self)
@@ -2404,6 +2985,7 @@ private enum ClassRoomSheet: Identifiable, Hashable {
     case announcementDetail(FeedItem)
     case newAnnouncement
     case inviteMembers
+    case photoAlbum(PhotoAlbumSummary)
 
     var id: String {
         switch self {
@@ -2421,6 +3003,8 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             "new-announcement"
         case .inviteMembers:
             "invite-members"
+        case .photoAlbum(let album):
+            "photo-album-\(album.id.uuidString)"
         }
     }
 
@@ -2434,6 +3018,8 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             .feed
         case .inviteMembers:
             .members
+        case .photoAlbum:
+            .photos
         }
     }
 }

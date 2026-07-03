@@ -531,29 +531,29 @@
   - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/more-files-screen.png`, `.build/screenshots/more-files-importer.png`
   - Комментарий: реализован локальный каталог файлов с фильтрами, поиском, ручным добавлением и document picker; бинарное хранение файлов, права доступа и синхронизация еще не подключены
 
-- [ ] Альбомы класса
+- [~] Альбомы класса
   - Проверка: можно создать альбом события и загрузить фото
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
+  - Комментарий: добавлены локальные альбомы, детальный экран альбома и добавление фото/файла; создание новых альбомов и облачное хранение еще не реализованы
 
-- [ ] Доступ только участникам класса
+- [~] Доступ только участникам класса
   - Проверка: фото недоступны публично и без авторизации
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий: приватность детей
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`
+  - Комментарий: в UI явно показан закрытый доступ и отсутствие публичной ссылки; настоящая серверная авторизация и приватное файловое хранилище обязательны до релиза
 
-- [ ] Действия с фото
+- [~] Действия с фото
   - Проверка: загрузить, скачать, поделиться, пожаловаться, удалить
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
+  - Комментарий: добавлены локальные действия загрузить, скачать, поделиться, пожаловаться и удалить; реальные share/download/moderation API еще не подключены
 
-- [ ] Ограничить будущие функции
+- [x] Ограничить будущие функции
   - Проверка: поиск ребенка по фото, фотокниги и скрытие лиц не попали в первый MVP без отдельного решения
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 2
+  - Артефакт: `docs/mvp_scope.md`
+  - Комментарий: поиск ребенка по фото, печать фотокниг и выпускные альбомы вынесены из первого MVP
 
 ## 14. Семейный диспетчер
 
@@ -962,3 +962,4 @@
 | 2026-07-03 | Семейные задачи | Пройдено | 3 | `.build/screenshots/more-family-tasks.png` | Добавлен локальный экран семейных задач с назначением, персональным напоминанием, передачей и завершением; сборка `xcodebuild` проходит |
 | 2026-07-03 | Глобальный помощник Разобрать | Пройдено | 3 | `.build/screenshots/today-global-parse.png`, `.build/screenshots/today-global-parse-photo-dialog.png`, `.build/screenshots/today-global-parse-file-importer.png` | Добавлен локальный разбор фото/скрина/файла/голоса/текста в ДЗ, события, оплаты и семейные задачи с обязательным подтверждением; сборка `xcodebuild` проходит |
 | 2026-07-03 | Продуктовая рамка MVP | Пройдено | 2 | `docs/mvp_scope.md` | Зафиксированы главный оффер, граница MVP / позже / не делать, главный сценарий без учителя и North Star Metric |
+| 2026-07-03 | Фотоальбомы класса | Пройдено | 3 | `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png` | Добавлены локальные альбомы класса, закрытый доступ, добавление фото/файла и действия скачать/поделиться/жалоба/удалить; сборка `xcodebuild` проходит |
