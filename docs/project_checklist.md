@@ -741,41 +741,41 @@
 
 ## 19. Аналитика
 
-- [ ] События установки и аккаунта
+- [~] События установки и аккаунта
   - Проверка: app_installed, account_created, child_added
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: добавлены локальные события app_installed, account_created и child_added в экран MVP-метрик; реальная отправка и дедупликация событий еще не подключены
 
-- [ ] События класса
+- [~] События класса
   - Проверка: class_created, class_joined, parent_invited, teacher_invited, class_activated
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: локально заведены class_created и parent_invited, а активация класса показана в главной метрике; class_joined, teacher_invited и серверная class_activated-логика еще не реализованы
 
-- [ ] События ДЗ и AI
+- [~] События ДЗ и AI
   - Проверка: homework_created, homework_photo_scanned, ai_result_saved
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: локально заведены события создания ДЗ, разбора фото/файла и сохранения AI-результата; настоящая аналитика по каждому действию еще не отправляется
 
-- [ ] События календаря и сборов
+- [~] События календаря и сборов
   - Проверка: event_created, collection_created, reminder_triggered
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: локально заведены event_created и collection_created; reminder_triggered потребует настоящих уведомлений
 
-- [ ] События подписки
+- [~] События подписки
   - Проверка: paywall_viewed, trial_started, subscription_started, subscription_cancelled
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: локально заведены paywall_viewed и trial_started; subscription_started/subscription_cancelled требуют StoreKit 2
 
-- [ ] Дашборд MVP-метрик
+- [~] Дашборд MVP-метрик
   - Проверка: видны активация класса, 3+ ДЗ в неделю, 1+ событие/сбор, retention 30 дней, конверсия в подписку
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-mvp-metrics.png`
+  - Комментарий: добавлен локальный экран MVP-метрик с активацией класса, ДЗ в неделю, событиями/сборами, retention 30 дней и trial/подпиской; backend-дашборд и реальные cohort-метрики еще не готовы
 
 ## 20. QA и приемка
 
@@ -965,3 +965,4 @@
 | 2026-07-03 | Фотоальбомы класса | Пройдено | 3 | `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png` | Добавлены локальные альбомы класса, закрытый доступ, добавление фото/файла и действия скачать/поделиться/жалоба/удалить; сборка `xcodebuild` проходит |
 | 2026-07-03 | Журнал действий и аудит | Пройдено | 3 | `.build/screenshots/more-audit-log.png` | Добавлен локальный AuditLog в разделе `Еще`: фиксируются изменения профиля, детей, семьи, классов, подписки, уведомлений, файлов, безопасности и семейных задач; сборка `xcodebuild` проходит |
 | 2026-07-03 | Приватность и согласие | Пройдено | 3 | `.build/screenshots/more-privacy-screen.png` | Добавлен локальный центр приватности: минимизация данных ребенка, согласие родителя, принятие политики и краткое объяснение категорий данных; сборка `xcodebuild` проходит |
+| 2026-07-03 | MVP-метрики и события | Пройдено | 3 | `.build/screenshots/more-mvp-metrics.png` | Добавлен локальный экран продуктовых метрик и событий: аккаунт, класс, ДЗ/AI, календарь/сборы, подписка и QA smoke; сборка `xcodebuild` проходит |

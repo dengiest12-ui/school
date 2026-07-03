@@ -163,6 +163,91 @@ private struct AuditLogEntry: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct AnalyticsEventSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var name: String
+    var group: String
+    var detail: String
+    var count: Int
+    var lastSeen: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        group: String,
+        detail: String,
+        count: Int,
+        lastSeen: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.name = name
+        self.group = group
+        self.detail = detail
+        self.count = count
+        self.lastSeen = lastSeen
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        AnalyticsEventSummary(name: "app_installed", group: "Аккаунт", detail: "Первый запуск приложения", count: 1, lastSeen: "сегодня", iconName: "iphone.gen3", colorName: "blue"),
+        AnalyticsEventSummary(name: "account_created", group: "Аккаунт", detail: "Локальный профиль родителя создан", count: 1, lastSeen: "сегодня", iconName: "person.crop.circle.badge.checkmark", colorName: "green"),
+        AnalyticsEventSummary(name: "child_added", group: "Аккаунт", detail: "Добавлен профиль ребенка", count: 2, lastSeen: "сегодня", iconName: "person.crop.square", colorName: "green"),
+        AnalyticsEventSummary(name: "class_created", group: "Класс", detail: "Создана комната 3Б", count: 1, lastSeen: "сегодня", iconName: "building.2.fill", colorName: "blue"),
+        AnalyticsEventSummary(name: "parent_invited", group: "Класс", detail: "Приглашение семьи по коду", count: 3, lastSeen: "вчера", iconName: "person.badge.plus", colorName: "teal"),
+        AnalyticsEventSummary(name: "homework_created", group: "ДЗ и AI", detail: "Домашнее задание добавлено вручную", count: 5, lastSeen: "сегодня", iconName: "book.closed.fill", colorName: "green"),
+        AnalyticsEventSummary(name: "homework_photo_scanned", group: "ДЗ и AI", detail: "Разбор фото или файла ДЗ", count: 2, lastSeen: "сегодня", iconName: "camera.viewfinder", colorName: "blue"),
+        AnalyticsEventSummary(name: "ai_result_saved", group: "ДЗ и AI", detail: "Результат разбора подтвержден", count: 2, lastSeen: "сегодня", iconName: "sparkles", colorName: "orange"),
+        AnalyticsEventSummary(name: "event_created", group: "Календарь и сборы", detail: "Событие класса добавлено", count: 2, lastSeen: "вчера", iconName: "calendar.badge.plus", colorName: "teal"),
+        AnalyticsEventSummary(name: "collection_created", group: "Календарь и сборы", detail: "Сбор родкомитета создан", count: 1, lastSeen: "вчера", iconName: "rublesign.circle.fill", colorName: "orange"),
+        AnalyticsEventSummary(name: "paywall_viewed", group: "Подписка", detail: "Экран подписки открыт", count: 4, lastSeen: "сегодня", iconName: "creditcard.fill", colorName: "orange"),
+        AnalyticsEventSummary(name: "trial_started", group: "Подписка", detail: "Пробный период выбран локально", count: 1, lastSeen: "сегодня", iconName: "checkmark.seal.fill", colorName: "green")
+    ]
+}
+
+private struct MvpMetricSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var value: String
+    var target: String
+    var status: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        value: String,
+        target: String,
+        status: String,
+        detail: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.target = target
+        self.status = status
+        self.detail = detail
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        MvpMetricSummary(title: "Активация класса", value: "68%", target: "цель 60%", status: "В норме", detail: "Есть класс, дети, семья и первые события", iconName: "flag.checkered", colorName: "green"),
+        MvpMetricSummary(title: "ДЗ в неделю", value: "5", target: "цель 3+", status: "В норме", detail: "Проверяет, возвращаются ли родители за домашкой", iconName: "book.closed.fill", colorName: "green"),
+        MvpMetricSummary(title: "Событие или сбор", value: "3", target: "цель 1+", status: "В норме", detail: "Класс использует календарь и родкомитет", iconName: "calendar.badge.clock", colorName: "teal"),
+        MvpMetricSummary(title: "Retention 30 дней", value: "локально", target: "нужен backend", status: "Риск", detail: "Без серверной аналитики считается только как UX-заготовка", iconName: "chart.line.uptrend.xyaxis", colorName: "orange"),
+        MvpMetricSummary(title: "Конверсия в подписку", value: "trial", target: "нужен StoreKit", status: "Риск", detail: "До StoreKit виден только локальный paywall-сценарий", iconName: "creditcard.fill", colorName: "orange")
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -177,6 +262,8 @@ private struct MoreStoreSnapshot: Codable {
     var securitySettings: SecuritySettingsState
     var auditEntries: [AuditLogEntry]
     var privacySettings: PrivacySettingsState
+    var analyticsEvents: [AnalyticsEventSummary]
+    var mvpMetrics: [MvpMetricSummary]
 
     init(
         profile: ParentProfileState = .sample,
@@ -191,7 +278,9 @@ private struct MoreStoreSnapshot: Codable {
         classFiles: [ClassFileSummary],
         securitySettings: SecuritySettingsState = .sample,
         auditEntries: [AuditLogEntry] = AuditLogEntry.sample,
-        privacySettings: PrivacySettingsState = .sample
+        privacySettings: PrivacySettingsState = .sample,
+        analyticsEvents: [AnalyticsEventSummary] = AnalyticsEventSummary.sample,
+        mvpMetrics: [MvpMetricSummary] = MvpMetricSummary.sample
     ) {
         self.profile = profile
         self.children = children
@@ -206,6 +295,8 @@ private struct MoreStoreSnapshot: Codable {
         self.securitySettings = securitySettings
         self.auditEntries = auditEntries
         self.privacySettings = privacySettings
+        self.analyticsEvents = analyticsEvents
+        self.mvpMetrics = mvpMetrics
     }
 
     init(from decoder: Decoder) throws {
@@ -223,6 +314,8 @@ private struct MoreStoreSnapshot: Codable {
         securitySettings = try container.decodeIfPresent(SecuritySettingsState.self, forKey: .securitySettings) ?? .sample
         auditEntries = try container.decodeIfPresent([AuditLogEntry].self, forKey: .auditEntries) ?? AuditLogEntry.sample
         privacySettings = try container.decodeIfPresent(PrivacySettingsState.self, forKey: .privacySettings) ?? .sample
+        analyticsEvents = try container.decodeIfPresent([AnalyticsEventSummary].self, forKey: .analyticsEvents) ?? AnalyticsEventSummary.sample
+        mvpMetrics = try container.decodeIfPresent([MvpMetricSummary].self, forKey: .mvpMetrics) ?? MvpMetricSummary.sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -238,7 +331,9 @@ private struct MoreStoreSnapshot: Codable {
         classFiles: SampleData.classFiles,
         securitySettings: .sample,
         auditEntries: AuditLogEntry.sample,
-        privacySettings: .sample
+        privacySettings: .sample,
+        analyticsEvents: AnalyticsEventSummary.sample,
+        mvpMetrics: MvpMetricSummary.sample
     )
 }
 
@@ -350,6 +445,22 @@ private enum MoreLocalStore {
         }
     }
 
+    static var analyticsEvents: [AnalyticsEventSummary] {
+        get { snapshot.analyticsEvents }
+        set {
+            snapshot.analyticsEvents = newValue
+            save()
+        }
+    }
+
+    static var mvpMetrics: [MvpMetricSummary] {
+        get { snapshot.mvpMetrics }
+        set {
+            snapshot.mvpMetrics = newValue
+            save()
+        }
+    }
+
     static func recordAudit(_ entry: AuditLogEntry) {
         snapshot.auditEntries.insert(entry, at: 0)
         save()
@@ -398,6 +509,8 @@ struct MoreView: View {
     @State private var securitySettings: SecuritySettingsState
     @State private var auditEntries: [AuditLogEntry]
     @State private var privacySettings: PrivacySettingsState
+    @State private var analyticsEvents: [AnalyticsEventSummary]
+    @State private var mvpMetrics: [MvpMetricSummary]
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -415,6 +528,8 @@ struct MoreView: View {
         _securitySettings = State(initialValue: MoreLocalStore.securitySettings)
         _auditEntries = State(initialValue: MoreLocalStore.auditEntries)
         _privacySettings = State(initialValue: MoreLocalStore.privacySettings)
+        _analyticsEvents = State(initialValue: MoreLocalStore.analyticsEvents)
+        _mvpMetrics = State(initialValue: MoreLocalStore.mvpMetrics)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -581,6 +696,21 @@ struct MoreView: View {
                         colorName: "green"
                     )
                 }
+            case .metrics:
+                MvpMetricsSheet(events: analyticsEvents, metrics: mvpMetrics) { updatedEvents, updatedMetrics in
+                    analyticsEvents = updatedEvents
+                    mvpMetrics = updatedMetrics
+                    MoreLocalStore.analyticsEvents = updatedEvents
+                    MoreLocalStore.mvpMetrics = updatedMetrics
+                    recordAudit(
+                        title: "MVP-метрики обновлены",
+                        detail: "Событий: \(updatedEvents.count), метрик: \(updatedMetrics.count)",
+                        target: "Аналитика",
+                        category: "Метрики",
+                        iconName: "chart.bar.xaxis",
+                        colorName: "blue"
+                    )
+                }
             case .support:
                 SupportMessageSheet(kind: .support)
             case .problem:
@@ -678,7 +808,8 @@ struct MoreView: View {
             MoreMenuItem(title: "Уведомления", subtitle: "\(enabledNotificationCount) включено: дайджесты, дедлайны, срочное", icon: "bell.fill", color: SchoolTheme.success, sheet: .notifications),
             MoreMenuItem(title: "Память класса", subtitle: "\(classMemory.count) находки: объявления, файлы, события", icon: "magnifyingglass", color: SchoolTheme.accent, sheet: .memory),
             MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files),
-            MoreMenuItem(title: "Журнал действий", subtitle: "\(auditEntries.count) записей: роли, доступы, файлы", icon: "list.bullet.rectangle.portrait.fill", color: SchoolTheme.graphite, sheet: .audit)
+            MoreMenuItem(title: "Журнал действий", subtitle: "\(auditEntries.count) записей: роли, доступы, файлы", icon: "list.bullet.rectangle.portrait.fill", color: SchoolTheme.graphite, sheet: .audit),
+            MoreMenuItem(title: "MVP-метрики", subtitle: "\(eventsTotal) событий: активация, ДЗ, сборы, trial", icon: "chart.bar.xaxis", color: SchoolTheme.accent, sheet: .metrics)
         ]
     }
 
@@ -696,6 +827,10 @@ struct MoreView: View {
 
     private var openFamilyTaskCount: Int {
         familyTasks.filter { $0.status != "Готово" }.count
+    }
+
+    private var eventsTotal: Int {
+        analyticsEvents.map(\.count).reduce(0, +)
     }
 
     private var helpItems: [MoreMenuItem] {
@@ -775,6 +910,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-privacy") {
             return .privacy
+        }
+
+        if arguments.contains("-qa-more-metrics") {
+            return .metrics
         }
 
         if arguments.contains("-qa-more-support") {
@@ -3060,6 +3199,227 @@ private struct PrivacySettingsSheet: View {
     }
 }
 
+private struct MvpMetricsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([AnalyticsEventSummary], [MvpMetricSummary]) -> Void
+
+    @State private var events: [AnalyticsEventSummary]
+    @State private var metrics: [MvpMetricSummary]
+    @State private var selectedGroup = "Все"
+
+    init(
+        events: [AnalyticsEventSummary],
+        metrics: [MvpMetricSummary],
+        onSave: @escaping ([AnalyticsEventSummary], [MvpMetricSummary]) -> Void
+    ) {
+        self.onSave = onSave
+        _events = State(initialValue: events)
+        _metrics = State(initialValue: metrics)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "chart.bar.xaxis",
+                        color: SchoolTheme.accent,
+                        title: "MVP-метрики",
+                        subtitle: "Активация класса, ДЗ, события, сборы и trial"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(eventsTotal)", title: "событий", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(healthyMetrics)", title: "в норме", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(riskMetrics)", title: "риски", color: SchoolTheme.warning)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Главные метрики")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(metrics) { metric in
+                                metricRow(metric)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("События")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                Button {
+                                    addSmokeEvent()
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(SchoolTheme.accent)
+                                        .frame(width: 34, height: 34)
+                                        .background(SchoolTheme.accent.opacity(0.10), in: Circle())
+                                }
+                                .accessibilityLabel("Добавить тестовое событие")
+                            }
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(groups, id: \.self) { group in
+                                        Button {
+                                            selectedGroup = group
+                                        } label: {
+                                            Text(group)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(selectedGroup == group ? .white : SchoolTheme.graphite)
+                                                .lineLimit(1)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    selectedGroup == group ? SchoolTheme.accent : SchoolTheme.page,
+                                                    in: Capsule()
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+
+                            ForEach(filteredEvents) { event in
+                                eventRow(event)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Сейчас это локальная аналитика", systemImage: "externaldrive.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Экран фиксирует продуктовую схему: какие события нужны для MVP и какие метрики показывают пользу. Для релиза события должны отправляться на backend или в выбранную аналитику с учетом согласия и приватности.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Метрики")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var groups: [String] {
+        ["Все"] + Array(Set(events.map(\.group))).sorted()
+    }
+
+    private var filteredEvents: [AnalyticsEventSummary] {
+        events.filter { event in
+            selectedGroup == "Все" || event.group == selectedGroup
+        }
+    }
+
+    private var eventsTotal: Int {
+        events.map(\.count).reduce(0, +)
+    }
+
+    private var healthyMetrics: Int {
+        metrics.filter { $0.status == "В норме" }.count
+    }
+
+    private var riskMetrics: Int {
+        metrics.filter { $0.status != "В норме" }.count
+    }
+
+    private func metricRow(_ metric: MvpMetricSummary) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: metric.iconName, color: moreColor(for: metric.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(metric.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: metric.status, color: moreColor(for: metric.colorName))
+                }
+                Text("\(metric.value) - \(metric.target)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                Text(metric.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func eventRow(_ event: AnalyticsEventSummary) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: event.iconName, color: moreColor(for: event.colorName), size: 40)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(event.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: "\(event.count)", color: moreColor(for: event.colorName))
+                }
+                Text(event.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(event.group) - \(event.lastSeen)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func addSmokeEvent() {
+        events.insert(
+            AnalyticsEventSummary(
+                name: "qa_smoke_passed",
+                group: "QA",
+                detail: "Локальная проверка ключевого сценария",
+                count: 1,
+                lastSeen: "сейчас",
+                iconName: "checkmark.seal.fill",
+                colorName: "green"
+            ),
+            at: 0
+        )
+    }
+
+    private func save() {
+        onSave(events, metrics)
+        dismiss()
+    }
+}
+
 private struct SupportMessageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -3436,6 +3796,7 @@ private enum MoreSheet: String, Identifiable {
     case audit
     case security
     case privacy
+    case metrics
     case support
     case problem
     case logout
