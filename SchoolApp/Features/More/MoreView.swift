@@ -391,6 +391,9 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
     var entity: String
     var endpoint: String
     var status: String
+    var operation: String
+    var baseVersion: Int
+    var payloadPreview: String
     var retryPolicy: String
     var conflictRule: String
     var iconName: String
@@ -402,6 +405,9 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
         entity: String,
         endpoint: String,
         status: String,
+        operation: String = "create",
+        baseVersion: Int = 1,
+        payloadPreview: String = "{}",
         retryPolicy: String,
         conflictRule: String,
         iconName: String,
@@ -412,10 +418,44 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
         self.entity = entity
         self.endpoint = endpoint
         self.status = status
+        self.operation = operation
+        self.baseVersion = baseVersion
+        self.payloadPreview = payloadPreview
         self.retryPolicy = retryPolicy
         self.conflictRule = conflictRule
         self.iconName = iconName
         self.colorName = colorName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case entity
+        case endpoint
+        case status
+        case operation
+        case baseVersion
+        case payloadPreview
+        case retryPolicy
+        case conflictRule
+        case iconName
+        case colorName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        entity = try container.decode(String.self, forKey: .entity)
+        endpoint = try container.decode(String.self, forKey: .endpoint)
+        status = try container.decode(String.self, forKey: .status)
+        operation = try container.decodeIfPresent(String.self, forKey: .operation) ?? "create"
+        baseVersion = try container.decodeIfPresent(Int.self, forKey: .baseVersion) ?? 1
+        payloadPreview = try container.decodeIfPresent(String.self, forKey: .payloadPreview) ?? "{}"
+        retryPolicy = try container.decode(String.self, forKey: .retryPolicy)
+        conflictRule = try container.decode(String.self, forKey: .conflictRule)
+        iconName = try container.decode(String.self, forKey: .iconName)
+        colorName = try container.decode(String.self, forKey: .colorName)
     }
 
     static let sample = [
@@ -424,6 +464,7 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
             entity: "class_room",
             endpoint: "POST /classes",
             status: "Готово к API",
+            payloadPreview: #"{"title":"3Б","school":"Лицей 18"}"#,
             retryPolicy: "Повторить при offline",
             conflictRule: "Код класса уникален, владелец получает роль admin",
             iconName: "building.2.fill",
@@ -434,6 +475,7 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
             entity: "homework",
             endpoint: "POST /homework",
             status: "В очереди",
+            payloadPreview: #"{"subject":"Математика","assignees":"class"}"#,
             retryPolicy: "Сохранить черновик и повторить",
             conflictRule: "Последняя правка автора побеждает, история остается в AuditLog",
             iconName: "book.closed.fill",
@@ -444,6 +486,9 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
             entity: "announcement_read",
             endpoint: "PUT /announcements/{id}/reads/me",
             status: "Локально",
+            operation: "acknowledge",
+            baseVersion: 4,
+            payloadPreview: #"{"readAt":"client-now"}"#,
             retryPolicy: "Отправить фоном",
             conflictRule: "Read receipt идемпотентный, повтор безопасен",
             iconName: "checkmark.message.fill",
@@ -454,6 +499,7 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
             entity: "collection_receipt",
             endpoint: "POST /collections/{id}/receipts",
             status: "Нужен storage",
+            payloadPreview: #"{"amount":1200,"fileId":"pending-upload"}"#,
             retryPolicy: "Сначала загрузить файл, затем метаданные",
             conflictRule: "Удаление и правка только родкомитетом или автором",
             iconName: "receipt.fill",
@@ -619,12 +665,16 @@ private struct SyncDryRunResult: Hashable {
     var blockedCount: Int
     var requestID: String
     var summary: String
+    var mutations: [SyncMutationPreview]
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let queued = operations.filter { ["В очереди", "Локально", "Offline"].contains($0.status) }.count
         let blocked = operations.filter { ["Нужен storage", "Конфликт"].contains($0.status) }.count
         let accepted = max(operations.count - queued - blocked, 0)
         let suffix = UUID().uuidString.prefix(8).uppercased()
+        let mutations = operations.enumerated().map { index, operation in
+            SyncMutationPreview.make(environment: environment, operation: operation, index: index)
+        }
 
         return SyncDryRunResult(
             environment: environment,
@@ -632,7 +682,41 @@ private struct SyncDryRunResult: Hashable {
             queuedCount: queued,
             blockedCount: blocked,
             requestID: "dry-\(suffix)",
-            summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API."
+            summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API.",
+            mutations: mutations
+        )
+    }
+}
+
+private struct SyncMutationPreview: Identifiable, Hashable {
+    var id: String { mutationID }
+    var mutationID: String
+    var endpoint: String
+    var entity: String
+    var operation: String
+    var baseVersion: Int
+    var payloadPreview: String
+    var status: String
+
+    static func make(environment: BackendEnvironment, operation: SyncOperationSummary, index: Int) -> SyncMutationPreview {
+        let status: String
+        switch operation.status {
+        case "Готово к API", "Синхронизировано":
+            status = "accepted"
+        case "Нужен storage", "Конфликт":
+            status = "blocked"
+        default:
+            status = "queued"
+        }
+
+        return SyncMutationPreview(
+            mutationID: "\(environment.rawValue)-\(operation.entity)-\(index + 1)-\(operation.id.uuidString.prefix(6))",
+            endpoint: operation.endpoint,
+            entity: operation.entity,
+            operation: operation.operation,
+            baseVersion: operation.baseVersion,
+            payloadPreview: operation.payloadPreview,
+            status: status
         )
     }
 }
@@ -5754,6 +5838,11 @@ private struct SyncCenterSheet: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
+                    Text("\(operation.operation) v\(operation.baseVersion) - \(operation.payloadPreview)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.accent)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
                     Text(operation.retryPolicy)
                         .font(.caption)
                         .foregroundStyle(SchoolTheme.muted)
@@ -5884,9 +5973,43 @@ private struct SyncCenterSheet: View {
                 MoreMetric(value: "\(result.blockedCount)", title: "блок", color: SchoolTheme.danger)
             }
             .frame(height: 54)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(result.mutations.prefix(3)) { mutation in
+                    mutationPreviewRow(mutation)
+                }
+            }
         }
         .padding(12)
         .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func mutationPreviewRow(_ mutation: SyncMutationPreview) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(mutation.mutationID)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer()
+                StatusBadge(text: mutation.status, color: mutationStatusColor(mutation.status))
+            }
+
+            Text("\(mutation.endpoint) - \(mutation.operation) v\(mutation.baseVersion)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+
+            Text(mutation.payloadPreview)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(8)
+        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncActionButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
@@ -5912,6 +6035,17 @@ private struct SyncCenterSheet: View {
             SchoolTheme.danger
         default:
             SchoolTheme.accent
+        }
+    }
+
+    private func mutationStatusColor(_ status: String) -> Color {
+        switch status {
+        case "accepted":
+            SchoolTheme.success
+        case "blocked":
+            SchoolTheme.danger
+        default:
+            SchoolTheme.warning
         }
     }
 
@@ -5941,6 +6075,7 @@ private struct SyncCenterSheet: View {
                 entity: "class_invite",
                 endpoint: "POST /classes/{id}/invites",
                 status: "В очереди",
+                payloadPreview: #"{"scope":"family","expiresInDays":7}"#,
                 retryPolicy: "Повторить до получения invite token",
                 conflictRule: "Повторная отправка возвращает тот же активный invite",
                 iconName: "person.badge.plus",
