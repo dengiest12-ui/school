@@ -17,6 +17,20 @@ private struct NotificationSettingsState: Codable, Hashable {
     )
 }
 
+private struct SecuritySettingsState: Codable, Hashable {
+    var closedClassOnly: Bool
+    var maskFinanceForFamily: Bool
+    var requireInviteApproval: Bool
+    var deleteRequestStatus: String
+
+    static let sample = SecuritySettingsState(
+        closedClassOnly: true,
+        maskFinanceForFamily: true,
+        requireInviteApproval: true,
+        deleteRequestStatus: "Запрос удаления не отправлялся"
+    )
+}
+
 private struct MoreStoreSnapshot: Codable {
     var children: [ChildSummary]
     var familyMembers: [FamilyAccessMember]
@@ -26,6 +40,7 @@ private struct MoreStoreSnapshot: Codable {
     var subscriptionPlans: [SubscriptionPlanSummary]
     var classMemory: [ClassMemoryEntry]
     var classFiles: [ClassFileSummary]
+    var securitySettings: SecuritySettingsState
 
     init(
         children: [ChildSummary],
@@ -35,7 +50,8 @@ private struct MoreStoreSnapshot: Codable {
         notificationSettings: NotificationSettingsState = .sample,
         subscriptionPlans: [SubscriptionPlanSummary],
         classMemory: [ClassMemoryEntry],
-        classFiles: [ClassFileSummary]
+        classFiles: [ClassFileSummary],
+        securitySettings: SecuritySettingsState = .sample
     ) {
         self.children = children
         self.familyMembers = familyMembers
@@ -45,6 +61,7 @@ private struct MoreStoreSnapshot: Codable {
         self.subscriptionPlans = subscriptionPlans
         self.classMemory = classMemory
         self.classFiles = classFiles
+        self.securitySettings = securitySettings
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +74,7 @@ private struct MoreStoreSnapshot: Codable {
         subscriptionPlans = try container.decode([SubscriptionPlanSummary].self, forKey: .subscriptionPlans)
         classMemory = try container.decodeIfPresent([ClassMemoryEntry].self, forKey: .classMemory) ?? SampleData.classMemory
         classFiles = try container.decodeIfPresent([ClassFileSummary].self, forKey: .classFiles) ?? SampleData.classFiles
+        securitySettings = try container.decodeIfPresent(SecuritySettingsState.self, forKey: .securitySettings) ?? .sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -67,7 +85,8 @@ private struct MoreStoreSnapshot: Codable {
         notificationSettings: .sample,
         subscriptionPlans: SampleData.subscriptionPlans,
         classMemory: SampleData.classMemory,
-        classFiles: SampleData.classFiles
+        classFiles: SampleData.classFiles,
+        securitySettings: .sample
     )
 }
 
@@ -139,6 +158,14 @@ private enum MoreLocalStore {
         }
     }
 
+    static var securitySettings: SecuritySettingsState {
+        get { snapshot.securitySettings }
+        set {
+            snapshot.securitySettings = newValue
+            save()
+        }
+    }
+
     static func resetIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-qa-reset-more-store") else {
             return
@@ -177,6 +204,7 @@ struct MoreView: View {
     @State private var subscriptionPlans: [SubscriptionPlanSummary]
     @State private var classMemory: [ClassMemoryEntry]
     @State private var classFiles: [ClassFileSummary]
+    @State private var securitySettings: SecuritySettingsState
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -189,6 +217,7 @@ struct MoreView: View {
         _subscriptionPlans = State(initialValue: MoreLocalStore.subscriptionPlans)
         _classMemory = State(initialValue: MoreLocalStore.classMemory)
         _classFiles = State(initialValue: MoreLocalStore.classFiles)
+        _securitySettings = State(initialValue: MoreLocalStore.securitySettings)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -245,6 +274,17 @@ struct MoreView: View {
                     classFiles = updatedFiles
                     MoreLocalStore.classFiles = updatedFiles
                 }
+            case .security:
+                SecuritySettingsSheet(settings: securitySettings) { updatedSettings in
+                    securitySettings = updatedSettings
+                    MoreLocalStore.securitySettings = updatedSettings
+                }
+            case .support:
+                SupportMessageSheet(kind: .support)
+            case .problem:
+                SupportMessageSheet(kind: .problem)
+            case .logout:
+                LogoutSheet()
             }
         }
     }
@@ -352,10 +392,21 @@ struct MoreView: View {
 
     private var helpItems: [MoreMenuItem] {
         [
-            MoreMenuItem(title: "Безопасность", subtitle: "Данные детей и доступы", icon: "lock.shield.fill", color: SchoolTheme.success),
-            MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent),
-            MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger)
+            MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
+            MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
+            MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger, sheet: .problem),
+            MoreMenuItem(title: "Выйти", subtitle: "Локальный выход и перенос данных", icon: "rectangle.portrait.and.arrow.right", color: SchoolTheme.warning, sheet: .logout)
         ]
+    }
+
+    private var securitySubtitle: String {
+        let enabledCount = [
+            securitySettings.closedClassOnly,
+            securitySettings.maskFinanceForFamily,
+            securitySettings.requireInviteApproval
+        ].filter { $0 }.count
+
+        return "\(enabledCount) защиты: данные детей и доступы"
     }
 
     private static func launchSheet() -> MoreSheet? {
@@ -387,6 +438,22 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-files") || arguments.contains("-qa-more-files-importer") {
             return .files
+        }
+
+        if arguments.contains("-qa-more-security") {
+            return .security
+        }
+
+        if arguments.contains("-qa-more-support") {
+            return .support
+        }
+
+        if arguments.contains("-qa-more-problem") {
+            return .problem
+        }
+
+        if arguments.contains("-qa-more-logout") {
+            return .logout
         }
 
         return nil
@@ -1642,6 +1709,404 @@ private struct ClassFilesSheet: View {
     }
 }
 
+private struct SecuritySettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: (SecuritySettingsState) -> Void
+
+    @State private var settings: SecuritySettingsState
+
+    init(settings: SecuritySettingsState, onSave: @escaping (SecuritySettingsState) -> Void) {
+        self.onSave = onSave
+        _settings = State(initialValue: settings)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "lock.shield.fill",
+                        color: SchoolTheme.success,
+                        title: "Безопасность",
+                        subtitle: "Данные детей, закрытый класс и семейные доступы"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(enabledCount)", title: "защиты", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: settings.closedClassOnly ? "да" : "нет", title: "закрытый", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: settings.requireInviteApproval ? "да" : "нет", title: "входы", color: SchoolTheme.teal)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 14) {
+                            securityToggle(
+                                title: "Только участники класса",
+                                detail: "Материалы и файлы видят только подключенные семьи",
+                                icon: "person.3.fill",
+                                color: SchoolTheme.success,
+                                isOn: $settings.closedClassOnly
+                            )
+
+                            Divider()
+
+                            securityToggle(
+                                title: "Скрывать финансы",
+                                detail: "Бабушка и няня видят задачи без сумм сборов",
+                                icon: "rublesign.circle.fill",
+                                color: SchoolTheme.warning,
+                                isOn: $settings.maskFinanceForFamily
+                            )
+
+                            Divider()
+
+                            securityToggle(
+                                title: "Подтверждать входы",
+                                detail: "Новые приглашения ждут одобрения администратора",
+                                icon: "checkmark.shield.fill",
+                                color: SchoolTheme.accent,
+                                isOn: $settings.requireInviteApproval
+                            )
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Удаление данных")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(settings.deleteRequestStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+
+                            Button {
+                                settings.deleteRequestStatus = "Запрос удаления подготовлен локально: подтвердить можно после подключения аккаунта"
+                            } label: {
+                                Label("Подготовить удаление данных", systemImage: "trash.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.danger)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить безопасность", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Безопасность")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var enabledCount: Int {
+        [
+            settings.closedClassOnly,
+            settings.maskFinanceForFamily,
+            settings.requireInviteApproval
+        ].filter { $0 }.count
+    }
+
+    private func securityToggle(
+        title: String,
+        detail: String,
+        icon: String,
+        color: Color,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
+                IconBadge(systemName: icon, color: color, size: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .tint(SchoolTheme.success)
+    }
+
+    private func save() {
+        onSave(settings)
+        dismiss()
+    }
+}
+
+private struct SupportMessageSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let kind: SupportMessageKind
+
+    @State private var subject: String
+    @State private var message: String
+    @State private var contact = "Telegram или email"
+    @State private var sendStatus = "Черновик не отправлялся"
+
+    init(kind: SupportMessageKind) {
+        self.kind = kind
+        _subject = State(initialValue: kind.defaultSubject)
+        _message = State(initialValue: kind.defaultMessage)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: kind.icon,
+                        color: kind.color,
+                        title: kind.title,
+                        subtitle: kind.subtitle
+                    )
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Тема", iconName: "text.badge.plus", color: kind.color, text: $subject)
+                            MoreTextField(title: "Сообщение", iconName: "text.alignleft", color: SchoolTheme.accent, text: $message)
+                            MoreTextField(title: "Контакт", iconName: "at", color: SchoolTheme.teal, text: $contact)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Статус")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(sendStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+
+                            Button {
+                                sendStatus = "Готово: обращение сохранено локально для отправки после подключения поддержки"
+                            } label: {
+                                Label(kind.actionTitle, systemImage: kind.actionIcon)
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(kind.color)
+                            .disabled(subject.trimmed.isEmpty || message.trimmed.isEmpty)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle(kind.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+        }
+    }
+}
+
+private struct LogoutSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var transferStatus = "Перенос данных не подготовлен"
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "rectangle.portrait.and.arrow.right",
+                        color: SchoolTheme.warning,
+                        title: "Выйти",
+                        subtitle: "Локальный профиль, перенос данных и смена класса"
+                    )
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            logoutRow(
+                                icon: "person.crop.circle.badge.checkmark",
+                                color: SchoolTheme.success,
+                                title: "Владимир",
+                                detail: "Родитель Миши, 3Б"
+                            )
+                            logoutRow(
+                                icon: "externaldrive.fill",
+                                color: SchoolTheme.accent,
+                                title: "Локальные данные",
+                                detail: "ДЗ, календарь, сборы, файлы и настройки хранятся на устройстве"
+                            )
+                            logoutRow(
+                                icon: "icloud.and.arrow.up.fill",
+                                color: SchoolTheme.teal,
+                                title: "Перенос",
+                                detail: transferStatus
+                            )
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            transferStatus = "Пакет переноса подготовлен локально"
+                        } label: {
+                            Label("Подготовить", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(SchoolTheme.accent)
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Label("Остаться", systemImage: "checkmark")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SchoolTheme.success)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Выйти")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func logoutRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 42)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+}
+
+private enum SupportMessageKind {
+    case support
+    case problem
+
+    var title: String {
+        switch self {
+        case .support:
+            "Поддержка"
+        case .problem:
+            "Проблема"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .support:
+            "Вопрос по классу, семье или подписке"
+        case .problem:
+            "Ошибка, потерянное состояние или странное поведение"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .support:
+            "message.fill"
+        case .problem:
+            "exclamationmark.bubble.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .support:
+            SchoolTheme.accent
+        case .problem:
+            SchoolTheme.danger
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .support:
+            "Сохранить обращение"
+        case .problem:
+            "Сохранить отчет"
+        }
+    }
+
+    var actionIcon: String {
+        switch self {
+        case .support:
+            "paperplane.fill"
+        case .problem:
+            "exclamationmark.triangle.fill"
+        }
+    }
+
+    var defaultSubject: String {
+        switch self {
+        case .support:
+            "Вопрос по приложению"
+        case .problem:
+            "Ошибка в приложении"
+        }
+    }
+
+    var defaultMessage: String {
+        switch self {
+        case .support:
+            "Хочу уточнить по настройкам класса и семейного доступа."
+        case .problem:
+            "Опишите, где возникла проблема и что нажимали перед этим."
+        }
+    }
+}
+
 private struct MoreEmptyState: View {
     let icon: String
     let title: String
@@ -1767,6 +2232,10 @@ private enum MoreSheet: String, Identifiable {
     case notifications
     case memory
     case files
+    case security
+    case support
+    case problem
+    case logout
 
     var id: String { rawValue }
 }
