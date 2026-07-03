@@ -45,10 +45,42 @@ private struct ParentProfileState: Codable, Hashable {
     )
 }
 
+private struct FamilyTaskSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var assignee: String
+    var dueLabel: String
+    var reminder: String
+    var status: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        assignee: String,
+        dueLabel: String,
+        reminder: String,
+        status: String = "Назначена"
+    ) {
+        self.id = id
+        self.title = title
+        self.assignee = assignee
+        self.dueLabel = dueLabel
+        self.reminder = reminder
+        self.status = status
+    }
+
+    static let sample = [
+        FamilyTaskSummary(title: "Подписать согласие на экскурсию", assignee: "Владимир", dueLabel: "Сегодня", reminder: "19:30"),
+        FamilyTaskSummary(title: "Принести картон и клей", assignee: "Ирина", dueLabel: "Завтра", reminder: "08:00"),
+        FamilyTaskSummary(title: "Оплатить сбор на театр", assignee: "Екатерина", dueLabel: "до пятницы", reminder: "20:00")
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
     var familyMembers: [FamilyAccessMember]
+    var familyTasks: [FamilyTaskSummary]
     var classAccess: [ClassAccessSummary]
     var notificationPreferences: [NotificationPreference]
     var notificationSettings: NotificationSettingsState
@@ -61,6 +93,7 @@ private struct MoreStoreSnapshot: Codable {
         profile: ParentProfileState = .sample,
         children: [ChildSummary],
         familyMembers: [FamilyAccessMember],
+        familyTasks: [FamilyTaskSummary] = FamilyTaskSummary.sample,
         classAccess: [ClassAccessSummary],
         notificationPreferences: [NotificationPreference],
         notificationSettings: NotificationSettingsState = .sample,
@@ -72,6 +105,7 @@ private struct MoreStoreSnapshot: Codable {
         self.profile = profile
         self.children = children
         self.familyMembers = familyMembers
+        self.familyTasks = familyTasks
         self.classAccess = classAccess
         self.notificationPreferences = notificationPreferences
         self.notificationSettings = notificationSettings
@@ -86,6 +120,7 @@ private struct MoreStoreSnapshot: Codable {
         profile = try container.decodeIfPresent(ParentProfileState.self, forKey: .profile) ?? .sample
         children = try container.decode([ChildSummary].self, forKey: .children)
         familyMembers = try container.decode([FamilyAccessMember].self, forKey: .familyMembers)
+        familyTasks = try container.decodeIfPresent([FamilyTaskSummary].self, forKey: .familyTasks) ?? FamilyTaskSummary.sample
         classAccess = try container.decode([ClassAccessSummary].self, forKey: .classAccess)
         notificationPreferences = try container.decode([NotificationPreference].self, forKey: .notificationPreferences)
         notificationSettings = try container.decodeIfPresent(NotificationSettingsState.self, forKey: .notificationSettings) ?? .sample
@@ -99,6 +134,7 @@ private struct MoreStoreSnapshot: Codable {
         profile: .sample,
         children: SampleData.children,
         familyMembers: SampleData.familyMembers,
+        familyTasks: FamilyTaskSummary.sample,
         classAccess: SampleData.classAccess,
         notificationPreferences: SampleData.notificationPreferences,
         notificationSettings: .sample,
@@ -133,6 +169,14 @@ private enum MoreLocalStore {
         get { snapshot.familyMembers }
         set {
             snapshot.familyMembers = newValue
+            save()
+        }
+    }
+
+    static var familyTasks: [FamilyTaskSummary] {
+        get { snapshot.familyTasks }
+        set {
+            snapshot.familyTasks = newValue
             save()
         }
     }
@@ -226,6 +270,7 @@ struct MoreView: View {
     @State private var profile: ParentProfileState
     @State private var children: [ChildSummary]
     @State private var familyMembers: [FamilyAccessMember]
+    @State private var familyTasks: [FamilyTaskSummary]
     @State private var classAccess: [ClassAccessSummary]
     @State private var notificationPreferences: [NotificationPreference]
     @State private var notificationSettings: NotificationSettingsState
@@ -240,6 +285,7 @@ struct MoreView: View {
         _profile = State(initialValue: MoreLocalStore.profile)
         _children = State(initialValue: MoreLocalStore.children)
         _familyMembers = State(initialValue: MoreLocalStore.familyMembers)
+        _familyTasks = State(initialValue: MoreLocalStore.familyTasks)
         _classAccess = State(initialValue: MoreLocalStore.classAccess)
         _notificationPreferences = State(initialValue: MoreLocalStore.notificationPreferences)
         _notificationSettings = State(initialValue: MoreLocalStore.notificationSettings)
@@ -285,6 +331,11 @@ struct MoreView: View {
                 FamilyAccessSheet(members: familyMembers) { updatedMembers in
                     familyMembers = updatedMembers
                     MoreLocalStore.familyMembers = updatedMembers
+                }
+            case .familyTasks:
+                FamilyTasksSheet(profile: profile, members: familyMembers, tasks: familyTasks) { updatedTasks in
+                    familyTasks = updatedTasks
+                    MoreLocalStore.familyTasks = updatedTasks
                 }
             case .classes:
                 ClassesAccessSheet(classes: classAccess) { updatedClasses in
@@ -404,6 +455,7 @@ struct MoreView: View {
         [
             MoreMenuItem(title: "Дети", subtitle: "\(children.count) профиля", icon: "person.crop.square", color: SchoolTheme.success, sheet: .children),
             MoreMenuItem(title: "Семья", subtitle: "\(familyMembers.count) доступа: родители, бабушка, няня", icon: "person.2.fill", color: SchoolTheme.teal, sheet: .family),
+            MoreMenuItem(title: "Задачи семьи", subtitle: "\(openFamilyTaskCount) активных: назначение и напоминания", icon: "checklist.checked", color: SchoolTheme.warning, sheet: .familyTasks),
             MoreMenuItem(title: "Классы", subtitle: classAccess.map(\.title).joined(separator: " и "), icon: "building.2.fill", color: SchoolTheme.accent, sheet: .classes)
         ]
     }
@@ -427,6 +479,10 @@ struct MoreView: View {
 
     private var enabledNotificationCount: Int {
         notificationPreferences.filter(\.isEnabled).count
+    }
+
+    private var openFamilyTaskCount: Int {
+        familyTasks.filter { $0.status != "Готово" }.count
     }
 
     private var helpItems: [MoreMenuItem] {
@@ -461,6 +517,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-family") {
             return .family
+        }
+
+        if arguments.contains("-qa-more-family-tasks") {
+            return .familyTasks
         }
 
         if arguments.contains("-qa-more-classes") {
@@ -775,6 +835,318 @@ private struct ChildrenAccessSheet: View {
     private func save() {
         onSave(children)
         dismiss()
+    }
+}
+
+private struct FamilyTasksSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let profile: ParentProfileState
+    let members: [FamilyAccessMember]
+    let onSave: ([FamilyTaskSummary]) -> Void
+
+    @State private var tasks: [FamilyTaskSummary]
+    @State private var title = "Забрать согласие из портфеля"
+    @State private var dueLabel = "Сегодня"
+    @State private var reminder = "19:30"
+    @State private var assignee: String
+
+    init(
+        profile: ParentProfileState,
+        members: [FamilyAccessMember],
+        tasks: [FamilyTaskSummary],
+        onSave: @escaping ([FamilyTaskSummary]) -> Void
+    ) {
+        self.profile = profile
+        self.members = members
+        self.onSave = onSave
+        _tasks = State(initialValue: tasks)
+        _assignee = State(initialValue: members.first?.name ?? profile.name)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "checklist.checked",
+                        color: SchoolTheme.warning,
+                        title: "Задачи семьи",
+                        subtitle: "Назначение, персональные напоминания и передача"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(openTasks.count)", title: "активных", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(myTasks.count)", title: "моих", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(tasks.filter { $0.status == "Готово" }.count)", title: "готово", color: SchoolTheme.accent)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Список задач")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            if tasks.isEmpty {
+                                emptyTaskRow
+                            } else {
+                                ForEach(tasks) { task in
+                                    taskRow(task)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            assigneeMenu
+                            MoreTextField(title: "Задача", iconName: "text.badge.plus", color: SchoolTheme.warning, text: $title)
+                            MoreTextField(title: "Срок", iconName: "calendar", color: SchoolTheme.accent, text: $dueLabel)
+                            MoreTextField(title: "Напоминание", iconName: "bell.fill", color: SchoolTheme.success, text: $reminder)
+
+                            Button {
+                                addTask()
+                            } label: {
+                                Label("Назначить задачу", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.warning)
+                            .disabled(title.trimmed.isEmpty || assignee.trimmed.isEmpty)
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить задачи", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Задачи")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+        }
+    }
+
+    private var openTasks: [FamilyTaskSummary] {
+        tasks.filter { $0.status != "Готово" }
+    }
+
+    private var myTasks: [FamilyTaskSummary] {
+        tasks.filter { $0.assignee == profile.name && $0.status != "Готово" }
+    }
+
+    private var emptyTaskRow: some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: "checkmark.seal.fill", color: SchoolTheme.success, size: 40)
+            Text("Семейных задач пока нет")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+            Spacer()
+        }
+    }
+
+    private var assigneeMenu: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Исполнитель")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+
+            Menu {
+                ForEach(memberNames, id: \.self) { memberName in
+                    Button(memberName) {
+                        assignee = memberName
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "person.fill", color: SchoolTheme.teal, size: 38)
+                    Text(assignee)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(SchoolTheme.muted)
+                }
+                .padding(12)
+                .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(SchoolTheme.line, lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var memberNames: [String] {
+        let names = members.map(\.name)
+        return names.contains(profile.name) ? names : [profile.name] + names
+    }
+
+    private func taskRow(_ task: FamilyTaskSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(
+                    systemName: task.status == "Готово" ? "checkmark.circle.fill" : "bell.fill",
+                    color: task.status == "Готово" ? SchoolTheme.success : SchoolTheme.warning,
+                    size: 40
+                )
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(task.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(task.status == "Готово" ? SchoolTheme.muted : SchoolTheme.graphite)
+                        .strikethrough(task.status == "Готово", color: SchoolTheme.muted)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: task.status, color: task.status == "Готово" ? SchoolTheme.success : SchoolTheme.warning)
+
+                    Text("\(task.assignee) - \(task.dueLabel)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text("Персональное напоминание для \(task.assignee): \(task.reminder)")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    assignToMe(task)
+                } label: {
+                    TaskActionButtonLabel(title: "Я сделаю", systemImage: "person.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.success)
+                .disabled(task.status == "Готово")
+
+                Button {
+                    transfer(task)
+                } label: {
+                    TaskActionButtonLabel(title: "Передать", systemImage: "arrow.right.circle.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+                .disabled(task.status == "Готово")
+
+                Button {
+                    complete(task)
+                } label: {
+                    TaskActionButtonLabel(title: "Готово", systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(SchoolTheme.success)
+                .disabled(task.status == "Готово")
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+
+    private func addTask() {
+        tasks.insert(
+            FamilyTaskSummary(
+                title: title.trimmed,
+                assignee: assignee,
+                dueLabel: dueLabel.trimmed.isEmpty ? "Сегодня" : dueLabel.trimmed,
+                reminder: reminder.trimmed.isEmpty ? "19:30" : reminder.trimmed
+            ),
+            at: 0
+        )
+        title = ""
+    }
+
+    private func assignToMe(_ task: FamilyTaskSummary) {
+        update(task) { item in
+            item.assignee = profile.name
+            item.status = "Я сделаю"
+        }
+    }
+
+    private func transfer(_ task: FamilyTaskSummary) {
+        guard let currentIndex = memberNames.firstIndex(of: task.assignee) else {
+            update(task) { item in
+                item.assignee = memberNames.first ?? profile.name
+                item.status = "Передана"
+            }
+            return
+        }
+
+        let nextIndex = memberNames.index(after: currentIndex) == memberNames.endIndex ? memberNames.startIndex : memberNames.index(after: currentIndex)
+        update(task) { item in
+            item.assignee = memberNames[nextIndex]
+            item.status = "Передана"
+        }
+    }
+
+    private func complete(_ task: FamilyTaskSummary) {
+        update(task) { item in
+            item.status = "Готово"
+        }
+    }
+
+    private func update(_ task: FamilyTaskSummary, mutation: (inout FamilyTaskSummary) -> Void) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else {
+            return
+        }
+
+        mutation(&tasks[index])
+        onSave(tasks)
+    }
+
+    private func save() {
+        onSave(tasks)
+        dismiss()
+    }
+}
+
+private struct TaskActionButtonLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .allowsTightening(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 36)
     }
 }
 
@@ -2414,6 +2786,7 @@ private enum MoreSheet: String, Identifiable {
     case profile
     case children
     case family
+    case familyTasks
     case classes
     case subscription
     case notifications
