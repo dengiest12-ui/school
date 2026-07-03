@@ -532,10 +532,10 @@
   - Комментарий: реализован локальный каталог файлов с фильтрами, поиском, ручным добавлением и document picker; бинарное хранение файлов, права доступа и синхронизация еще не подключены
 
 - [~] Альбомы класса
-  - Проверка: можно создать альбом события и загрузить фото
+  - Проверка: можно открыть альбом события, загрузить фото и смотреть снимки крупно с перелистыванием
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
-  - Комментарий: добавлены локальные альбомы, детальный экран альбома и добавление фото/файла; создание новых альбомов и облачное хранение еще не реализованы
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photos-main.png`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-viewer.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
+  - Комментарий: добавлены локальные альбомы, детальный экран альбома, горизонтальная лента, крупный просмотр фото с перелистыванием и добавление фото/файла; создание новых альбомов и облачное хранение еще не реализованы
 
 - [~] Доступ только участникам класса
   - Проверка: фото недоступны публично и без авторизации
@@ -546,8 +546,8 @@
 - [~] Действия с фото
   - Проверка: загрузить, скачать, поделиться, пожаловаться, удалить
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
-  - Комментарий: добавлены локальные действия загрузить, скачать, поделиться, пожаловаться и удалить; реальные share/download/moderation API еще не подключены
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/class-photo-album.png`, `.build/screenshots/class-photo-viewer.png`, `.build/screenshots/class-photo-dialog.png`, `.build/screenshots/class-photo-file-importer.png`
+  - Комментарий: добавлены локальные действия загрузить, скачать, поделиться, пожаловаться и удалить; удаление показывается только учителю и родкомитету, реальные share/download/moderation API еще не подключены
 
 - [x] Ограничить будущие функции
   - Проверка: поиск ребенка по фото, фотокниги и скрытие лиц не попали в первый MVP без отдельного решения
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management/photo viewer, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -984,3 +984,4 @@
 | 2026-07-03 | Участники и документы событий | Пройдено | 3 | `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-detail.png`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | События календаря получили локальные участников и документы: форма создания сохраняет список участников и файл, карточка/детали показывают участников, документы и связанный сбор; сценарий деталей события добавлен в smoke-проверку |
 | 2026-07-03 | Согласие и локальное удаление данных | Пройдено | 3 | `.build/screenshots/privacy-consent-settings.png`, `.build/screenshots/security-local-delete-export.png`, `.build/screenshots/qa-smoke/more-privacy.png`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Онбординг требует локальное согласие на обработку данных ребенка и принятие политики, настройки приватности показывают сохраненный статус, а безопасность получила экспорт-сводку и очистку выбранных локальных данных; сценарий приватности добавлен в smoke-проверку |
 | 2026-07-03 | Навигация главной и мультидети | Пройдено | 3 | `.build/screenshots/onboarding-account-first.png`, `.build/screenshots/today-child-profile-switch.png`, `.build/screenshots/today-add-child-class-code.png`, `.build/screenshots/today-homework-sheet.png`, `.build/screenshots/today-chats-sheet.png`, `.build/screenshots/qa-smoke/today-notifications.png`, `.build/screenshots/qa-smoke/today-urgent.png`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Первый вход перестроен по шагам аккаунт -> статус -> класс, выбранный ребенок сохраняется между вкладками и задает контекст класса/роли, добавление ребенка требует код класса, колокольчик/профиль/срочное/домашка/чаты на главной открывают листы; smoke расширен и пройден |
+| 2026-07-03 | Просмотр фотоальбомов и права удаления | Пройдено | 3 | `.build/screenshots/class-photo-viewer.png`, `.build/screenshots/qa-smoke/class-photo-viewer.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Альбомы получили крупный просмотр с перелистыванием, быстрые действия скачать/поделиться/пожаловаться и удаление только для учителя или родкомитета; `xcodebuild` и полный smoke-прогон проходят |

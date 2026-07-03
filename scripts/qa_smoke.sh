@@ -61,6 +61,7 @@ run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
 run_case "class-member-management" -qa-role parentCommittee -qa-tab classRoom -qa-member-management
 run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-member-invite
+run_case "class-photo-viewer" -qa-role parentCommittee -qa-tab classRoom -qa-photo-viewer
 run_case "homework-add" -qa-tab homework -qa-homework-add
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add

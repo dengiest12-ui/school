@@ -10,14 +10,45 @@ private struct ClassPhotoItem: Identifiable, Hashable, Codable {
     var dateLabel: String
     var status: String
     var attachment: String?
+    var colorName: String
 
-    init(id: UUID = UUID(), title: String, author: String, dateLabel: String, status: String = "В альбоме", attachment: String? = nil) {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        author: String,
+        dateLabel: String,
+        status: String = "В альбоме",
+        attachment: String? = nil,
+        colorName: String = "blue"
+    ) {
         self.id = id
         self.title = title
         self.author = author
         self.dateLabel = dateLabel
         self.status = status
         self.attachment = attachment
+        self.colorName = colorName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case author
+        case dateLabel
+        case status
+        case attachment
+        case colorName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        author = try container.decode(String.self, forKey: .author)
+        dateLabel = try container.decode(String.self, forKey: .dateLabel)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "В альбоме"
+        attachment = try container.decodeIfPresent(String.self, forKey: .attachment)
+        colorName = try container.decodeIfPresent(String.self, forKey: .colorName) ?? "blue"
     }
 }
 
@@ -45,8 +76,8 @@ private struct PhotoAlbumSummary: Identifiable, Hashable, Codable {
             iconName: "photo.on.rectangle",
             colorName: "blue",
             photos: [
-                ClassPhotoItem(title: "Музей космонавтики", author: "Мария, родкомитет", dateLabel: "12 сентября"),
-                ClassPhotoItem(title: "Автобус перед школой", author: "Екатерина", dateLabel: "12 сентября")
+                ClassPhotoItem(title: "Музей космонавтики", author: "Мария, родкомитет", dateLabel: "12 сентября", colorName: "blue"),
+                ClassPhotoItem(title: "Автобус перед школой", author: "Екатерина", dateLabel: "12 сентября", colorName: "teal")
             ]
         ),
         PhotoAlbumSummary(
@@ -55,7 +86,7 @@ private struct PhotoAlbumSummary: Identifiable, Hashable, Codable {
             iconName: "party.popper",
             colorName: "orange",
             photos: [
-                ClassPhotoItem(title: "День учителя", author: "Анна", dateLabel: "5 октября")
+                ClassPhotoItem(title: "День учителя", author: "Анна", dateLabel: "5 октября", colorName: "orange")
             ]
         ),
         PhotoAlbumSummary(
@@ -64,7 +95,7 @@ private struct PhotoAlbumSummary: Identifiable, Hashable, Codable {
             iconName: "camera",
             colorName: "teal",
             photos: [
-                ClassPhotoItem(title: "Проект по окружающему миру", author: "Учитель", dateLabel: "Вчера")
+                ClassPhotoItem(title: "Проект по окружающему миру", author: "Учитель", dateLabel: "Вчера", colorName: "green")
             ]
         ),
         PhotoAlbumSummary(
@@ -73,7 +104,7 @@ private struct PhotoAlbumSummary: Identifiable, Hashable, Codable {
             iconName: "doc.text",
             colorName: "green",
             photos: [
-                ClassPhotoItem(title: "Памятка на экскурсию", author: "Учитель", dateLabel: "Сегодня")
+                ClassPhotoItem(title: "Памятка на экскурсию", author: "Учитель", dateLabel: "Сегодня", colorName: "green")
             ]
         )
     ]
@@ -1083,7 +1114,10 @@ struct ClassRoomView: View {
             return .inviteMembers
         }
 
-        if arguments.contains("-qa-photo-album") || arguments.contains("-qa-class-photo-dialog") || arguments.contains("-qa-class-photo-file-importer"),
+        if arguments.contains("-qa-photo-album")
+            || arguments.contains("-qa-photo-viewer")
+            || arguments.contains("-qa-class-photo-dialog")
+            || arguments.contains("-qa-class-photo-file-importer"),
            let firstAlbum = PhotoAlbumSummary.sample.first {
             return .photoAlbum(firstAlbum)
         }
@@ -1105,6 +1139,7 @@ private struct PhotoAlbumSheet: View {
     @State private var isImagePickerVisible = false
     @State private var isFileImporterVisible = false
     @State private var photoPickerSource: UIImagePickerController.SourceType = .photoLibrary
+    @State private var selectedPhoto: ClassPhotoItem?
 
     init(album: PhotoAlbumSummary, userRole: AppUserRole, onSave: @escaping (PhotoAlbumSummary) -> Void) {
         self.userRole = userRole
@@ -1159,8 +1194,15 @@ private struct PhotoAlbumSheet: View {
                             if album.photos.isEmpty {
                                 emptyPhotoRow
                             } else {
+                                photoStrip
+
                                 ForEach(album.photos) { photo in
-                                    photoRow(photo)
+                                    Button {
+                                        selectedPhoto = photo
+                                    } label: {
+                                        photoRow(photo)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -1257,6 +1299,15 @@ private struct PhotoAlbumSheet: View {
                     attachmentStatus = "Фото выбрано: \(displayName)"
                 }
             }
+            .sheet(item: $selectedPhoto) { photo in
+                PhotoViewerSheet(
+                    album: album,
+                    selectedPhoto: photo,
+                    canDelete: canDeletePhotos,
+                    onUpdateStatus: update(_:status:),
+                    onDelete: delete(_:)
+                )
+            }
             .fileImporter(
                 isPresented: $isFileImporterVisible,
                 allowedContentTypes: [.image, .pdf, .item],
@@ -1268,6 +1319,10 @@ private struct PhotoAlbumSheet: View {
                 runQAImporterChecks()
             }
         }
+    }
+
+    private var canDeletePhotos: Bool {
+        userRole == .parentCommittee || userRole == .teacher
     }
 
     private var reportedCount: Int {
@@ -1284,10 +1339,26 @@ private struct PhotoAlbumSheet: View {
         }
     }
 
+    private var photoStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(album.photos) { photo in
+                    Button {
+                        selectedPhoto = photo
+                    } label: {
+                        photoPreviewCard(photo, compact: true)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
     private func photoRow(_ photo: ClassPhotoItem) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                IconBadge(systemName: "photo.fill", color: statusColor(photo.status), size: 40)
+                photoPreviewCard(photo, compact: false)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 7) {
                         Text(photo.title)
@@ -1319,8 +1390,12 @@ private struct PhotoAlbumSheet: View {
                 photoAction("Жалоба", "exclamationmark.bubble.fill", SchoolTheme.danger) {
                     update(photo, status: "Жалоба")
                 }
-                photoAction("Удалить", "trash.fill", SchoolTheme.warning) {
-                    delete(photo)
+                if canDeletePhotos {
+                    photoAction("Удалить", "trash.fill", SchoolTheme.warning) {
+                        delete(photo)
+                    }
+                } else {
+                    lockedDeleteHint
                 }
             }
         }
@@ -1329,6 +1404,52 @@ private struct PhotoAlbumSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+
+    private var lockedDeleteHint: some View {
+        Image(systemName: "lock.fill")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(SchoolTheme.muted)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(SchoolTheme.muted.opacity(0.10), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .accessibilityLabel("Удаление доступно учителю и родкомитету")
+    }
+
+    private func photoPreviewCard(_ photo: ClassPhotoItem, compact: Bool) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            RoundedRectangle(cornerRadius: compact ? 14 : 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            color(for: photo.colorName).opacity(0.95),
+                            color(for: photo.colorName).opacity(0.45),
+                            SchoolTheme.graphite.opacity(0.18)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image(systemName: "photo.fill")
+                .font(.system(size: compact ? 28 : 32, weight: .bold))
+                .foregroundStyle(.white.opacity(0.86))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+
+            if !compact {
+                Text(photo.dateLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.20), in: Capsule())
+                    .padding(8)
+            }
+        }
+        .frame(width: compact ? 112 : 76, height: compact ? 86 : 76)
+        .overlay {
+            RoundedRectangle(cornerRadius: compact ? 14 : 16, style: .continuous)
+                .stroke(.white.opacity(0.55), lineWidth: 1)
         }
     }
 
@@ -1364,7 +1485,8 @@ private struct PhotoAlbumSheet: View {
                 title: newTitle.trimmed,
                 author: userRole.title,
                 dateLabel: "Сегодня",
-                attachment: attachmentStatus
+                attachment: attachmentStatus,
+                colorName: album.colorName
             ),
             at: 0
         )
@@ -1383,7 +1505,14 @@ private struct PhotoAlbumSheet: View {
     }
 
     private func delete(_ photo: ClassPhotoItem) {
+        guard canDeletePhotos else {
+            return
+        }
+
         album.photos.removeAll { $0.id == photo.id }
+        if selectedPhoto?.id == photo.id {
+            selectedPhoto = nil
+        }
         onSave(album)
     }
 
@@ -1455,6 +1584,186 @@ private struct PhotoAlbumSheet: View {
             if arguments.contains("-qa-class-photo-file-importer") {
                 isFileImporterVisible = true
             }
+
+            if arguments.contains("-qa-photo-viewer") {
+                selectedPhoto = album.photos.first
+            }
+        }
+    }
+}
+
+private struct PhotoViewerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let album: PhotoAlbumSummary
+    let selectedPhoto: ClassPhotoItem
+    let canDelete: Bool
+    let onUpdateStatus: (ClassPhotoItem, String) -> Void
+    let onDelete: (ClassPhotoItem) -> Void
+
+    @State private var selectedPhotoID: UUID
+
+    init(
+        album: PhotoAlbumSummary,
+        selectedPhoto: ClassPhotoItem,
+        canDelete: Bool,
+        onUpdateStatus: @escaping (ClassPhotoItem, String) -> Void,
+        onDelete: @escaping (ClassPhotoItem) -> Void
+    ) {
+        self.album = album
+        self.selectedPhoto = selectedPhoto
+        self.canDelete = canDelete
+        self.onUpdateStatus = onUpdateStatus
+        self.onDelete = onDelete
+        _selectedPhotoID = State(initialValue: selectedPhoto.id)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 14) {
+                TabView(selection: $selectedPhotoID) {
+                    ForEach(album.photos) { photo in
+                        photoPage(photo)
+                            .tag(photo.id)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+
+                actionBar
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle(album.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var activePhoto: ClassPhotoItem {
+        album.photos.first { $0.id == selectedPhotoID } ?? selectedPhoto
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 10) {
+            viewerAction("Скачать", "arrow.down.circle.fill", SchoolTheme.success) {
+                onUpdateStatus(activePhoto, "Скачано")
+            }
+            viewerAction("Поделиться", "square.and.arrow.up.fill", SchoolTheme.accent) {
+                onUpdateStatus(activePhoto, "Поделиться")
+            }
+            viewerAction("Жалоба", "exclamationmark.bubble.fill", SchoolTheme.danger) {
+                onUpdateStatus(activePhoto, "Жалоба")
+            }
+
+            if canDelete {
+                viewerAction("Удалить", "trash.fill", SchoolTheme.warning) {
+                    onDelete(activePhoto)
+                    dismiss()
+                }
+            } else {
+                Label("Удаляет учитель или родкомитет", systemImage: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                    .frame(maxWidth: .infinity, minHeight: 42)
+                    .background(SchoolTheme.muted.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+        }
+    }
+
+    private func photoPage(_ photo: ClassPhotoItem) -> some View {
+        VStack(spacing: 16) {
+            ZStack(alignment: .bottomLeading) {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                color(for: photo.colorName).opacity(0.95),
+                                color(for: photo.colorName).opacity(0.48),
+                                SchoolTheme.graphite.opacity(0.20)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .aspectRatio(0.78, contentMode: .fit)
+
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 72, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.86))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    StatusBadge(text: photo.status, color: statusColor(photo.status, fallback: color(for: photo.colorName)))
+                    Text(photo.title)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(photo.author) - \(photo.dateLabel)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.86))
+                    if let attachment = photo.attachment {
+                        Label(attachment, systemImage: "paperclip")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .lineLimit(2)
+                    }
+                }
+                .padding(18)
+            }
+            .padding(.horizontal, 20)
+
+            Text("\(photoIndex(photo)) из \(album.photos.count)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+        }
+    }
+
+    private func viewerAction(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private func photoIndex(_ photo: ClassPhotoItem) -> Int {
+        (album.photos.firstIndex(where: { $0.id == photo.id }) ?? 0) + 1
+    }
+
+    private func statusColor(_ status: String, fallback: Color) -> Color {
+        switch status {
+        case "Скачано":
+            SchoolTheme.success
+        case "Поделиться":
+            SchoolTheme.accent
+        case "Жалоба":
+            SchoolTheme.danger
+        default:
+            fallback
+        }
+    }
+
+    private func color(for colorName: String) -> Color {
+        switch colorName {
+        case "green":
+            SchoolTheme.success
+        case "teal":
+            SchoolTheme.teal
+        case "orange":
+            SchoolTheme.warning
+        default:
+            SchoolTheme.accent
         }
     }
 }
