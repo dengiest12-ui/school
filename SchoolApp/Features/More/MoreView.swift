@@ -666,6 +666,7 @@ private struct SyncDryRunResult: Hashable {
     var requestID: String
     var summary: String
     var mutations: [SyncMutationPreview]
+    var requestPreview: SyncRequestPreview
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let queued = operations.filter { ["В очереди", "Локально", "Offline"].contains($0.status) }.count
@@ -675,15 +676,17 @@ private struct SyncDryRunResult: Hashable {
         let mutations = operations.enumerated().map { index, operation in
             SyncMutationPreview.make(environment: environment, operation: operation, index: index)
         }
+        let requestID = "dry-\(suffix)"
 
         return SyncDryRunResult(
             environment: environment,
             acceptedCount: accepted,
             queuedCount: queued,
             blockedCount: blocked,
-            requestID: "dry-\(suffix)",
+            requestID: requestID,
             summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API.",
-            mutations: mutations
+            mutations: mutations,
+            requestPreview: SyncRequestPreview.make(environment: environment, requestID: requestID, mutations: mutations)
         )
     }
 }
@@ -717,6 +720,34 @@ private struct SyncMutationPreview: Identifiable, Hashable {
             baseVersion: operation.baseVersion,
             payloadPreview: operation.payloadPreview,
             status: status
+        )
+    }
+}
+
+private struct SyncRequestPreview: Hashable {
+    var method: String
+    var path: String
+    var url: String
+    var authState: String
+    var idempotencyKey: String
+    var bodyPreview: String
+
+    static func make(environment: BackendEnvironment, requestID: String, mutations: [SyncMutationPreview]) -> SyncRequestPreview {
+        let payload = mutations
+            .prefix(3)
+            .map { mutation in
+                #"{"mutationId":"\#(mutation.mutationID)","entityType":"\#(mutation.entity)","operation":"\#(mutation.operation)","baseVersion":\#(mutation.baseVersion)}"#
+            }
+            .joined(separator: ",")
+        let suffix = mutations.count > 3 ? #","more":\#(mutations.count - 3)"# : ""
+
+        return SyncRequestPreview(
+            method: "POST",
+            path: "/sync/mutations",
+            url: "\(environment.baseURL)/sync/mutations",
+            authState: "Bearer token required",
+            idempotencyKey: requestID,
+            bodyPreview: #"{"clientId":"ios-local","mutations":[\#(payload)]\#(suffix)}"#
         )
     }
 }
@@ -5668,6 +5699,12 @@ private struct SyncCenterSheet: View {
                                 detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md; первый OpenAPI draft лежит в docs/openapi_mvp.yaml"
                             )
                             syncStateRow(
+                                icon: "paperplane.fill",
+                                color: SchoolTheme.success,
+                                title: "Batch request",
+                                detail: "Dry-run готовит POST /sync/mutations: base URL окружения, auth-заглушка, idempotency key и compact JSON body"
+                            )
+                            syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
                                 color: SchoolTheme.warning,
                                 title: "Локальное хранилище",
@@ -6084,6 +6121,8 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
+            syncRequestPreviewCard(result.requestPreview)
+
             HStack(spacing: 10) {
                 MoreMetric(value: "\(result.acceptedCount)", title: "можно", color: SchoolTheme.success)
                 Divider()
@@ -6101,6 +6140,40 @@ private struct SyncCenterSheet: View {
         }
         .padding(12)
         .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func syncRequestPreviewCard(_ request: SyncRequestPreview) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                StatusBadge(text: request.method, color: SchoolTheme.accent)
+                Text(request.path)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Spacer()
+            }
+
+            Text(request.url)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text("\(request.authState) - Idempotency-Key: \(request.idempotencyKey)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+
+            Text(request.bodyPreview)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(3)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(10)
+        .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func mutationPreviewRow(_ mutation: SyncMutationPreview) -> some View {
