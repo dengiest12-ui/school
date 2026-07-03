@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import UserNotifications
 import UIKit
 import CoreImage.CIFilterBuiltins
+import StoreKit
 
 private struct NotificationSettingsState: Codable, Hashable {
     var eveningTime: String
@@ -2729,13 +2730,19 @@ private struct SubscriptionSheet: View {
 
     @State private var plans: [SubscriptionPlanSummary]
     @State private var restoreStatus = "Покупки еще не проверялись"
-    @State private var storeKitStatus = "StoreKit 2 не подключен: работает локальная проверка сценариев"
+    @State private var storeKitStatus = "StoreKit 2 каталог подключен; покупка пока проверяется локальными сценариями"
     @State private var transactionId = "нет транзакции"
     @State private var subscriptionExpires = "trial +14 дней"
+    @State private var storeKitCatalogStatus = "Каталог StoreKit еще не запрашивался"
+    @State private var storeKitProducts: [StoreKitProductSnapshot] = StoreKitProductSnapshot.pending
+    @State private var isLoadingStoreKitProducts = false
 
     init(plans: [SubscriptionPlanSummary], onSave: @escaping ([SubscriptionPlanSummary]) -> Void) {
         self.onSave = onSave
         _plans = State(initialValue: plans)
+        if ProcessInfo.processInfo.arguments.contains("-qa-more-subscription") {
+            _storeKitCatalogStatus = State(initialValue: "QA: StoreKit 2 готов к проверке product ids")
+        }
     }
 
     var body: some View {
@@ -2793,21 +2800,48 @@ private struct SubscriptionSheet: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             HStack(spacing: 8) {
+                                purchaseButton(isLoadingStoreKitProducts ? "Проверка" : "StoreKit", icon: "shippingbox.and.arrow.backward.fill", color: SchoolTheme.accent) {
+                                    Task {
+                                        await loadStoreKitProducts()
+                                    }
+                                }
                                 purchaseButton("Купить", icon: "cart.fill", color: SchoolTheme.success) {
                                     purchaseLocally()
-                                }
-                                purchaseButton("Вернуть", icon: "arrow.clockwise", color: SchoolTheme.accent) {
-                                    restorePurchases()
                                 }
                             }
 
                             HStack(spacing: 8) {
+                                purchaseButton("Вернуть", icon: "arrow.clockwise", color: SchoolTheme.accent) {
+                                    restorePurchases()
+                                }
                                 purchaseButton("Истекла", icon: "clock.badge.exclamationmark.fill", color: SchoolTheme.warning) {
                                     expireSubscription()
                                 }
                                 purchaseButton("Ошибка", icon: "exclamationmark.triangle.fill", color: SchoolTheme.danger) {
                                     failPurchase()
                                 }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("StoreKit 2 каталог")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                StatusBadge(text: "\(loadedStoreKitCount)/\(storeKitProducts.count)", color: loadedStoreKitCount == storeKitProducts.count ? SchoolTheme.success : SchoolTheme.warning)
+                            }
+
+                            Text(storeKitCatalogStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            ForEach(storeKitProducts) { product in
+                                storeKitProductRow(product)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2870,6 +2904,12 @@ private struct SubscriptionSheet: View {
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Подписка")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                guard ProcessInfo.processInfo.arguments.contains("-qa-more-subscription") else {
+                    return
+                }
+                await loadStoreKitProducts()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
@@ -2893,6 +2933,10 @@ private struct SubscriptionSheet: View {
         default:
             "school.class.family.trial"
         }
+    }
+
+    private var loadedStoreKitCount: Int {
+        storeKitProducts.filter { $0.status == "Найден" }.count
     }
 
     private func subscriptionPlanRow(_ plan: SubscriptionPlanSummary) -> some View {
@@ -2953,6 +2997,32 @@ private struct SubscriptionSheet: View {
         }
     }
 
+    private func storeKitProductRow(_ product: StoreKitProductSnapshot) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: product.iconName, color: product.statusColor, size: 38)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(product.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: product.status, color: product.statusColor)
+                }
+
+                Text(product.productID)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(product.price)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
     private func purchaseButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
@@ -2964,6 +3034,48 @@ private struct SubscriptionSheet: View {
                 .background(color.opacity(0.11), in: Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    @MainActor
+    private func loadStoreKitProducts() async {
+        guard !isLoadingStoreKitProducts else {
+            return
+        }
+
+        isLoadingStoreKitProducts = true
+        storeKitCatalogStatus = "Запрашиваю продукты StoreKit 2 для текущего bundle id..."
+
+        do {
+            let products = try await fetchStoreKitProductsWithTimeout()
+            storeKitProducts = StoreKitProductSnapshot.merge(products: products)
+
+            if products.isEmpty {
+                storeKitCatalogStatus = "StoreKit 2 ответил пустым каталогом: нужно добавить StoreKit Configuration или продукты App Store Connect."
+            } else {
+                storeKitCatalogStatus = "StoreKit 2 загрузил \(products.count) продукт(а); цены берутся из StoreKit, локальные строки станут fallback."
+            }
+        } catch {
+            storeKitProducts = StoreKitProductSnapshot.failed(message: error.localizedDescription)
+            storeKitCatalogStatus = "StoreKit 2 вернул ошибку: \(error.localizedDescription)"
+        }
+
+        isLoadingStoreKitProducts = false
+    }
+
+    private func fetchStoreKitProductsWithTimeout() async throws -> [Product] {
+        try await withThrowingTaskGroup(of: [Product].self) { group in
+            group.addTask {
+                try await Product.products(for: StoreKitProductSnapshot.productIDs)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                return []
+            }
+
+            let products = try await group.next() ?? []
+            group.cancelAll()
+            return products
+        }
     }
 
     private func purchaseLocally() {
@@ -2991,6 +3103,77 @@ private struct SubscriptionSheet: View {
     private func save() {
         onSave(plans)
         dismiss()
+    }
+}
+
+private struct StoreKitProductSnapshot: Identifiable, Hashable {
+    var id: String { productID }
+    var title: String
+    var productID: String
+    var price: String
+    var status: String
+    var iconName: String
+
+    var statusColor: Color {
+        switch status {
+        case "Найден":
+            SchoolTheme.success
+        case "Ошибка":
+            SchoolTheme.danger
+        case "Не найден":
+            SchoolTheme.warning
+        default:
+            SchoolTheme.accent
+        }
+    }
+
+    static let productIDs = [
+        "school.class.family.monthly.child1",
+        "school.class.family.monthly.extra_child"
+    ]
+
+    static let pending = [
+        StoreKitProductSnapshot(
+            title: "1 ребенок",
+            productID: "school.class.family.monthly.child1",
+            price: "149 руб./мес fallback",
+            status: "Ожидает",
+            iconName: "person.crop.circle.fill"
+        ),
+        StoreKitProductSnapshot(
+            title: "Семья+",
+            productID: "school.class.family.monthly.extra_child",
+            price: "+59 руб./мес fallback",
+            status: "Ожидает",
+            iconName: "person.2.fill"
+        )
+    ]
+
+    static func merge(products: [Product]) -> [StoreKitProductSnapshot] {
+        pending.map { snapshot in
+            guard let product = products.first(where: { $0.id == snapshot.productID }) else {
+                var missing = snapshot
+                missing.status = "Не найден"
+                return missing
+            }
+
+            return StoreKitProductSnapshot(
+                title: product.displayName.isEmpty ? snapshot.title : product.displayName,
+                productID: product.id,
+                price: product.displayPrice,
+                status: "Найден",
+                iconName: snapshot.iconName
+            )
+        }
+    }
+
+    static func failed(message: String) -> [StoreKitProductSnapshot] {
+        pending.map { snapshot in
+            var failed = snapshot
+            failed.price = message.isEmpty ? "StoreKit ошибка" : message
+            failed.status = "Ошибка"
+            return failed
+        }
     }
 }
 

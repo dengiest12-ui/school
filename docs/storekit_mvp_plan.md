@@ -1,6 +1,6 @@
 # StoreKit 2 и платежная схема MVP
 
-Статус: рабочий план. В приложении сейчас реализована локальная проверка сценариев покупки, восстановления, истечения подписки и ошибки оплаты. Настоящие транзакции еще не подключены.
+Статус: рабочий план. В приложении сейчас реализована локальная проверка сценариев покупки, восстановления, истечения подписки и ошибки оплаты, а экран подписки уже запрашивает каталог StoreKit 2 через `Product.products(for:)`. Настоящие транзакции, App Store Connect products и entitlement-проверка еще не подключены.
 
 ## Продукты App Store Connect
 
@@ -14,8 +14,8 @@
 
 ## Что должен делать StoreKit 2 слой
 
-- Загружать продукты через `Product.products(for:)`.
-- Показывать локализованную цену из StoreKit, а не из hardcoded строки.
+- [x] Загружать продукты через `Product.products(for:)`.
+- [~] Показывать локализованную цену из StoreKit, а не из hardcoded строки.
 - Запускать покупку через `product.purchase()`.
 - Проверять `VerificationResult`.
 - Сохранять только entitlement/status, а не платежные данные.
@@ -52,5 +52,6 @@
 - Создать products в App Store Connect.
 - Добавить StoreKit Configuration для локального Xcode-теста.
 - Вынести подписку в отдельный сервис `SubscriptionStore`.
+- Подключить `product.purchase()` и обработать `Product.PurchaseResult`.
 - Написать unit/UI-тесты на active/expired/restore/failure.
 - Подключить App Store Server Notifications для production.

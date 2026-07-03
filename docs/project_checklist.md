@@ -679,9 +679,9 @@
 
 - [~] StoreKit 2
   - Проверка: покупка, trial, восстановление покупок, истекшая подписка, ошибка оплаты
-  - Уровень: 2
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `docs/storekit_mvp_plan.md`, `.build/screenshots/subscription-storekit-local.png`, `.build/screenshots/qa-smoke/more-subscription.png`
-  - Комментарий: добавлены product id, локальная проверка покупки, восстановления, истекшей подписки и ошибки оплаты; настоящий StoreKit 2, App Store Connect продукты, подпись транзакций и серверная проверка entitlement еще не подключены
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `docs/storekit_mvp_plan.md`, `.build/screenshots/subscription-storekit-local.png`, `.build/screenshots/subscription-storekit-products.png`, `.build/screenshots/qa-smoke/more-subscription.png`
+  - Комментарий: добавлены product id, локальная проверка покупки, восстановления, истекшей подписки и ошибки оплаты; экран подписки теперь запрашивает StoreKit 2 каталог через `Product.products(for:)`, показывает пустой/ошибочный каталог и fallback-цены; App Store Connect продукты, `product.purchase()`, подпись транзакций и серверная проверка entitlement еще не подключены
 
 - [~] Ограничения без подписки
   - Проверка: базовые данные не исчезают, но AI и расширенные функции ограничиваются понятно и честно
@@ -987,3 +987,4 @@
 | 2026-07-03 | Просмотр фотоальбомов и права удаления | Пройдено | 3 | `.build/screenshots/class-photo-viewer.png`, `.build/screenshots/qa-smoke/class-photo-viewer.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Альбомы получили крупный просмотр с перелистыванием, быстрые действия скачать/поделиться/пожаловаться и удаление только для учителя или родкомитета; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | API dry-run центра синхронизации | Пройдено | 3 | `.build/screenshots/more-sync-api-dry-run.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Центр синхронизации получил dev/staging/prod, типизированный каталог endpoint-ов, request id dry-run и подсчет готовых/ожидающих/заблокированных операций; реальный backend и OpenAPI-клиент остаются следующим слоем |
 | 2026-07-03 | Backend policy-аудит ролей | Пройдено | 2 | `.build/screenshots/more-sync-permissions.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift` | В центр синхронизации добавлена матрица серверных прав: объявления, сборы, оплата своей семьи, удаление фото и приглашения проверяются по ролям родитель/родкомитет/учитель/ребенок; настоящий backend enforcement остается следующим слоем |
+| 2026-07-03 | StoreKit 2 каталог подписки | Пройдено | 3 | `.build/screenshots/subscription-storekit-products.png`, `.build/screenshots/qa-smoke/more-subscription.png`, `SchoolApp/Features/More/MoreView.swift`, `docs/storekit_mvp_plan.md` | Экран подписки подключен к `Product.products(for:)`, проверяет два product id, показывает найдено/не найдено/ошибка и fallback-цены; реальные покупки, App Store Connect и entitlement-проверка остаются следующим слоем |
