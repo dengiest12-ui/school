@@ -482,8 +482,8 @@
 - [~] Чеки и расходы
   - Проверка: можно добавить чек, расход и отчет
   - Уровень: 3
-  - Артефакт: `.build/screenshots/collections-detail-final.png`, `.build/screenshots/bugfix-committee-collection-detail.png`, `.build/screenshots/receipt-attachments-form-final.png`, `.build/screenshots/receipt-photo-dialog.png`, `.build/screenshots/receipt-file-importer.png`
-  - Комментарий: в детальном листе есть список расходов, локальное добавление расхода, системный выбор фото/камеры и файла с сохранением имени вложения; полноценное копирование файлов в хранилище и backend еще не подключены
+  - Артефакт: `.build/screenshots/collections-detail-final.png`, `.build/screenshots/bugfix-committee-collection-detail.png`, `.build/screenshots/receipt-attachments-form-final.png`, `.build/screenshots/receipt-photo-dialog.png`, `.build/screenshots/receipt-file-importer.png`, `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`
+  - Комментарий: в детальном листе есть список расходов, локальное добавление расхода, системный выбор фото/камеры и файла с сохранением имени вложения, финансовая сводка и системная отправка текстового отчета; полноценное копирование файлов в хранилище и backend еще не подключены
 
 - [~] Напоминания по сбору
   - Проверка: мягкие напоминания не оплатившим и дедлайны
@@ -494,8 +494,8 @@
 - [~] Закрытие сбора и отчет
   - Проверка: сбор можно завершить, скачать или показать отчет
   - Уровень: 3
-  - Артефакт: `.build/screenshots/collections-detail-final.png`
-  - Комментарий: статус можно перевести в "Закрыт", отчет виден в карточке и состояние сохраняется локально; выгрузка отчета будет отдельным этапом
+  - Артефакт: `.build/screenshots/collections-detail-final.png`, `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`
+  - Комментарий: статус можно перевести в "Закрыт", отчет виден в карточке, состояние сохраняется локально, а текстовый отчет можно отправить через системное меню; PDF/Excel-выгрузка будет отдельным этапом
 
 ## 12. Расписание
 
@@ -998,3 +998,4 @@
 | 2026-07-03 | Фикс ширины экрана ДЗ | Пройдено | 3 | `.build/screenshots/homework-width-fixed.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift` | Экран ДЗ зафиксирован по ширине viewport, метаданные и кнопки карточек используют адаптивный перенос вместо расширения страницы; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Мультипрофили и роли по классам | Пройдено | 3 | `.build/screenshots/more-multi-role-profile.png`, `.build/screenshots/more-multi-role-children.png`, `.build/screenshots/more-multi-role-classes.png`, `.build/screenshots/qa-smoke/more-profile.png`, `.build/screenshots/qa-smoke/more-children.png`, `.build/screenshots/qa-smoke/more-classes.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Профиль показывает роли отдельно по детям/классам, экран детей позволяет менять роль конкретного профиля, а классы синхронизированы с детскими профилями; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Создание фотоальбомов класса | Пройдено | 3 | `.build/screenshots/class-photo-album-create.png`, `.build/screenshots/qa-smoke/class-photo-album-create.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Родкомитет или учитель может создать закрытый альбом класса с типом, названием и описанием; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | Отчет по сбору | Пройдено | 3 | `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Детальный экран сбора получил финансовую сводку, список расходов и системную отправку текстового отчета; `xcodebuild` и полный smoke-прогон проходят |

@@ -60,6 +60,7 @@ run_case "today-paywall" -qa-tab today -qa-no-subscription -qa-today-paywall
 run_case "child-mode" -qa-role child -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
+run_case "class-collection-report" -qa-role parentCommittee -qa-tab classRoom -qa-collection-detail -qa-collection-report
 run_case "class-member-management" -qa-role parentCommittee -qa-tab classRoom -qa-member-management
 run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-member-invite
 run_case "class-photo-album-create" -qa-role parentCommittee -qa-tab classRoom -qa-photo-album-create

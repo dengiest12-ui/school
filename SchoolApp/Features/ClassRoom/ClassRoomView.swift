@@ -2362,9 +2362,34 @@ private struct CollectionDetailSheet: View {
     private var reportCard: some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Чеки и отчет")
-                    .font(.headline)
-                    .foregroundStyle(SchoolTheme.graphite)
+                HStack {
+                    Text("Чеки и отчет")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Spacer()
+                    StatusBadge(text: status.rawValue, color: collectionStatusColor(status))
+                }
+
+                VStack(spacing: 10) {
+                    HStack(spacing: 10) {
+                        reportMetric("Сдали", "\(paidCount)/\(collection.totalCount)", "checkmark.circle.fill", SchoolTheme.success)
+                        reportMetric("Осталось", "\(max(0, collection.totalCount - paidCount))", "person.2.badge.clock.fill", SchoolTheme.warning)
+                    }
+
+                    HStack(spacing: 10) {
+                        reportMetric("Сбор", "\(paidCount) x \(collection.amount)", "rublesign.circle.fill", SchoolTheme.accent)
+                        reportMetric("Расходы", "\(expenses.count)", "receipt.fill", SchoolTheme.teal)
+                    }
+                }
+
+                ShareLink(item: collectionReportText) {
+                    Label("Поделиться отчетом", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+                .id("collection-report-actions")
 
                 if expenses.isEmpty {
                     Text("Расходов пока нет")
@@ -2463,19 +2488,41 @@ private struct CollectionDetailSheet: View {
         }
     }
 
+    private func reportMetric(_ title: String, _ value: String, _ iconName: String, _ color: Color) -> some View {
+        HStack(spacing: 10) {
+            IconBadge(systemName: iconName, color: color, size: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(1)
+                Text(value)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     private func runQACollectionDetailChecks(_ proxy: ScrollViewProxy) {
         let arguments = ProcessInfo.processInfo.arguments
         guard
             arguments.contains("-qa-scroll-expenses")
                 || arguments.contains("-qa-receipt-photo-dialog")
                 || arguments.contains("-qa-receipt-file-importer")
+                || arguments.contains("-qa-collection-report")
         else {
             return
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             withAnimation(.easeInOut(duration: 0.2)) {
-                proxy.scrollTo("expense-actions", anchor: .bottom)
+                proxy.scrollTo(arguments.contains("-qa-collection-report") ? "collection-report-actions" : "expense-actions", anchor: .bottom)
             }
         }
 
@@ -2568,6 +2615,32 @@ private struct CollectionDetailSheet: View {
     private func save() {
         onSave(updatedCollectionSnapshot())
         dismiss()
+    }
+
+    private var collectionReportText: String {
+        let paymentLine = "Оплачено: \(paidCount) из \(collection.totalCount), осталось \(max(0, collection.totalCount - paidCount))"
+        let expensesLines: [String]
+
+        if expenses.isEmpty {
+            expensesLines = ["Расходы: пока не добавлены"]
+        } else {
+            expensesLines = expenses.map { expense in
+                let attachment = expense.attachment.map { " / \($0)" } ?? ""
+                return "- \(expense.title): \(expense.amount), \(expense.note)\(attachment)"
+            }
+        }
+
+        return [
+            "Отчет по сбору: \(collection.title)",
+            "Сумма с семьи: \(collection.amount)",
+            "Дедлайн: \(collection.deadline)",
+            "Кому сдавать: \(collection.recipient)",
+            "Статус: \(status.rawValue)",
+            paymentLine,
+            "Описание: \(collection.detail)",
+            "Чеки и расходы:",
+            expensesLines.joined(separator: "\n")
+        ].joined(separator: "\n")
     }
 
     private func updatedCollectionSnapshot() -> CollectionSummary {
