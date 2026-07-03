@@ -6,6 +6,14 @@ import CoreImage.CIFilterBuiltins
 import StoreKit
 
 private struct NotificationSettingsState: Codable, Hashable {
+    static let scheduledIdentifiers = [
+        "school.digest.evening",
+        "school.digest.morning",
+        "school.collection.deadline",
+        "school.urgent.announcement",
+        "school.family.task"
+    ]
+
     var eveningTime: String
     var morningTime: String
     var quietHoursEnabled: Bool
@@ -3338,6 +3346,7 @@ private struct NotificationSettingsSheet: View {
     @State private var preferences: [NotificationPreference]
     @State private var settings: NotificationSettingsState
     @State private var testStatus = "Тестовый дайджест не отправлялся"
+    @State private var scheduledPreview: [String] = []
 
     init(
         preferences: [NotificationPreference],
@@ -3401,6 +3410,22 @@ private struct NotificationSettingsSheet: View {
 
                             notificationActionButton("Запланировать дайджесты", icon: "calendar.badge.plus", color: SchoolTheme.warning) {
                                 scheduleEnabledNotifications()
+                            }
+
+                            if !scheduledPreview.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("В очереди iOS")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.muted)
+                                    ForEach(scheduledPreview, id: \.self) { item in
+                                        Label(item, systemImage: "checkmark.circle.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.success)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 2)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -3520,6 +3545,11 @@ private struct NotificationSettingsSheet: View {
                 KeyboardDoneToolbar()
             }
             .task {
+                if ProcessInfo.processInfo.arguments.contains("-qa-more-notifications") {
+                    scheduleEnabledNotifications()
+                    return
+                }
+
                 await refreshNotificationStatus()
             }
         }
@@ -3604,13 +3634,10 @@ private struct NotificationSettingsSheet: View {
     private func scheduleEnabledNotifications() {
         Task {
             let center = UNUserNotificationCenter.current()
-            center.removePendingNotificationRequests(withIdentifiers: [
-                "school.digest.evening",
-                "school.digest.morning",
-                "school.collection.deadline"
-            ])
+            center.removePendingNotificationRequests(withIdentifiers: NotificationSettingsState.scheduledIdentifiers)
 
             var requests: [UNNotificationRequest] = []
+            var preview: [String] = []
 
             if preferences.contains(where: { $0.title == "Вечерний дайджест" && $0.isEnabled }) {
                 requests.append(calendarRequest(
@@ -3619,6 +3646,7 @@ private struct NotificationSettingsSheet: View {
                     body: "Проверь уроки, ДЗ, форму и что нужно принести",
                     time: settings.eveningTime
                 ))
+                preview.append("Вечерний дайджест в \(settings.eveningTime)")
             }
 
             if preferences.contains(where: { $0.title == "Утренний дайджест" && $0.isEnabled }) {
@@ -3628,6 +3656,18 @@ private struct NotificationSettingsSheet: View {
                     body: "Расписание, срочное и семейные задачи на утро",
                     time: settings.morningTime
                 ))
+                preview.append("Утренний дайджест в \(settings.morningTime)")
+            }
+
+            if preferences.contains(where: { $0.title == "Срочные объявления" && $0.isEnabled }) {
+                requests.append(timeIntervalRequest(
+                    identifier: "school.urgent.announcement",
+                    title: "Срочное объявление",
+                    body: "Учитель отметил важное сообщение. Открой раздел Сегодня",
+                    seconds: 60,
+                    sound: .default
+                ))
+                preview.append("Срочное объявление отдельным сигналом")
             }
 
             if preferences.contains(where: { $0.title == "Дедлайны оплат" && $0.isEnabled }) {
@@ -3637,6 +3677,17 @@ private struct NotificationSettingsSheet: View {
                     body: "Проверь срок оплаты и чек в разделе Класс",
                     time: settings.quietHoursEnabled ? settings.quietEnd : settings.eveningTime
                 ))
+                preview.append("Дедлайн оплаты в \(settings.quietHoursEnabled ? settings.quietEnd : settings.eveningTime)")
+            }
+
+            if preferences.contains(where: { $0.title == "Семейные задачи" && $0.isEnabled }) {
+                requests.append(calendarRequest(
+                    identifier: "school.family.task",
+                    title: "Семейная задача",
+                    body: "Проверь, кто отвечает за принести, подписать или оплатить",
+                    time: settings.quietHoursEnabled ? settings.quietEnd : settings.eveningTime
+                ))
+                preview.append("Семейные задачи в \(settings.quietHoursEnabled ? settings.quietEnd : settings.eveningTime)")
             }
 
             do {
@@ -3646,6 +3697,7 @@ private struct NotificationSettingsSheet: View {
                 await MainActor.run {
                     settings.scheduledCount = requests.count
                     settings.deliveryStatus = requests.isEmpty ? "Нет включенных сценариев для расписания" : "Запланировано локально: \(requests.count) уведомления"
+                    scheduledPreview = preview
                     testStatus = "Расписание iOS обновлено"
                 }
                 await refreshNotificationStatus()
@@ -3670,6 +3722,17 @@ private struct NotificationSettingsSheet: View {
         dateComponents.minute = parts.dropFirst().first ?? 0
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        return UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+    }
+
+    private func timeIntervalRequest(identifier: String, title: String, body: String, seconds: TimeInterval, sound: UNNotificationSound) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = sound
+        content.interruptionLevel = .timeSensitive
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
         return UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
     }
 
@@ -3699,9 +3762,30 @@ private struct NotificationSettingsSheet: View {
         await MainActor.run {
             updateAuthorizationStatus(settings.authorizationStatus)
             self.settings.scheduledCount = pending.filter { $0.identifier.hasPrefix("school.") }.count
+            self.scheduledPreview = pending
+                .filter { NotificationSettingsState.scheduledIdentifiers.contains($0.identifier) }
+                .sorted { $0.identifier < $1.identifier }
+                .map { notificationTitle(for: $0.identifier) }
             if self.settings.scheduledCount > 0 {
                 self.settings.deliveryStatus = "В iOS ожидают \(self.settings.scheduledCount) локальных уведомления"
             }
+        }
+    }
+
+    private func notificationTitle(for identifier: String) -> String {
+        switch identifier {
+        case "school.digest.evening":
+            "Вечерний дайджест в \(settings.eveningTime)"
+        case "school.digest.morning":
+            "Утренний дайджест в \(settings.morningTime)"
+        case "school.collection.deadline":
+            "Дедлайн оплаты"
+        case "school.urgent.announcement":
+            "Срочное объявление отдельным сигналом"
+        case "school.family.task":
+            "Семейные задачи"
+        default:
+            "Локальное уведомление"
         }
     }
 

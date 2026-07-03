@@ -654,14 +654,14 @@
 - [~] Срочные объявления
   - Проверка: важные объявления доставляются отдельно и заметно
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notifications-ios-local.png`
-  - Комментарий: настройка срочных объявлений есть в UI; отдельный APNs-канал доставки, приоритет и серверная адресация еще не подключены
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
+  - Комментарий: настройка срочных объявлений есть в UI, локальный MVP планирует отдельное time-sensitive iOS-уведомление; APNs-канал доставки, приоритет и серверная адресация еще не подключены
 
 - [~] Дедлайны оплат
   - Проверка: напоминания приходят до срока и при просрочке
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notifications-ios-local.png`
-  - Комментарий: есть локальная настройка напоминаний по сборам и планирование локального iOS-уведомления; адресные напоминания не оплатившим требуют backend
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
+  - Комментарий: есть локальная настройка напоминаний по сборам и планирование отдельного локального iOS-уведомления с учетом тихих часов; адресные напоминания не оплатившим требуют backend
 
 - [~] Настройки уведомлений
   - Проверка: тихие часы, время дайджестов, настройки по ребенку и классу
@@ -999,3 +999,4 @@
 | 2026-07-03 | Мультипрофили и роли по классам | Пройдено | 3 | `.build/screenshots/more-multi-role-profile.png`, `.build/screenshots/more-multi-role-children.png`, `.build/screenshots/more-multi-role-classes.png`, `.build/screenshots/qa-smoke/more-profile.png`, `.build/screenshots/qa-smoke/more-children.png`, `.build/screenshots/qa-smoke/more-classes.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Профиль показывает роли отдельно по детям/классам, экран детей позволяет менять роль конкретного профиля, а классы синхронизированы с детскими профилями; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Создание фотоальбомов класса | Пройдено | 3 | `.build/screenshots/class-photo-album-create.png`, `.build/screenshots/qa-smoke/class-photo-album-create.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Родкомитет или учитель может создать закрытый альбом класса с типом, названием и описанием; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Отчет по сбору | Пройдено | 3 | `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Детальный экран сбора получил финансовую сводку, список расходов и системную отправку текстового отчета; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | Локальная очередь уведомлений | Пройдено | 3 | `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Настройки уведомлений планируют вечерний/утренний дайджест, срочное объявление и дедлайн оплаты в iOS Notification Center; `xcodebuild` и полный smoke-прогон проходят |
