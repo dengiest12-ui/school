@@ -1,6 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import UserNotifications
+import UIKit
+import CoreImage.CIFilterBuiltins
 
 private struct NotificationSettingsState: Codable, Hashable {
     var eveningTime: String
@@ -1936,6 +1938,8 @@ private struct FamilyAccessSheet: View {
     @State private var inviteName = "Наталья"
     @State private var inviteRole = "Няня"
     @State private var inviteAccess = "Календарь и что забрать"
+    @State private var familyInviteCode = "FAM-3184"
+    @State private var inviteStatus = "Семейная ссылка готова к отправке"
 
     init(members: [FamilyAccessMember], onSave: @escaping ([FamilyAccessMember]) -> Void) {
         self.onSave = onSave
@@ -1997,6 +2001,51 @@ private struct FamilyAccessSheet: View {
 
                         DashboardCard {
                             VStack(spacing: 12) {
+                                HStack(alignment: .top, spacing: 14) {
+                                    MoreInviteQRCodeView(text: familyInviteLink, color: SchoolTheme.graphite)
+                                        .frame(width: 96, height: 96)
+
+                                    VStack(alignment: .leading, spacing: 7) {
+                                        Text("Ссылка семьи")
+                                            .font(.headline)
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text(familyInviteLink)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                            .lineLimit(3)
+                                            .textSelection(.enabled)
+                                        Text(inviteStatus)
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                }
+
+                                HStack(spacing: 8) {
+                                    ShareLink(item: familyInviteLink) {
+                                        Label("Отправить", systemImage: "square.and.arrow.up")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.accent)
+                                            .frame(maxWidth: .infinity, minHeight: 38)
+                                            .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+                                    }
+
+                                    Button {
+                                        familyInviteCode = nextFamilyInviteCode()
+                                        inviteStatus = "Семейный код обновлен локально"
+                                    } label: {
+                                        Label("Новый код", systemImage: "arrow.clockwise")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.warning)
+                                            .frame(maxWidth: .infinity, minHeight: 38)
+                                            .background(SchoolTheme.warning.opacity(0.11), in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                Divider()
+
                                 MoreTextField(title: "Кого пригласить", iconName: "person.badge.plus", color: SchoolTheme.success, text: $inviteName)
 
                                 Picker("Роль", selection: $inviteRole) {
@@ -2053,6 +2102,12 @@ private struct FamilyAccessSheet: View {
         }
     }
 
+    private var familyInviteLink: String {
+        let role = inviteRole.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? inviteRole
+        let access = inviteAccess.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? inviteAccess
+        return "schoolclass://family/join?code=\(familyInviteCode)&role=\(role)&access=\(access)"
+    }
+
     private func inviteMember() {
         let avatar = String(inviteName.trimmed.prefix(1)).uppercased()
         members.append(
@@ -2064,7 +2119,12 @@ private struct FamilyAccessSheet: View {
                 status: "Ожидает вход"
             )
         )
+        inviteStatus = "Приглашение для \(inviteName.trimmed) добавлено. Ссылку можно отправить через системное меню."
         inviteName = ""
+    }
+
+    private func nextFamilyInviteCode() -> String {
+        "FAM-\(Int.random(in: 1000...9999))"
     }
 
     private func save() {
@@ -2081,6 +2141,52 @@ private struct FamilyAccessSheet: View {
         default:
             SchoolTheme.success
         }
+    }
+}
+
+private struct MoreInviteQRCodeView: View {
+    let text: String
+    let color: Color
+
+    private let context = CIContext()
+    private let filter = CIFilter.qrCodeGenerator()
+
+    var body: some View {
+        Group {
+            if let image = qrImage {
+                Image(uiImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "qrcode")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+        }
+        .padding(10)
+        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+        .accessibilityLabel("QR-код семейного приглашения")
+    }
+
+    private var qrImage: UIImage? {
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+
+        guard let outputImage = filter.outputImage else {
+            return nil
+        }
+
+        let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }
 

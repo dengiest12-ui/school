@@ -268,14 +268,14 @@
 - [~] Присоединение к классу
   - Проверка: код приглашения, ссылка, QR-код, ошибки доступа
   - Уровень: 3
-  - Артефакт: `.build/screenshots/onboarding-join-final.png`
-  - Комментарий: реализован UI входа по коду; QR, ссылка и ошибки доступа требуют backend/API
+  - Артефакт: `.build/screenshots/onboarding-join-final.png`, `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/qa-smoke/class-member-invite.png`
+  - Комментарий: реализован UI входа по коду, в приглашении класса добавлены локальная deep link-ссылка и QR; backend-проверка доступа, истечение invite-token и обработка ошибок ссылки еще не подключены
 
 - [~] Приглашение участников
   - Проверка: можно пригласить родителей, учителя, родкомитет и семейных участников
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/access-family-final.png`
-  - Комментарий: реализованы локальные формы приглашения в класс и семью; реальные ссылки, QR и отправка приглашений требуют backend/API
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/invite-link-qr-family.png`, `.build/screenshots/qa-smoke/class-member-invite.png`, `.build/screenshots/qa-smoke/more-family.png`
+  - Комментарий: реализованы локальные формы приглашения в класс и семью, deep link-ссылки, QR-коды, обновление кода и системная отправка через ShareLink; реальные backend invite-token, отзыв ссылок и доставка участникам еще не подключены
 
 - [~] Управление участниками
   - Проверка: роли можно изменить, участника можно удалить, права админа можно передать
@@ -286,8 +286,8 @@
 - [~] Семейный доступ
   - Проверка: второй родитель, бабушка, няня получают только нужные задачи и напоминания
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`, `.build/screenshots/more-persistence-family.png`
-  - Комментарий: есть роли семьи, статусы доступа и форма приглашения; состояние сохраняется локально, адресные уведомления и реальные ограничения данных еще не подключены
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`, `.build/screenshots/more-persistence-family.png`, `.build/screenshots/invite-link-qr-family.png`
+  - Комментарий: есть роли семьи, статусы доступа, форма приглашения, семейная ссылка, QR и системная отправка; состояние сохраняется локально, адресные уведомления и реальные ограничения данных еще не подключены
 
 ## 7. Главный экран "Сегодня / Что завтра"
 
@@ -977,3 +977,4 @@
 | 2026-07-03 | StoreKit и платежная схема MVP | Пройдено | 2 | `.build/screenshots/subscription-storekit-local.png`, `.build/screenshots/qa-smoke/more-subscription.png`, `docs/storekit_mvp_plan.md`, `scripts/qa_smoke.sh` | На экране подписки добавлены product id, локальные сценарии покупки, восстановления, истечения и ошибки оплаты; сценарий добавлен в smoke-проверку, настоящий StoreKit 2 и App Store Connect остаются следующим этапом |
 | 2026-07-03 | Центр синхронизации MVP | Пройдено | 2 | `.build/screenshots/more-sync-center.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлен локальный экран очереди синхронизации: API-контракты, offline, storage, retry и конфликтные операции; сценарий добавлен в smoke-проверку, настоящий backend/API-клиент еще не подключены |
 | 2026-07-03 | Локальные iOS-уведомления | Пройдено | 3 | `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Экран уведомлений дополнен `UserNotifications`: системный запрос разрешения, статус iOS, тестовое уведомление через 5 секунд и локальное расписание вечернего/утреннего дайджеста и дедлайна оплаты; APNs/backend-доставка остаются следующим этапом |
+| 2026-07-03 | Приглашения по ссылке и QR | Пройдено | 3 | `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/invite-link-qr-family.png`, `.build/screenshots/qa-smoke/class-member-invite.png`, `.build/screenshots/qa-smoke/more-family.png`, `scripts/qa_smoke.sh` | В приглашения класса и семьи добавлены deep link-ссылки, QR-коды, системный ShareLink и обновление локального кода; сценарии добавлены в smoke-проверку, backend invite-token и отзыв ссылок остаются следующим этапом |

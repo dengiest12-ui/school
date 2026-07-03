@@ -52,8 +52,10 @@ run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-a
 run_case "today-main" -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
+run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-member-invite
 run_case "homework-add" -qa-tab homework -qa-homework-add
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
+run_case "more-family" -qa-tab more -qa-more-family
 run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
 run_case "more-security" -qa-tab more -qa-more-security

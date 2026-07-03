@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
+import CoreImage.CIFilterBuiltins
 
 private struct ClassPhotoItem: Identifiable, Hashable, Codable {
     let id: UUID
@@ -235,6 +236,12 @@ struct ClassRoomView: View {
             .padding(.bottom, SchoolTheme.bottomScrollPadding)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-qa-member-invite") {
+                selectedSection = .members
+                activeSheet = .inviteMembers
+            }
+        }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addCollection:
@@ -2762,6 +2769,7 @@ private struct InviteMembersSheet: View {
     @State private var childName = "Имя ребенка"
     @State private var role = "Родитель"
     @State private var inviteCode = "3B-4821"
+    @State private var inviteStatus = "Ссылка готова: можно отправить родителю или учителю"
 
     init(members: [ClassMemberSummary], onSave: @escaping ([ClassMemberSummary]) -> Void) {
         self.onSave = onSave
@@ -2799,6 +2807,55 @@ private struct InviteMembersSheet: View {
                                 StatusBadge(text: "Закрытый класс", color: SchoolTheme.success)
                             }
                         }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Ссылка и QR")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            HStack(alignment: .top, spacing: 14) {
+                                InviteQRCodeView(text: inviteLink, color: SchoolTheme.graphite)
+                                    .frame(width: 98, height: 98)
+
+                                VStack(alignment: .leading, spacing: 7) {
+                                    Text(inviteLink)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.graphite)
+                                        .lineLimit(3)
+                                        .textSelection(.enabled)
+                                    Text(inviteStatus)
+                                        .font(.caption)
+                                        .foregroundStyle(SchoolTheme.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                            }
+
+                            HStack(spacing: 8) {
+                                ShareLink(item: inviteLink) {
+                                    Label("Отправить", systemImage: "square.and.arrow.up")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.accent)
+                                        .frame(maxWidth: .infinity, minHeight: 38)
+                                        .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+                                }
+
+                                Button {
+                                    inviteCode = nextInviteCode()
+                                    inviteStatus = "Код обновлен локально. Старую ссылку нужно будет отозвать на backend."
+                                } label: {
+                                    Label("Новый код", systemImage: "arrow.clockwise")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.warning)
+                                        .frame(maxWidth: .infinity, minHeight: 38)
+                                        .background(SchoolTheme.warning.opacity(0.11), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     DashboardCard {
@@ -2885,6 +2942,10 @@ private struct InviteMembersSheet: View {
         }
     }
 
+    private var inviteLink: String {
+        "schoolclass://join?code=\(inviteCode.trimmed.uppercased())&role=\(role.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? role)"
+    }
+
     private func addInvite() {
         let avatar = String(inviteName.trimmed.prefix(1)).uppercased()
         members.append(
@@ -2897,8 +2958,15 @@ private struct InviteMembersSheet: View {
                 canManage: role == "Родкомитет" || role == "Учитель"
             )
         )
+        inviteStatus = "Приглашение для \(inviteName.trimmed) добавлено. Ссылку можно отправить через системное меню."
         inviteName = ""
         childName = ""
+    }
+
+    private func nextInviteCode() -> String {
+        let classPrefix = inviteCode.split(separator: "-").first.map(String.init) ?? "3B"
+        let number = Int.random(in: 1000...9999)
+        return "\(classPrefix)-\(number)"
     }
 
     private func save() {
@@ -2915,6 +2983,52 @@ private struct InviteMembersSheet: View {
         default:
             SchoolTheme.teal
         }
+    }
+}
+
+private struct InviteQRCodeView: View {
+    let text: String
+    let color: Color
+
+    private let context = CIContext()
+    private let filter = CIFilter.qrCodeGenerator()
+
+    var body: some View {
+        Group {
+            if let image = qrImage {
+                Image(uiImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "qrcode")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+        }
+        .padding(10)
+        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+        .accessibilityLabel("QR-код приглашения")
+    }
+
+    private var qrImage: UIImage? {
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+
+        guard let outputImage = filter.outputImage else {
+            return nil
+        }
+
+        let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }
 
