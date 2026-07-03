@@ -22,13 +22,48 @@ private struct SecuritySettingsState: Codable, Hashable {
     var maskFinanceForFamily: Bool
     var requireInviteApproval: Bool
     var deleteRequestStatus: String
+    var deleteScope: String
+    var exportStatus: String
+    var deleteConfirmation: String
 
     static let sample = SecuritySettingsState(
         closedClassOnly: true,
         maskFinanceForFamily: true,
         requireInviteApproval: true,
-        deleteRequestStatus: "Запрос удаления не отправлялся"
+        deleteRequestStatus: "Запрос удаления не отправлялся",
+        deleteScope: "Аккаунт и личные данные",
+        exportStatus: "Экспорт не подготовлен",
+        deleteConfirmation: ""
     )
+
+    init(
+        closedClassOnly: Bool,
+        maskFinanceForFamily: Bool,
+        requireInviteApproval: Bool,
+        deleteRequestStatus: String,
+        deleteScope: String,
+        exportStatus: String,
+        deleteConfirmation: String
+    ) {
+        self.closedClassOnly = closedClassOnly
+        self.maskFinanceForFamily = maskFinanceForFamily
+        self.requireInviteApproval = requireInviteApproval
+        self.deleteRequestStatus = deleteRequestStatus
+        self.deleteScope = deleteScope
+        self.exportStatus = exportStatus
+        self.deleteConfirmation = deleteConfirmation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        closedClassOnly = try container.decodeIfPresent(Bool.self, forKey: .closedClassOnly) ?? true
+        maskFinanceForFamily = try container.decodeIfPresent(Bool.self, forKey: .maskFinanceForFamily) ?? true
+        requireInviteApproval = try container.decodeIfPresent(Bool.self, forKey: .requireInviteApproval) ?? true
+        deleteRequestStatus = try container.decodeIfPresent(String.self, forKey: .deleteRequestStatus) ?? "Запрос удаления не отправлялся"
+        deleteScope = try container.decodeIfPresent(String.self, forKey: .deleteScope) ?? "Аккаунт и личные данные"
+        exportStatus = try container.decodeIfPresent(String.self, forKey: .exportStatus) ?? "Экспорт не подготовлен"
+        deleteConfirmation = try container.decodeIfPresent(String.self, forKey: .deleteConfirmation) ?? ""
+    }
 }
 
 private struct PrivacySettingsState: Codable, Hashable {
@@ -2816,19 +2851,85 @@ private struct SecuritySettingsSheet: View {
                             Text("Удаление данных")
                                 .font(.headline)
                                 .foregroundStyle(SchoolTheme.graphite)
+
+                            deletionRow(
+                                icon: "square.and.arrow.up.fill",
+                                color: SchoolTheme.accent,
+                                title: "Экспорт перед удалением",
+                                detail: settings.exportStatus
+                            )
+
+                            Button {
+                                settings.exportStatus = "Экспорт подготовлен локально: профиль, дети, семья, классы, файлы и настройки"
+                            } label: {
+                                Label("Подготовить экспорт", systemImage: "square.and.arrow.up")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.accent)
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Что удалить")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(SchoolTheme.muted)
+
+                                Menu {
+                                    ForEach(deleteScopes, id: \.self) { scope in
+                                        Button(scope) {
+                                            settings.deleteScope = scope
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        IconBadge(systemName: "trash.fill", color: SchoolTheme.danger, size: 38)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(settings.deleteScope)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Text("Без backend это локальная заявка, данные не очищаются автоматически")
+                                                .font(.caption)
+                                                .foregroundStyle(SchoolTheme.muted)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                    .padding(12)
+                                    .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                            .stroke(SchoolTheme.line, lineWidth: 1)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            MoreTextField(
+                                title: "Подтверждение",
+                                iconName: "keyboard.fill",
+                                color: confirmationReady ? SchoolTheme.success : SchoolTheme.warning,
+                                text: $settings.deleteConfirmation
+                            )
+
                             Text(settings.deleteRequestStatus)
                                 .font(.caption)
                                 .foregroundStyle(SchoolTheme.muted)
 
                             Button {
-                                settings.deleteRequestStatus = "Запрос удаления подготовлен локально: подтвердить можно после подключения аккаунта"
+                                prepareDeletionRequest()
                             } label: {
-                                Label("Подготовить удаление данных", systemImage: "trash.fill")
+                                Label("Подготовить заявку на удаление", systemImage: "trash.fill")
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity, minHeight: 44)
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                             .tint(SchoolTheme.danger)
+                            .disabled(!confirmationReady)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -2846,6 +2947,7 @@ private struct SecuritySettingsSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Безопасность")
             .navigationBarTitleDisplayMode(.inline)
@@ -2855,6 +2957,7 @@ private struct SecuritySettingsSheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -2865,6 +2968,36 @@ private struct SecuritySettingsSheet: View {
             settings.maskFinanceForFamily,
             settings.requireInviteApproval
         ].filter { $0 }.count
+    }
+
+    private var deleteScopes: [String] {
+        [
+            "Аккаунт и личные данные",
+            "Профиль ребенка",
+            "Семейные доступы",
+            "Локальные файлы и чеки",
+            "Все локальные данные"
+        ]
+    }
+
+    private var confirmationReady: Bool {
+        settings.deleteConfirmation.trimmed.uppercased() == "УДАЛИТЬ"
+    }
+
+    private func deletionRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
     }
 
     private func securityToggle(
@@ -2894,6 +3027,11 @@ private struct SecuritySettingsSheet: View {
     private func save() {
         onSave(settings)
         dismiss()
+    }
+
+    private func prepareDeletionRequest() {
+        let timestamp = Date.now.formatted(date: .numeric, time: .shortened)
+        settings.deleteRequestStatus = "Заявка подготовлена локально \(timestamp): \(settings.deleteScope). После backend она должна уходить на сервер, требовать повторный вход и иметь период отмены."
     }
 }
 
