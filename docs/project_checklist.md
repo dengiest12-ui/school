@@ -630,38 +630,38 @@
 - [~] Разрешение на уведомления
   - Проверка: onboarding объясняет пользу и корректно обрабатывает отказ
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`
-  - Комментарий: в онбординге есть переключатель напоминаний; системный запрос iOS еще не подключен
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
+  - Комментарий: в онбординге есть объяснение и переключатель, в настройках добавлен системный запрос `UNUserNotificationCenter.requestAuthorization`; обработка отказа видна в статусе, APNs и серверные push еще не подключены
 
 - [~] Вечерний дайджест
   - Проверка: вечером пользователь получает "что завтра"
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notification-settings-final.png`
-  - Комментарий: есть локальный переключатель и выбор времени; реальная доставка Push будет отдельным этапом
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`
+  - Комментарий: есть локальный переключатель, выбор времени и планирование повторяющегося `UNCalendarNotificationTrigger`; контент пока локальный, серверный дайджест будет отдельным этапом
 
 - [~] Утренний дайджест
   - Проверка: утром пользователь видит расписание, форму, срочные задачи
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notification-settings-final.png`
-  - Комментарий: есть локальный переключатель и выбор времени; контент дайджеста пока собирается из локальных экранов, не из backend
+  - Артефакт: `.build/screenshots/notifications-ios-local.png`
+  - Комментарий: есть локальный переключатель, выбор времени и планирование повторяющегося утреннего уведомления; контент пока собирается из локальных экранов, не из backend
 
 - [~] Срочные объявления
   - Проверка: важные объявления доставляются отдельно и заметно
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notification-settings-final.png`
-  - Комментарий: настройка срочных объявлений есть в UI; отдельный канал доставки и приоритет Push еще не подключены
+  - Артефакт: `.build/screenshots/notifications-ios-local.png`
+  - Комментарий: настройка срочных объявлений есть в UI; отдельный APNs-канал доставки, приоритет и серверная адресация еще не подключены
 
 - [~] Дедлайны оплат
   - Проверка: напоминания приходят до срока и при просрочке
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notification-settings-final.png`
-  - Комментарий: есть локальная настройка напоминаний по сборам; адресные напоминания не оплатившим требуют backend
+  - Артефакт: `.build/screenshots/notifications-ios-local.png`
+  - Комментарий: есть локальная настройка напоминаний по сборам и планирование локального iOS-уведомления; адресные напоминания не оплатившим требуют backend
 
 - [~] Настройки уведомлений
   - Проверка: тихие часы, время дайджестов, настройки по ребенку и классу
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notification-settings-final.png`, `.build/screenshots/more-persistence-notifications-final.png`
-  - Комментарий: реализованы и локально сохраняются переключатели, вечер/утро, тихие часы и локальная проверка дайджеста; настройки по конкретному ребенку/классу еще не детализированы
+  - Артефакт: `.build/screenshots/notification-settings-final.png`, `.build/screenshots/more-persistence-notifications-final.png`, `.build/screenshots/notifications-ios-local.png`
+  - Комментарий: реализованы и локально сохраняются переключатели, вечер/утро, тихие часы, статус разрешения iOS, счетчик ожидающих уведомлений, тест через 5 секунд и пересборка расписания; настройки по конкретному ребенку/классу еще не детализированы
 
 ## 17. Подписка и монетизация
 
@@ -976,3 +976,4 @@
 | 2026-07-03 | Локальный вход в аккаунт | Пройдено | 3 | `.build/screenshots/onboarding-auth-phone-verified.png`, `.build/screenshots/onboarding-auth-apple.png`, `scripts/qa_smoke.sh` | В онбординг добавлены локальные сценарии входа по телефону с кодом `1234` и Apple ID/email, сохранение способа входа и QA-флаги; оба сценария добавлены в smoke-проверку |
 | 2026-07-03 | StoreKit и платежная схема MVP | Пройдено | 2 | `.build/screenshots/subscription-storekit-local.png`, `.build/screenshots/qa-smoke/more-subscription.png`, `docs/storekit_mvp_plan.md`, `scripts/qa_smoke.sh` | На экране подписки добавлены product id, локальные сценарии покупки, восстановления, истечения и ошибки оплаты; сценарий добавлен в smoke-проверку, настоящий StoreKit 2 и App Store Connect остаются следующим этапом |
 | 2026-07-03 | Центр синхронизации MVP | Пройдено | 2 | `.build/screenshots/more-sync-center.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлен локальный экран очереди синхронизации: API-контракты, offline, storage, retry и конфликтные операции; сценарий добавлен в smoke-проверку, настоящий backend/API-клиент еще не подключены |
+| 2026-07-03 | Локальные iOS-уведомления | Пройдено | 3 | `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Экран уведомлений дополнен `UserNotifications`: системный запрос разрешения, статус iOS, тестовое уведомление через 5 секунд и локальное расписание вечернего/утреннего дайджеста и дедлайна оплаты; APNs/backend-доставка остаются следующим этапом |

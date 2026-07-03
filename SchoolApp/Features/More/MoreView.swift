@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 
 private struct NotificationSettingsState: Codable, Hashable {
     var eveningTime: String
@@ -7,14 +8,52 @@ private struct NotificationSettingsState: Codable, Hashable {
     var quietHoursEnabled: Bool
     var quietStart: String
     var quietEnd: String
+    var permissionStatus: String
+    var deliveryStatus: String
+    var scheduledCount: Int
 
     static let sample = NotificationSettingsState(
         eveningTime: "20:30",
         morningTime: "07:15",
         quietHoursEnabled: true,
         quietStart: "22:00",
-        quietEnd: "07:00"
+        quietEnd: "07:00",
+        permissionStatus: "Разрешение iOS еще не запрашивалось",
+        deliveryStatus: "Локальные уведомления не планировались",
+        scheduledCount: 0
     )
+
+    init(
+        eveningTime: String,
+        morningTime: String,
+        quietHoursEnabled: Bool,
+        quietStart: String,
+        quietEnd: String,
+        permissionStatus: String,
+        deliveryStatus: String,
+        scheduledCount: Int
+    ) {
+        self.eveningTime = eveningTime
+        self.morningTime = morningTime
+        self.quietHoursEnabled = quietHoursEnabled
+        self.quietStart = quietStart
+        self.quietEnd = quietEnd
+        self.permissionStatus = permissionStatus
+        self.deliveryStatus = deliveryStatus
+        self.scheduledCount = scheduledCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        eveningTime = try container.decodeIfPresent(String.self, forKey: .eveningTime) ?? "20:30"
+        morningTime = try container.decodeIfPresent(String.self, forKey: .morningTime) ?? "07:15"
+        quietHoursEnabled = try container.decodeIfPresent(Bool.self, forKey: .quietHoursEnabled) ?? true
+        quietStart = try container.decodeIfPresent(String.self, forKey: .quietStart) ?? "22:00"
+        quietEnd = try container.decodeIfPresent(String.self, forKey: .quietEnd) ?? "07:00"
+        permissionStatus = try container.decodeIfPresent(String.self, forKey: .permissionStatus) ?? "Разрешение iOS еще не запрашивалось"
+        deliveryStatus = try container.decodeIfPresent(String.self, forKey: .deliveryStatus) ?? "Локальные уведомления не планировались"
+        scheduledCount = try container.decodeIfPresent(Int.self, forKey: .scheduledCount) ?? 0
+    }
 }
 
 private struct SecuritySettingsState: Codable, Hashable {
@@ -2479,11 +2518,46 @@ private struct NotificationSettingsSheet: View {
                         HStack(spacing: 12) {
                             MoreMetric(value: "\(enabledCount)", title: "включено", color: SchoolTheme.success)
                             Divider()
-                            MoreMetric(value: settings.eveningTime, title: "вечером", color: SchoolTheme.accent)
+                            MoreMetric(value: "\(settings.scheduledCount)", title: "iOS", color: SchoolTheme.accent)
                             Divider()
                             MoreMetric(value: settings.quietHoursEnabled ? "да" : "нет", title: "тихий режим", color: SchoolTheme.teal)
                         }
                         .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Доставка iOS")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            notificationStateRow(
+                                icon: "checkmark.shield.fill",
+                                color: SchoolTheme.success,
+                                title: "Разрешение",
+                                detail: settings.permissionStatus
+                            )
+                            notificationStateRow(
+                                icon: "calendar.badge.clock",
+                                color: SchoolTheme.accent,
+                                title: "Расписание",
+                                detail: settings.deliveryStatus
+                            )
+
+                            HStack(spacing: 8) {
+                                notificationActionButton("Разрешить", icon: "bell.badge.fill", color: SchoolTheme.success) {
+                                    requestPermission()
+                                }
+                                notificationActionButton("Тест", icon: "paperplane.fill", color: SchoolTheme.accent) {
+                                    sendTestNotification()
+                                }
+                            }
+
+                            notificationActionButton("Запланировать дайджесты", icon: "calendar.badge.plus", color: SchoolTheme.warning) {
+                                scheduleEnabledNotifications()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     DashboardCard {
@@ -2562,9 +2636,9 @@ private struct NotificationSettingsSheet: View {
                                 .foregroundStyle(SchoolTheme.muted)
 
                             Button {
-                                testStatus = "Готово: локальный дайджест собран на \(settings.eveningTime)"
+                                scheduleEnabledNotifications()
                             } label: {
-                                Label("Собрать тестовый дайджест", systemImage: "paperplane.fill")
+                                Label("Пересобрать расписание", systemImage: "arrow.clockwise")
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity, minHeight: 46)
                             }
@@ -2599,11 +2673,190 @@ private struct NotificationSettingsSheet: View {
                 }
                 KeyboardDoneToolbar()
             }
+            .task {
+                await refreshNotificationStatus()
+            }
         }
     }
 
     private var enabledCount: Int {
         preferences.filter(\.isEnabled).count
+    }
+
+    private func notificationStateRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func notificationActionButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(color.opacity(0.11), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func requestPermission() {
+        Task {
+            do {
+                let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+                await MainActor.run {
+                    settings.permissionStatus = granted ? "Разрешено iOS: alert, badge, sound" : "Пользователь отказал в уведомлениях"
+                    testStatus = granted ? "Можно планировать локальные напоминания" : "Открой настройки iOS, если захочешь включить позже"
+                }
+            } catch {
+                await MainActor.run {
+                    settings.permissionStatus = "Ошибка запроса: \(error.localizedDescription)"
+                    testStatus = "Не удалось запросить разрешение"
+                }
+            }
+        }
+    }
+
+    private func sendTestNotification() {
+        Task {
+            let content = UNMutableNotificationContent()
+            content.title = "Школьный класс"
+            content.body = "Тест: завтра математика, форма и одно дело для родителя"
+            content.sound = .default
+
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+            let request = UNNotificationRequest(identifier: "school.test.digest", content: content, trigger: trigger)
+
+            do {
+                try await UNUserNotificationCenter.current().add(request)
+                await MainActor.run {
+                    settings.deliveryStatus = "Тестовое уведомление запланировано через 5 секунд"
+                    testStatus = "Тест отправлен в iOS Notification Center"
+                }
+                await refreshNotificationStatus()
+            } catch {
+                await MainActor.run {
+                    settings.deliveryStatus = "Ошибка теста: \(error.localizedDescription)"
+                    testStatus = "Проверь разрешение уведомлений"
+                }
+            }
+        }
+    }
+
+    private func scheduleEnabledNotifications() {
+        Task {
+            let center = UNUserNotificationCenter.current()
+            center.removePendingNotificationRequests(withIdentifiers: [
+                "school.digest.evening",
+                "school.digest.morning",
+                "school.collection.deadline"
+            ])
+
+            var requests: [UNNotificationRequest] = []
+
+            if preferences.contains(where: { $0.title == "Вечерний дайджест" && $0.isEnabled }) {
+                requests.append(calendarRequest(
+                    identifier: "school.digest.evening",
+                    title: "Что завтра",
+                    body: "Проверь уроки, ДЗ, форму и что нужно принести",
+                    time: settings.eveningTime
+                ))
+            }
+
+            if preferences.contains(where: { $0.title == "Утренний дайджест" && $0.isEnabled }) {
+                requests.append(calendarRequest(
+                    identifier: "school.digest.morning",
+                    title: "Перед школой",
+                    body: "Расписание, срочное и семейные задачи на утро",
+                    time: settings.morningTime
+                ))
+            }
+
+            if preferences.contains(where: { $0.title == "Дедлайны оплат" && $0.isEnabled }) {
+                requests.append(calendarRequest(
+                    identifier: "school.collection.deadline",
+                    title: "Сбор класса",
+                    body: "Проверь срок оплаты и чек в разделе Класс",
+                    time: settings.quietHoursEnabled ? settings.quietEnd : settings.eveningTime
+                ))
+            }
+
+            do {
+                for request in requests {
+                    try await center.add(request)
+                }
+                await MainActor.run {
+                    settings.scheduledCount = requests.count
+                    settings.deliveryStatus = requests.isEmpty ? "Нет включенных сценариев для расписания" : "Запланировано локально: \(requests.count) уведомления"
+                    testStatus = "Расписание iOS обновлено"
+                }
+                await refreshNotificationStatus()
+            } catch {
+                await MainActor.run {
+                    settings.deliveryStatus = "Ошибка расписания: \(error.localizedDescription)"
+                    testStatus = "Не удалось обновить расписание iOS"
+                }
+            }
+        }
+    }
+
+    private func calendarRequest(identifier: String, title: String, body: String, time: String) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let parts = time.split(separator: ":").compactMap { Int($0) }
+        var dateComponents = DateComponents()
+        dateComponents.hour = parts.first ?? 20
+        dateComponents.minute = parts.dropFirst().first ?? 0
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        return UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+    }
+
+    @MainActor
+    private func updateAuthorizationStatus(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .authorized:
+            settings.permissionStatus = "Разрешено iOS"
+        case .denied:
+            settings.permissionStatus = "Запрещено в настройках iOS"
+        case .notDetermined:
+            settings.permissionStatus = "Разрешение iOS еще не запрашивалось"
+        case .provisional:
+            settings.permissionStatus = "Временное разрешение iOS"
+        case .ephemeral:
+            settings.permissionStatus = "Временная сессия iOS"
+        @unknown default:
+            settings.permissionStatus = "Неизвестный статус iOS"
+        }
+    }
+
+    private func refreshNotificationStatus() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let pending = await center.pendingNotificationRequests()
+
+        await MainActor.run {
+            updateAuthorizationStatus(settings.authorizationStatus)
+            self.settings.scheduledCount = pending.filter { $0.identifier.hasPrefix("school.") }.count
+            if self.settings.scheduledCount > 0 {
+                self.settings.deliveryStatus = "В iOS ожидают \(self.settings.scheduledCount) локальных уведомления"
+            }
+        }
     }
 
     private func save() {
