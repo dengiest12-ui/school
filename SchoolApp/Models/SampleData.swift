@@ -87,6 +87,12 @@ enum EventResponse: String, CaseIterable, Hashable {
     case question = "Есть вопрос"
 }
 
+struct EventLinkedCollection: Hashable {
+    var title: String
+    var amount: String
+    var status: CollectionStatus
+}
+
 struct ClassEvent: Identifiable, Hashable {
     let id: UUID
     var title: String
@@ -95,6 +101,7 @@ struct ClassEvent: Identifiable, Hashable {
     var type: String
     var place: String
     var response: EventResponse
+    var linkedCollection: EventLinkedCollection?
 
     init(
         id: UUID = UUID(),
@@ -103,7 +110,8 @@ struct ClassEvent: Identifiable, Hashable {
         detail: String,
         type: String = "Событие",
         place: String = "",
-        response: EventResponse = .undecided
+        response: EventResponse = .undecided,
+        linkedCollection: EventLinkedCollection? = nil
     ) {
         self.id = id
         self.title = title
@@ -112,6 +120,7 @@ struct ClassEvent: Identifiable, Hashable {
         self.type = type
         self.place = place
         self.response = response
+        self.linkedCollection = linkedCollection
     }
 }
 
@@ -231,7 +240,8 @@ enum SampleData {
             dateLabel: "Чт, 9 июля",
             detail: "Сбор у школы в 09:10",
             type: "Экскурсия",
-            place: "Музей космонавтики"
+            place: "Музей космонавтики",
+            linkedCollection: EventLinkedCollection(title: "Сбор на экскурсию", amount: "500 руб.", status: .dueSoon)
         ),
         ClassEvent(
             title: "Контрольная по математике",

@@ -133,9 +133,15 @@ struct CalendarView: View {
             HStack(alignment: .top, spacing: 12) {
                 IconBadge(systemName: iconName(for: event.type), color: color(for: event.type), size: 42)
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        StatusBadge(text: event.type, color: color(for: event.type))
-                        StatusBadge(text: event.response.rawValue, color: responseColor(event.response))
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            StatusBadge(text: event.type, color: color(for: event.type))
+                            StatusBadge(text: event.response.rawValue, color: responseColor(event.response))
+                        }
+
+                        if let linkedCollection = event.linkedCollection {
+                            StatusBadge(text: "Сбор: \(linkedCollection.amount)", color: SchoolTheme.warning)
+                        }
                     }
 
                     Text(event.title)
@@ -279,6 +285,9 @@ private struct AddEventSheet: View {
     @State private var detail = "Сбор у школы, нужна вода и согласие"
     @State private var responsible = "Родкомитет"
     @State private var reminderEnabled = true
+    @State private var hasLinkedCollection = true
+    @State private var collectionTitle = "Сбор на экскурсию"
+    @State private var collectionAmount = "500 руб."
 
     var body: some View {
         NavigationStack {
@@ -288,7 +297,7 @@ private struct AddEventSheet: View {
                         icon: "calendar.badge.plus",
                         color: SchoolTheme.accent,
                         title: "Создать событие",
-                        subtitle: "Экскурсия, контрольная, дедлайн оплаты или семейное дело"
+                        subtitle: "Экскурсия, контрольная, оплата или семейное дело"
                     )
 
                     DashboardCard {
@@ -303,6 +312,7 @@ private struct AddEventSheet: View {
                     }
 
                     reminderCard
+                    linkedCollectionCard
 
                     Button {
                         save()
@@ -313,7 +323,12 @@ private struct AddEventSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(SchoolTheme.success)
-                    .disabled(title.trimmed.isEmpty || dateLabel.trimmed.isEmpty || detail.trimmed.isEmpty)
+                    .disabled(
+                        title.trimmed.isEmpty
+                            || dateLabel.trimmed.isEmpty
+                            || detail.trimmed.isEmpty
+                            || (hasLinkedCollection && (collectionTitle.trimmed.isEmpty || collectionAmount.trimmed.isEmpty))
+                    )
                 }
                 .padding(20)
                 .padding(.bottom, 20)
@@ -385,18 +400,54 @@ private struct AddEventSheet: View {
         }
     }
 
+    private var linkedCollectionCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: $hasLinkedCollection) {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "rublesign.circle.fill", color: SchoolTheme.warning, size: 42)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Связать со сбором")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Оплата будет видна в деталях события")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(SchoolTheme.success)
+
+                if hasLinkedCollection {
+                    CalendarTextField(title: "Название сбора", iconName: "text.badge.plus", color: SchoolTheme.accent, text: $collectionTitle)
+                    CalendarTextField(title: "Сумма", iconName: "banknote", color: SchoolTheme.warning, text: $collectionAmount)
+                }
+            }
+        }
+    }
+
     private var eventTypes: [String] {
         ["Экскурсия", "Контрольная", "Собрание", "Праздник", "Сбор", "Кружок", "Личное"]
     }
 
     private func save() {
+        let linkedCollection: EventLinkedCollection? = hasLinkedCollection
+            ? EventLinkedCollection(
+                title: collectionTitle.trimmed,
+                amount: collectionAmount.trimmed,
+                status: .active
+            )
+            : nil
+
         let event = ClassEvent(
             title: title.trimmed,
             dateLabel: dateLabel.trimmed,
             detail: "\(detail.trimmed). Ответственный: \(responsible.trimmed)",
             type: type,
             place: place.trimmed,
-            response: .undecided
+            response: .undecided,
+            linkedCollection: linkedCollection
         )
 
         onSave(event)
@@ -435,6 +486,10 @@ private struct EventDetailSheet: View {
                             eventInfo("Место", event.place.isEmpty ? "Будет уточнено" : event.place, "mappin.and.ellipse", SchoolTheme.teal)
                             eventInfo("Детали", event.detail, "text.alignleft", SchoolTheme.success)
                         }
+                    }
+
+                    if let linkedCollection = event.linkedCollection {
+                        linkedCollectionCard(linkedCollection)
                     }
 
                     DashboardCard {
@@ -490,6 +545,27 @@ private struct EventDetailSheet: View {
         }
     }
 
+    private func linkedCollectionCard(_ collection: EventLinkedCollection) -> some View {
+        DashboardCard {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: "rublesign.circle.fill", color: collectionStatusColor(collection.status), size: 42)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Связанный сбор")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(collection.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    HStack(spacing: 8) {
+                        InfoPill(text: collection.amount, color: SchoolTheme.warning)
+                        StatusBadge(text: collection.status.rawValue, color: collectionStatusColor(collection.status))
+                    }
+                }
+                Spacer()
+            }
+        }
+    }
+
     private func eventInfo(_ title: String, _ value: String, _ iconName: String, _ color: Color) -> some View {
         HStack(alignment: .top, spacing: 12) {
             IconBadge(systemName: iconName, color: color, size: 38)
@@ -503,6 +579,17 @@ private struct EventDetailSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
+        }
+    }
+
+    private func collectionStatusColor(_ status: CollectionStatus) -> Color {
+        switch status {
+        case .active:
+            SchoolTheme.success
+        case .dueSoon:
+            SchoolTheme.warning
+        case .closed:
+            SchoolTheme.accent
         }
     }
 

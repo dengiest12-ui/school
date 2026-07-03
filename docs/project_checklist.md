@@ -178,8 +178,8 @@
 - [~] Экран "Календарь / событие"
   - Проверка: события, кружки, дедлайны, участники, напоминания
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Calendar/CalendarView.swift`, `.build/screenshots/calendar-main-interactive-final.png`, `.build/screenshots/calendar-add-event-final.png`, `.build/screenshots/calendar-event-detail-final.png`
-  - Комментарий: реализованы ближайшие события, неделя, личные кружки, создание события и ответ семьи в локальном состоянии экрана
+  - Артефакт: `SchoolApp/Features/Calendar/CalendarView.swift`, `.build/screenshots/calendar-main-interactive-final.png`, `.build/screenshots/calendar-linked-main-final.png`, `.build/screenshots/calendar-linked-detail-final.png`
+  - Комментарий: реализованы ближайшие события, неделя, личные кружки, создание события, ответ семьи и связанный сбор в локальном состоянии экрана
 
 - [ ] Состояния интерфейса
   - Проверка: пусто, загрузка, ошибка сети, нет прав, нет подписки, нет класса, нет ребенка, успех, отмена
@@ -441,11 +441,11 @@
   - Артефакт: `.build/screenshots/calendar-event-detail-final.png`
   - Комментарий: ответ семьи меняется локально между "Жду ответа", "Идем", "Не сможем" и "Есть вопрос"; серверное сохранение и уведомление организатора еще не реализованы
 
-- [ ] Связь события со сбором
+- [~] Связь события со сбором
   - Проверка: экскурсия или праздник могут иметь связанный сбор
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий: следующий шаг после интерактивных сборов родкомитета
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/calendar-linked-main-final.png`, `.build/screenshots/calendar-linked-detail-final.png`, `.build/screenshots/calendar-linked-add-final.png`
+  - Комментарий: событие может показывать связанный сбор и сумму; создание события сохраняет связку локально, но пока без общего backend-объекта между календарем и разделом сборов
 
 ## 11. Сборы и родкомитет
 
@@ -915,3 +915,5 @@
 | 2026-07-03 | Регрессия основных вкладок после календаря | Пройдено | 3 | `.build/screenshots/regression-today-after-calendar.png`, `.build/screenshots/regression-class-after-calendar.png`, `.build/screenshots/regression-homework-after-calendar.png`, `.build/screenshots/regression-calendar-after-calendar.png`, `.build/screenshots/regression-more-after-calendar.png` | После изменения модели событий проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще`; ошибочный первый параметр `class` заменен на `classRoom` |
 | 2026-07-03 | Интерактивные сборы родкомитета | Пройдено | 3 | `.build/screenshots/collections-main-final.png`, `.build/screenshots/collections-add-final.png`, `.build/screenshots/collections-detail-final.png` | Проверены список сборов, создание сбора, статусы оплат, расходы и отчет без реального приема денег |
 | 2026-07-03 | Регрессия основных вкладок после сборов | Пройдено | 3 | `.build/screenshots/regression-today-after-collections.png`, `.build/screenshots/regression-class-after-collections.png`, `.build/screenshots/regression-homework-after-collections.png`, `.build/screenshots/regression-calendar-after-collections.png`, `.build/screenshots/regression-more-after-collections.png` | После изменения модели сборов проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Связь события календаря со сбором | Пройдено | 3 | `.build/screenshots/calendar-linked-main-final.png`, `.build/screenshots/calendar-linked-detail-final.png`, `.build/screenshots/calendar-linked-add-final.png` | Проверены бейдж связанного сбора в списке, блок сбора в деталях события и поля связки при создании события |
+| 2026-07-03 | Регрессия основных вкладок после связки события со сбором | Пройдено | 3 | `.build/screenshots/regression-today-after-linked-collections.png`, `.build/screenshots/regression-class-after-linked-collections.png`, `.build/screenshots/regression-homework-after-linked-collections.png`, `.build/screenshots/regression-calendar-after-linked-collections.png`, `.build/screenshots/regression-more-after-linked-collections.png` | После изменения модели события проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
