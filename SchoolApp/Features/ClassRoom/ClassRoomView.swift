@@ -1,6 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct ClassRoomView: View {
+    let userRole: AppUserRole
+
     @State private var selectedSection: ClassSection
     @State private var feedItems = SampleData.feed
     @State private var collections = SampleData.collections
@@ -9,7 +12,8 @@ struct ClassRoomView: View {
     @State private var members = SampleData.classMembers
     @State private var activeSheet: ClassRoomSheet?
 
-    init() {
+    init(userRole: AppUserRole = .parent) {
+        self.userRole = userRole
         let launchSheet = ClassRoomView.launchSheet()
         _selectedSection = State(initialValue: launchSheet?.preferredSection ?? ClassRoomView.launchSection())
         _activeSheet = State(initialValue: launchSheet)
@@ -31,12 +35,20 @@ struct ClassRoomView: View {
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addCollection:
-                AddCollectionSheet { collection in
-                    collections.insert(collection, at: 0)
-                    selectedSection = .collections
+                if userRole.canManageCollections {
+                    AddCollectionSheet { collection in
+                        collections.insert(collection, at: 0)
+                        selectedSection = .collections
+                    }
+                } else {
+                    BlockedClassActionSheet(
+                        icon: "rublesign.circle.fill",
+                        title: "Создание сбора закрыто",
+                        detail: "Сборы создает и ведет родкомитет. Родитель может смотреть отчет и отметить оплату своей семьи."
+                    )
                 }
             case .collectionDetail(let collection):
-                CollectionDetailSheet(collection: collection) { updatedCollection in
+                CollectionDetailSheet(collection: collection, userRole: userRole) { updatedCollection in
                     updateCollection(updatedCollection)
                 }
             case .chatDetail(let thread):
@@ -48,16 +60,34 @@ struct ClassRoomView: View {
                     digestItems = updatedItems
                 }
             case .announcementDetail(let item):
-                AnnouncementDetailSheet(item: item)
+                AnnouncementDetailSheet(item: item) { updatedItem in
+                    updateFeedItem(updatedItem)
+                }
             case .newAnnouncement:
-                NewAnnouncementSheet { item in
-                    feedItems.insert(item, at: 0)
-                    selectedSection = .feed
+                if userRole.canPublishAnnouncements {
+                    NewAnnouncementSheet { item in
+                        feedItems.insert(item, at: 0)
+                        selectedSection = .feed
+                    }
+                } else {
+                    BlockedClassActionSheet(
+                        icon: "megaphone.fill",
+                        title: "Публикация закрыта",
+                        detail: "Объявления публикуют учитель и родкомитет. Родитель может читать и подтверждать прочтение."
+                    )
                 }
             case .inviteMembers:
-                InviteMembersSheet(members: members) { updatedMembers in
-                    members = updatedMembers
-                    selectedSection = .members
+                if userRole.canInviteMembers {
+                    InviteMembersSheet(members: members) { updatedMembers in
+                        members = updatedMembers
+                        selectedSection = .members
+                    }
+                } else {
+                    BlockedClassActionSheet(
+                        icon: "person.badge.plus",
+                        title: "Приглашения закрыты",
+                        detail: "Участников приглашает администратор класса, учитель или родкомитет."
+                    )
                 }
             }
         }
@@ -78,10 +108,12 @@ struct ClassRoomView: View {
 
             HeaderIconButton(systemName: "magnifyingglass")
                 .accessibilityLabel("Поиск")
-            HeaderIconButton(systemName: "plus") {
-                openCreateAction()
+            if canUseHeaderCreateAction {
+                HeaderIconButton(systemName: "plus") {
+                    openCreateAction()
+                }
+                .accessibilityLabel("Добавить")
             }
-            .accessibilityLabel("Добавить")
         }
     }
 
@@ -167,6 +199,7 @@ struct ClassRoomView: View {
                                 activeSheet = .newAnnouncement
                             }
                                 .buttonStyle(.borderless)
+                                .disabled(!userRole.canPublishAnnouncements)
                             Spacer()
                         }
                         .font(.subheadline.weight(.semibold))
@@ -278,16 +311,26 @@ struct ClassRoomView: View {
     private var collectionsContent: some View {
         VStack(spacing: 12) {
             collectionSummaryCard
-
-            Button {
-                activeSheet = .addCollection
-            } label: {
-                Label("Создать сбор", systemImage: "plus")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
+            if !userRole.canManageCollections {
+                roleRestrictionCard(
+                    title: "Вы вошли как родитель",
+                    detail: "Можно смотреть сборы и отметить оплату своей семьи. Общий счетчик, чеки и отчет ведет родкомитет.",
+                    iconName: "lock.shield.fill",
+                    color: SchoolTheme.accent
+                )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(SchoolTheme.success)
+
+            if userRole.canManageCollections {
+                Button {
+                    activeSheet = .addCollection
+                } label: {
+                    Label("Создать сбор", systemImage: "plus")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(SchoolTheme.success)
+            }
 
             ForEach(collections) { collection in
                 Button {
@@ -402,15 +445,42 @@ struct ClassRoomView: View {
                 }
             }
 
-            Button {
-                activeSheet = .inviteMembers
-            } label: {
-                Label("Пригласить родителей", systemImage: "link")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
+            if userRole.canInviteMembers {
+                Button {
+                    activeSheet = .inviteMembers
+                } label: {
+                    Label("Пригласить родителей", systemImage: "link")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(SchoolTheme.success)
+            } else {
+                roleRestrictionCard(
+                    title: "Управляет администратор класса",
+                    detail: "Обычный родитель видит состав класса, но не приглашает участников и не меняет роли.",
+                    iconName: "person.badge.shield.checkmark.fill",
+                    color: SchoolTheme.accent
+                )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(SchoolTheme.success)
+        }
+    }
+
+    private func roleRestrictionCard(title: String, detail: String, iconName: String, color: Color) -> some View {
+        DashboardCard {
+            HStack(spacing: 12) {
+                IconBadge(systemName: iconName, color: color, size: 44)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
         }
     }
 
@@ -510,15 +580,41 @@ struct ClassRoomView: View {
         chatThreads[index] = updatedThread
     }
 
+    private func updateFeedItem(_ updatedItem: FeedItem) {
+        guard let index = feedItems.firstIndex(where: { $0.id == updatedItem.id }) else {
+            return
+        }
+
+        feedItems[index] = updatedItem
+    }
+
     private func openCreateAction() {
         switch selectedSection {
         case .collections:
-            activeSheet = .addCollection
+            if userRole.canManageCollections {
+                activeSheet = .addCollection
+            }
         case .feed, .chats:
-            activeSheet = .newAnnouncement
+            if userRole.canPublishAnnouncements {
+                activeSheet = .newAnnouncement
+            }
         case .photos, .members:
-            selectedSection = .feed
-            activeSheet = .newAnnouncement
+            if userRole.canInviteMembers {
+                activeSheet = .inviteMembers
+            }
+        }
+    }
+
+    private var canUseHeaderCreateAction: Bool {
+        switch selectedSection {
+        case .collections:
+            userRole.canManageCollections
+        case .feed, .chats:
+            userRole.canPublishAnnouncements
+        case .members:
+            userRole.canInviteMembers
+        case .photos:
+            false
         }
     }
 
@@ -692,6 +788,7 @@ private struct AddCollectionSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Новый сбор")
             .navigationBarTitleDisplayMode(.inline)
@@ -699,6 +796,12 @@ private struct AddCollectionSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
                         dismiss()
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissKeyboard()
                     }
                 }
             }
@@ -723,26 +826,80 @@ private struct AddCollectionSheet: View {
     }
 }
 
+private struct BlockedClassActionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 14) {
+                CollectionSheetHeader(
+                    icon: icon,
+                    color: SchoolTheme.accent,
+                    title: title,
+                    subtitle: detail
+                )
+
+                DashboardCard {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "lock.shield.fill", color: SchoolTheme.accent, size: 44)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Доступ ограничен")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Это защитит сборы, объявления и данные класса от случайных изменений.")
+                                .font(.subheadline)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Нет прав")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct CollectionDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let collection: CollectionSummary
+    let userRole: AppUserRole
     let onSave: (CollectionSummary) -> Void
 
     @State private var paidCount: Int
     @State private var status: CollectionStatus
     @State private var expenses: [CollectionExpense]
-    @State private var myFamilyPaid = false
+    @State private var myFamilyPaid: Bool
     @State private var expenseTitle = "Чек за автобус"
     @State private var expenseAmount = "2 500 руб."
     @State private var expenseNote = "Добавлено в отчет"
+    @State private var expenseAttachment: String?
 
-    init(collection: CollectionSummary, onSave: @escaping (CollectionSummary) -> Void) {
+    init(collection: CollectionSummary, userRole: AppUserRole, onSave: @escaping (CollectionSummary) -> Void) {
         self.collection = collection
+        self.userRole = userRole
         self.onSave = onSave
         _paidCount = State(initialValue: collection.paidCount)
         _status = State(initialValue: collection.status)
         _expenses = State(initialValue: collection.expenses)
+        _myFamilyPaid = State(initialValue: collection.myFamilyPaid)
     }
 
     var body: some View {
@@ -770,7 +927,7 @@ private struct CollectionDetailSheet: View {
                     Button {
                         save()
                     } label: {
-                        Label("Сохранить сбор", systemImage: "checkmark")
+                        Label(userRole.canManageCollections ? "Сохранить сбор" : "Сохранить мою оплату", systemImage: "checkmark")
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
@@ -780,13 +937,20 @@ private struct CollectionDetailSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Сбор")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
-                        dismiss()
+                        save()
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissKeyboard()
                     }
                 }
             }
@@ -807,14 +971,29 @@ private struct CollectionDetailSheet: View {
                 ProgressView(value: Double(paidCount), total: Double(collection.totalCount))
                     .tint(SchoolTheme.success)
 
-                Stepper(value: $paidCount, in: 0...collection.totalCount) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Подтверждено родкомитетом")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(SchoolTheme.graphite)
-                        Text("Осталось \(max(0, collection.totalCount - paidCount)) семей")
-                            .font(.caption)
-                            .foregroundStyle(SchoolTheme.muted)
+                if userRole.canManageCollections {
+                    Stepper(value: $paidCount, in: 0...collection.totalCount) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Подтверждено родкомитетом")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Осталось \(max(0, collection.totalCount - paidCount)) семей")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "lock.shield.fill", color: SchoolTheme.accent, size: 42)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Общий счетчик закрыт")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Его меняет родкомитет после подтверждения оплаты")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
 
@@ -834,12 +1013,14 @@ private struct CollectionDetailSheet: View {
                 .toggleStyle(.switch)
                 .tint(SchoolTheme.success)
 
-                Picker("Статус", selection: $status) {
-                    ForEach(CollectionStatus.allCases, id: \.self) { status in
-                        Text(status.rawValue).tag(status)
+                if userRole.canManageCollections {
+                    Picker("Статус", selection: $status) {
+                        ForEach(CollectionStatus.allCases, id: \.self) { status in
+                            Text(status.rawValue).tag(status)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
             }
         }
     }
@@ -867,6 +1048,11 @@ private struct CollectionDetailSheet: View {
                                     Text(expense.note)
                                         .font(.caption)
                                         .foregroundStyle(SchoolTheme.muted)
+                                    if let attachment = expense.attachment {
+                                        Label(attachment, systemImage: attachment.contains("Фото") ? "camera.fill" : "paperclip")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.accent)
+                                    }
                                 }
                                 Spacer()
                                 Text(expense.amount)
@@ -877,22 +1063,59 @@ private struct CollectionDetailSheet: View {
                     }
                 }
 
-                VStack(spacing: 10) {
-                    CollectionTextField(title: "Расход", iconName: "doc.badge.plus", color: SchoolTheme.accent, text: $expenseTitle)
-                    CollectionTextField(title: "Сумма", iconName: "banknote", color: SchoolTheme.warning, text: $expenseAmount)
-                    CollectionTextField(title: "Комментарий", iconName: "text.alignleft", color: SchoolTheme.teal, text: $expenseNote)
-                }
+                if userRole.canManageCollections {
+                    VStack(spacing: 10) {
+                        CollectionTextField(title: "Расход", iconName: "doc.badge.plus", color: SchoolTheme.accent, text: $expenseTitle)
+                        CollectionTextField(title: "Сумма", iconName: "banknote", color: SchoolTheme.warning, text: $expenseAmount)
+                        CollectionTextField(title: "Комментарий", iconName: "text.alignleft", color: SchoolTheme.teal, text: $expenseNote)
 
-                Button {
-                    addExpense()
-                } label: {
-                    Label("Добавить расход", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 46)
+                        HStack(spacing: 10) {
+                            Button {
+                                addReceiptPhoto()
+                            } label: {
+                                Label("Фото чека", systemImage: "camera.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 42)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(expenseAttachment?.contains("Фото") == true ? SchoolTheme.success : SchoolTheme.accent)
+
+                            Button {
+                                attachReceiptFile()
+                            } label: {
+                                Label("Файл", systemImage: "paperclip")
+                                    .font(.caption.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 42)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(expenseAttachment?.contains("Файл") == true ? SchoolTheme.success : SchoolTheme.accent)
+                        }
+                    }
+
+                    Button {
+                        addExpense()
+                    } label: {
+                        Label("Добавить расход", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SchoolTheme.success)
+                    .disabled(expenseTitle.trimmed.isEmpty || expenseAmount.trimmed.isEmpty)
+                } else {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "eye.fill", color: SchoolTheme.accent, size: 40)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Отчет только для просмотра")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Чеки и расходы добавляет родкомитет")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                        }
+                        Spacer()
+                    }
                 }
-                .buttonStyle(.bordered)
-                .tint(SchoolTheme.success)
-                .disabled(expenseTitle.trimmed.isEmpty || expenseAmount.trimmed.isEmpty)
             }
         }
     }
@@ -927,22 +1150,49 @@ private struct CollectionDetailSheet: View {
         let expense = CollectionExpense(
             title: expenseTitle.trimmed,
             amount: expenseAmount.trimmed,
-            note: expenseNote.trimmed.isEmpty ? "Без комментария" : expenseNote.trimmed
+            note: expenseNote.trimmed.isEmpty ? "Без комментария" : expenseNote.trimmed,
+            attachment: expenseAttachment
         )
 
         expenses.insert(expense, at: 0)
         expenseTitle = ""
         expenseAmount = ""
         expenseNote = ""
+        expenseAttachment = nil
+        onSave(updatedCollectionSnapshot())
+    }
+
+    private func addReceiptPhoto() {
+        expenseAttachment = "Фото чека"
+    }
+
+    private func attachReceiptFile() {
+        expenseAttachment = "Файл отчета"
     }
 
     private func save() {
-        var updatedCollection = collection
-        updatedCollection.paidCount = paidCount
-        updatedCollection.status = paidCount >= collection.totalCount ? .closed : status
-        updatedCollection.expenses = expenses
-        onSave(updatedCollection)
+        onSave(updatedCollectionSnapshot())
         dismiss()
+    }
+
+    private func updatedCollectionSnapshot() -> CollectionSummary {
+        var updatedCollection = collection
+        updatedCollection.myFamilyPaid = myFamilyPaid
+
+        if userRole.canManageCollections {
+            updatedCollection.paidCount = paidCount
+            updatedCollection.status = paidCount >= collection.totalCount ? .closed : status
+            updatedCollection.expenses = expenses
+        } else {
+            let previousFamilyPayment = collection.myFamilyPaid ? 1 : 0
+            let currentFamilyPayment = myFamilyPaid ? 1 : 0
+            let nextPaidCount = collection.paidCount + currentFamilyPayment - previousFamilyPayment
+            updatedCollection.paidCount = min(max(nextPaidCount, 0), collection.totalCount)
+            updatedCollection.status = updatedCollection.paidCount >= collection.totalCount ? .closed : collection.status
+            updatedCollection.expenses = collection.expenses
+        }
+
+        return updatedCollection
     }
 
     private func collectionStatusColor(_ status: CollectionStatus) -> Color {
@@ -1000,6 +1250,7 @@ private struct ChatDetailSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Чат")
             .navigationBarTitleDisplayMode(.inline)
@@ -1007,6 +1258,12 @@ private struct ChatDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
                         save()
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissKeyboard()
                     }
                 }
             }
@@ -1308,8 +1565,15 @@ private struct AnnouncementDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let item: FeedItem
+    let onSave: (FeedItem) -> Void
 
-    @State private var acknowledged = false
+    @State private var acknowledged: Bool
+
+    init(item: FeedItem, onSave: @escaping (FeedItem) -> Void) {
+        self.item = item
+        self.onSave = onSave
+        _acknowledged = State(initialValue: item.isAcknowledged)
+    }
 
     var body: some View {
         NavigationStack {
@@ -1329,7 +1593,7 @@ private struct AnnouncementDetailSheet: View {
                                 .font(.title3.weight(.semibold))
                                 .foregroundStyle(SchoolTheme.graphite)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Прочитали 18 из 25 родителей")
+                            Text("Прочитали \(acknowledged ? 19 : 18) из 25 родителей")
                                 .font(.subheadline)
                                 .foregroundStyle(SchoolTheme.muted)
                         }
@@ -1352,29 +1616,49 @@ private struct AnnouncementDetailSheet: View {
                     }
 
                     Button {
-                        acknowledged.toggle()
+                        acknowledge()
                     } label: {
-                        Label(acknowledged ? "Отменить подтверждение" : "Я прочитал", systemImage: acknowledged ? "arrow.uturn.backward" : "checkmark")
+                        Label(acknowledged ? "Прочитано" : "Я прочитал", systemImage: acknowledged ? "checkmark.seal.fill" : "checkmark")
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(acknowledged ? SchoolTheme.muted : SchoolTheme.success)
+                    .disabled(acknowledged)
                 }
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Объявление")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
+                        save()
                         dismiss()
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissKeyboard()
                     }
                 }
             }
         }
+    }
+
+    private func acknowledge() {
+        acknowledged = true
+        save()
+    }
+
+    private func save() {
+        var updatedItem = item
+        updatedItem.isAcknowledged = acknowledged
+        onSave(updatedItem)
     }
 
     private func icon(for tag: String) -> String {
@@ -1606,6 +1890,7 @@ private struct InviteMembersSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Приглашение")
             .navigationBarTitleDisplayMode(.inline)
@@ -1613,6 +1898,12 @@ private struct InviteMembersSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
                         save()
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") {
+                        dismissKeyboard()
                     }
                 }
             }
@@ -1705,6 +1996,10 @@ private struct CollectionTextField: View {
                 .stroke(SchoolTheme.line, lineWidth: 1)
         }
     }
+}
+
+private func dismissKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 }
 
 private enum ClassRoomSheet: Identifiable, Hashable {

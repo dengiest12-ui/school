@@ -25,12 +25,12 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 
     @ViewBuilder
-    var content: some View {
+    func content(userRole: AppUserRole = .parent) -> some View {
         switch self {
         case .today:
             TodayView()
         case .classRoom:
-            ClassRoomView()
+            ClassRoomView(userRole: userRole)
         case .homework:
             HomeworkView()
         case .calendar:

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AppView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("onboardingVersion") private var onboardingVersion = 0
+    @AppStorage("currentUserRole") private var currentUserRoleRaw = AppUserRole.parent.rawValue
     @State private var selectedTab: AppTab
     @State private var completedForcedOnboarding = false
 
@@ -17,6 +19,7 @@ struct AppView: View {
                 mainApp
             }
         }
+        .onAppear(perform: resetOnboardingIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
     }
@@ -24,7 +27,7 @@ struct AppView: View {
     private var mainApp: some View {
         ZStack(alignment: .bottom) {
             NavigationStack {
-                selectedTab.content
+                selectedTab.content(userRole: currentUserRole)
             }
 
             SchoolTheme.page
@@ -45,12 +48,33 @@ struct AppView: View {
             return !completedForcedOnboarding
         }
 
-        return !hasCompletedOnboarding && !Self.skipsOnboarding
+        return (!hasCompletedOnboarding || onboardingVersion < Self.requiredOnboardingVersion) && !Self.skipsOnboarding
     }
 
-    private func completeOnboarding() {
+    private var currentUserRole: AppUserRole {
+        if let launchRole = Self.launchRole {
+            return launchRole
+        }
+
+        return AppUserRole(rawValue: currentUserRoleRaw) ?? .parent
+    }
+
+    private func completeOnboarding(role: AppUserRole) {
         hasCompletedOnboarding = true
+        onboardingVersion = Self.requiredOnboardingVersion
+        currentUserRoleRaw = role.rawValue
         completedForcedOnboarding = true
+    }
+
+    private func resetOnboardingIfNeeded() {
+        guard Self.resetsOnboarding else {
+            return
+        }
+
+        hasCompletedOnboarding = false
+        onboardingVersion = 0
+        currentUserRoleRaw = AppUserRole.parent.rawValue
+        completedForcedOnboarding = false
     }
 
     private static func launchTab() -> AppTab {
@@ -75,6 +99,25 @@ struct AppView: View {
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("-qa-skip-onboarding") || arguments.contains("-qa-tab")
     }
+
+    private static var resetsOnboarding: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-reset-onboarding")
+    }
+
+    private static var launchRole: AppUserRole? {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        guard
+            let roleArgumentIndex = arguments.firstIndex(of: "-qa-role"),
+            arguments.indices.contains(roleArgumentIndex + 1)
+        else {
+            return nil
+        }
+
+        return AppUserRole(rawValue: arguments[roleArgumentIndex + 1])
+    }
+
+    private static let requiredOnboardingVersion = 2
 }
 
 private struct CustomTabBar: View {

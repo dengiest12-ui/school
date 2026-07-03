@@ -1,5 +1,58 @@
 import Foundation
 
+enum AppUserRole: String, CaseIterable, Identifiable {
+    case parent
+    case parentCommittee
+    case teacher
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .parent:
+            "Родитель"
+        case .parentCommittee:
+            "Родкомитет"
+        case .teacher:
+            "Учитель"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .parent:
+            "ДЗ, события, напоминания и семейные задачи"
+        case .parentCommittee:
+            "Сборы, приглашения, отчеты и объявления класса"
+        case .teacher:
+            "Объявления, домашние задания и важные отметки"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .parent:
+            "figure.2.and.child.holdinghands"
+        case .parentCommittee:
+            "person.badge.shield.checkmark.fill"
+        case .teacher:
+            "graduationcap.fill"
+        }
+    }
+
+    var canManageCollections: Bool {
+        self == .parentCommittee
+    }
+
+    var canPublishAnnouncements: Bool {
+        self == .parentCommittee || self == .teacher
+    }
+
+    var canInviteMembers: Bool {
+        self == .parentCommittee || self == .teacher
+    }
+}
+
 struct ChildSummary: Identifiable, Hashable {
     let id = UUID()
     let name: String
@@ -380,12 +433,14 @@ struct CollectionExpense: Identifiable, Hashable {
     var title: String
     var amount: String
     var note: String
+    var attachment: String?
 
-    init(id: UUID = UUID(), title: String, amount: String, note: String) {
+    init(id: UUID = UUID(), title: String, amount: String, note: String, attachment: String? = nil) {
         self.id = id
         self.title = title
         self.amount = amount
         self.note = note
+        self.attachment = attachment
     }
 }
 
@@ -400,6 +455,7 @@ struct CollectionSummary: Identifiable, Hashable {
     var detail: String
     var status: CollectionStatus
     var expenses: [CollectionExpense]
+    var myFamilyPaid: Bool
 
     init(
         id: UUID = UUID(),
@@ -411,7 +467,8 @@ struct CollectionSummary: Identifiable, Hashable {
         recipient: String,
         detail: String,
         status: CollectionStatus = .active,
-        expenses: [CollectionExpense] = []
+        expenses: [CollectionExpense] = [],
+        myFamilyPaid: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -423,14 +480,24 @@ struct CollectionSummary: Identifiable, Hashable {
         self.detail = detail
         self.status = status
         self.expenses = expenses
+        self.myFamilyPaid = myFamilyPaid
     }
 }
 
 struct FeedItem: Identifiable, Hashable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let tag: String
+    let id: UUID
+    var title: String
+    var subtitle: String
+    var tag: String
+    var isAcknowledged: Bool
+
+    init(id: UUID = UUID(), title: String, subtitle: String, tag: String, isAcknowledged: Bool = false) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.tag = tag
+        self.isAcknowledged = isAcknowledged
+    }
 }
 
 enum SampleData {
@@ -581,7 +648,7 @@ enum SampleData {
             detail: "Билеты на спектакль и автобус до театра.",
             status: .dueSoon,
             expenses: [
-                CollectionExpense(title: "Билеты", amount: "10 000 руб.", note: "Предоплата театру")
+                CollectionExpense(title: "Билеты", amount: "10 000 руб.", note: "Предоплата театру", attachment: "PDF-счет театра")
             ]
         ),
         CollectionSummary(

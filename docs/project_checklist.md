@@ -382,14 +382,14 @@
 - [~] Объявления учителя
   - Проверка: отдельный канал объявлений, важные объявления, закрепление
   - Уровень: 3
-  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`
-  - Комментарий: есть создание объявления, канал, подтверждение прочтения и детальный просмотр; закрепление и доставка участникам еще не реализованы
+  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`
+  - Комментарий: есть создание объявления, канал, подтверждение прочтения с сохранением состояния и детальный просмотр; родителю публикация заблокирована локально, закрепление и доставка участникам еще не реализованы
 
 - [~] Чат родкомитета
   - Проверка: доступен нужным ролям, не смешивается с общим чатом
   - Уровень: 3
   - Артефакт: `.build/screenshots/chats-main-final.png`
-  - Комментарий: отдельная локальная ветка родкомитета видна рядом с общим чатом и учительскими объявлениями; права доступа пока не проверяются
+  - Комментарий: отдельная локальная ветка родкомитета видна рядом с общим чатом и учительскими объявлениями; часть прав проверяется в UI, серверная проверка еще не реализована
 
 - [ ] Комментарии под объявлениями
   - Проверка: можно включить/выключить обсуждение
@@ -452,14 +452,14 @@
 - [~] Создание сбора
   - Проверка: название, сумма, дедлайн, кому сдавать, описание, участники, напоминания, публикация
   - Уровень: 3
-  - Артефакт: `.build/screenshots/collections-add-final.png`
-  - Комментарий: сбор создается локально с названием, суммой, дедлайном, ответственным, описанием, участниками и переключателем напоминания; реальная публикация и backend еще не подключены
+  - Артефакт: `.build/screenshots/collections-add-final.png`, `.build/screenshots/bugfix-parent-collections.png`
+  - Комментарий: сбор создается локально с названием, суммой, дедлайном, ответственным, описанием, участниками и переключателем напоминания; родителю создание заблокировано, реальная публикация и backend еще не подключены
 
 - [~] Статусы оплат
   - Проверка: "сдал / не сдал", подтверждение получения родкомитетом
   - Уровень: 3
-  - Артефакт: `.build/screenshots/collections-detail-final.png`
-  - Комментарий: есть счетчик подтвержденных оплат, отметка "Моя семья сдала" и статус сбора; изменения пока живут только в состоянии экрана
+  - Артефакт: `.build/screenshots/collections-detail-final.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-committee-collection-detail.png`
+  - Комментарий: родитель может отметить только оплату своей семьи; общий счетчик и статус сбора меняет родкомитет в локальном UI, backend еще не подключен
 
 - [~] Карточка сбора
   - Проверка: цель, сумма с человека, общая сумма, дедлайн, статус, сколько сдали, сколько осталось
@@ -470,8 +470,8 @@
 - [~] Чеки и расходы
   - Проверка: можно добавить чек, расход и отчет
   - Уровень: 3
-  - Артефакт: `.build/screenshots/collections-detail-final.png`
-  - Комментарий: в детальном листе есть список расходов и локальное добавление расхода; загрузка реального фото чека еще не подключена
+  - Артефакт: `.build/screenshots/collections-detail-final.png`, `.build/screenshots/bugfix-committee-collection-detail.png`
+  - Комментарий: в детальном листе есть список расходов, локальное добавление расхода, отметка фото чека и файла; настоящая камера, Document Picker и хранение файлов еще не подключены
 
 - [~] Напоминания по сбору
   - Проверка: мягкие напоминания не оплатившим и дедлайны
@@ -773,11 +773,11 @@
   - Артефакт:
   - Комментарий: ключевой продуктовый принцип
 
-- [!] Проверка ролей и прав
+- [~] Проверка ролей и прав
   - Проверка: пользователь не может делать действия вне своей роли
   - Уровень: 3
-  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
-  - Комментарий: роли и статусы видны в UI, но реальные запреты действий вне роли пока не реализованы; это отдельный риск до backend
+  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/bugfix-parent-collections.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`
+  - Комментарий: в UI добавлены локальные запреты для родителя на создание объявлений, сборов, приглашений, изменение статусов, общего счетчика и чеков; backend-проверка прав все еще обязательна до релиза
 
 - [ ] Проверка пустых состояний
   - Проверка: нет класса, нет ребенка, нет ДЗ, нет событий, нет подписки, нет прав
@@ -794,7 +794,7 @@
 - [~] Проверка на iPhone Simulator
   - Проверка: основные экраны открываются, верстка не ломается, сценарии проходят
   - Уровень: 3
-  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`, `.build/screenshots/regression-*-after-settings.png`
+  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`, `.build/screenshots/regression-*-after-settings.png`, `.build/screenshots/regression-*-after-bugfixes.png`
   - Комментарий: сборка проходит; пять вкладок запускались в booted Simulator через QA-параметр `-qa-tab`, для вкладки `Класс` используется внутреннее имя `classRoom`
 
 - [ ] Проверка на реальном iPhone
@@ -925,3 +925,5 @@
 | 2026-07-03 | Регрессия основных вкладок после доступа | Пройдено | 3 | `.build/screenshots/regression-today-after-access.png`, `.build/screenshots/regression-class-after-access.png`, `.build/screenshots/regression-homework-after-access.png`, `.build/screenshots/regression-calendar-after-access.png`, `.build/screenshots/regression-more-after-access.png` | После изменения моделей семьи и участников проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Подписка и настройки уведомлений | Пройдено | 3 | `.build/screenshots/subscription-settings-final.png`, `.build/screenshots/notification-settings-final.png` | Проверены локальный экран trial/тарифов, восстановление покупок как UI-сценарий, дайджесты, дедлайны, срочное и тихие часы |
 | 2026-07-03 | Регрессия основных вкладок после подписки и уведомлений | Пройдено | 3 | `.build/screenshots/regression-today-after-settings.png`, `.build/screenshots/regression-class-after-settings.png`, `.build/screenshots/regression-homework-after-settings.png`, `.build/screenshots/regression-calendar-after-settings.png`, `.build/screenshots/regression-more-after-settings.png` | После изменения раздела `Еще` и моделей настроек проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Багфикс онбординга, ролей, сборов и объявлений | Пройдено | 3 | `.build/screenshots/bugfix-onboarding-reset.png`, `.build/screenshots/bugfix-parent-collections.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/bugfix-committee-collection-detail.png` | Исправлены повторный показ онбординга при новой версии, роль родителя по умолчанию, сохранение прочтения объявления, запрет родителю менять сборы/статусы/чеки и локальные вложения чеков/файлов |
+| 2026-07-03 | Регрессия основных вкладок после багфиксов | Пройдено | 3 | `.build/screenshots/regression-today-after-bugfixes.png`, `.build/screenshots/regression-class-after-bugfixes.png`, `.build/screenshots/regression-homework-after-bugfixes.png`, `.build/screenshots/regression-calendar-after-bugfixes.png`, `.build/screenshots/regression-more-after-bugfixes.png` | После правок AppView, Onboarding, ролей и ClassRoom проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |

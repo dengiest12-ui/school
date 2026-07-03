@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    let onFinish: () -> Void
+    let onFinish: (AppUserRole) -> Void
 
     @State private var mode: OnboardingMode = OnboardingView.initialMode
-    @State private var role: OnboardingRole = .parentCommittee
+    @State private var role: AppUserRole = .parent
     @State private var parentName = "Владимир"
     @State private var childName = "Миша"
     @State private var className = "3Б"
@@ -135,7 +135,7 @@ struct OnboardingView: View {
                     .foregroundStyle(SchoolTheme.graphite)
 
                 VStack(spacing: 9) {
-                    ForEach(OnboardingRole.allCases) { item in
+                    ForEach(AppUserRole.allCases) { item in
                         roleRow(item)
                     }
                 }
@@ -263,7 +263,7 @@ struct OnboardingView: View {
     private var primaryButton: some View {
         Button {
             if didPrepareClass {
-                onFinish()
+                onFinish(role)
             } else {
                 focusedField = nil
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
@@ -296,7 +296,7 @@ struct OnboardingView: View {
         .background(color.opacity(0.10), in: Capsule())
     }
 
-    private func roleRow(_ item: OnboardingRole) -> some View {
+    private func roleRow(_ item: AppUserRole) -> some View {
         Button {
             role = item
             didPrepareClass = false
@@ -448,47 +448,6 @@ private enum OnboardingMode: String, CaseIterable, Identifiable {
     }
 }
 
-private enum OnboardingRole: String, CaseIterable, Identifiable {
-    case parent
-    case parentCommittee
-    case teacher
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .parent:
-            "Родитель"
-        case .parentCommittee:
-            "Родкомитет"
-        case .teacher:
-            "Учитель"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .parent:
-            "ДЗ, события, напоминания и семейные задачи"
-        case .parentCommittee:
-            "Сборы, приглашения, отчеты и объявления класса"
-        case .teacher:
-            "Объявления, домашние задания и важные отметки"
-        }
-    }
-
-    var iconName: String {
-        switch self {
-        case .parent:
-            "figure.2.and.child.holdinghands"
-        case .parentCommittee:
-            "person.badge.shield.checkmark.fill"
-        case .teacher:
-            "graduationcap.fill"
-        }
-    }
-}
-
 private enum OnboardingField: Hashable {
     case parentName
     case childName
@@ -504,5 +463,5 @@ private extension String {
 }
 
 #Preview {
-    OnboardingView {}
+    OnboardingView { _ in }
 }
