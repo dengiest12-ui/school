@@ -46,7 +46,7 @@
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
 | Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP и восстановления покупок проверен в Simulator; StoreKit 2 еще не подключен. |
-| Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, маскирование финансов, подтверждение входов и подготовка удаления данных; юридическая часть и серверная защита еще впереди. |
+| Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, управление участниками, маскирование финансов, подтверждение входов и подготовка удаления данных; юридическая часть и серверная защита еще впереди. |
 | Релизная готовность | `[~]` | 3 | Добавлены локальные экраны поддержки, отчета о проблеме и выхода; App Store, политика, аналитика и TestFlight еще не готовы. |
 
 ## 1. Продуктовая рамка MVP
@@ -104,8 +104,8 @@
 - [~] Администратор класса
   - Проверка: управляет участниками, ролями, приглашениями и доступом
   - Уровень: 3
-  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
-  - Комментарий: показаны админ класса, код приглашения и управление участниками; удаление, передача прав и аудит еще не реализованы
+  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`
+  - Комментарий: показаны админ класса, код приглашения и локальное меню управления участниками: смена роли, отключение доступа, удаление и передача админа; серверная проверка и неизменяемый аудит еще не реализованы
 
 - [~] Ребенок, опционально
   - Проверка: видит только ДЗ, расписание и чеклист рюкзака, не видит сборы и родительские обсуждения
@@ -280,8 +280,8 @@
 - [~] Управление участниками
   - Проверка: роли можно изменить, участника можно удалить, права админа можно передать
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/access-class-members-final.png`
-  - Комментарий: список участников, роли, статусы и админские бейджи реализованы локально; удаление, смена роли и передача админа еще не готовы
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`
+  - Комментарий: список участников, роли, статусы и админские бейджи реализованы локально; из меню участника можно сменить роль, отключить или вернуть доступ, удалить участника и передать админа с защитой последнего администратора; backend-аудит и серверные права еще не подключены
 
 - [~] Семейный доступ
   - Проверка: второй родитель, бабушка, няня получают только нужные задачи и напоминания
@@ -694,8 +694,8 @@
 - [~] Закрытые классы
   - Проверка: доступ только по приглашению, бывших участников можно удалить
   - Уровень: 3
-  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/more-security-screen.png`
-  - Комментарий: в UI показаны закрытый код класса, приглашения и переключатель "Только участники класса"; настоящее закрытие доступа, удаление бывших участников и проверка на сервере еще не реализованы
+  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/member-management-actions.png`, `.build/screenshots/more-security-screen.png`
+  - Комментарий: в UI показаны закрытый код класса, приглашения, переключатель "Только участники класса" и локальное отключение/удаление участников; настоящее закрытие доступа и проверка на сервере еще не реализованы
 
 - [~] Минимизация данных детей
   - Проверка: собираются только нужные данные, нет лишней персональной информации
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Class parent/committee, Homework add, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Class parent/committee/member management, Homework add, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -978,3 +978,4 @@
 | 2026-07-03 | Центр синхронизации MVP | Пройдено | 2 | `.build/screenshots/more-sync-center.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлен локальный экран очереди синхронизации: API-контракты, offline, storage, retry и конфликтные операции; сценарий добавлен в smoke-проверку, настоящий backend/API-клиент еще не подключены |
 | 2026-07-03 | Локальные iOS-уведомления | Пройдено | 3 | `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Экран уведомлений дополнен `UserNotifications`: системный запрос разрешения, статус iOS, тестовое уведомление через 5 секунд и локальное расписание вечернего/утреннего дайджеста и дедлайна оплаты; APNs/backend-доставка остаются следующим этапом |
 | 2026-07-03 | Приглашения по ссылке и QR | Пройдено | 3 | `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/invite-link-qr-family.png`, `.build/screenshots/qa-smoke/class-member-invite.png`, `.build/screenshots/qa-smoke/more-family.png`, `scripts/qa_smoke.sh` | В приглашения класса и семьи добавлены deep link-ссылки, QR-коды, системный ShareLink и обновление локального кода; сценарии добавлены в smoke-проверку, backend invite-token и отзыв ссылок остаются следующим этапом |
+| 2026-07-03 | Управление участниками класса | Пройдено | 3 | `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Добавлено локальное меню участника: смена роли, отключение/возврат доступа, удаление и передача админа с защитой последнего администратора; сценарий добавлен в smoke-проверку, backend-аудит и серверные права остаются следующим этапом |

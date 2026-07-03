@@ -240,6 +240,8 @@ struct ClassRoomView: View {
             if ProcessInfo.processInfo.arguments.contains("-qa-member-invite") {
                 selectedSection = .members
                 activeSheet = .inviteMembers
+            } else if ProcessInfo.processInfo.arguments.contains("-qa-member-management") {
+                selectedSection = .members
             }
         }
         .sheet(item: $activeSheet) { sheet in
@@ -682,7 +684,7 @@ struct ClassRoomView: View {
                         .foregroundStyle(SchoolTheme.graphite)
 
                     ForEach(members) { member in
-                        memberAccessRow(member)
+                        memberAccessRow(member, canManage: userRole.canInviteMembers)
                     }
                 }
             }
@@ -779,7 +781,7 @@ struct ClassRoomView: View {
         }
     }
 
-    private func memberAccessRow(_ member: ClassMemberSummary) -> some View {
+    private func memberAccessRow(_ member: ClassMemberSummary, canManage: Bool) -> some View {
         HStack(spacing: 12) {
             InitialAvatar(text: member.avatarText, color: memberColor(member.role), size: 42)
             VStack(alignment: .leading, spacing: 2) {
@@ -801,7 +803,104 @@ struct ClassRoomView: View {
                 Image(systemName: "checkmark.shield.fill")
                     .foregroundStyle(SchoolTheme.success)
             }
+            if canManage {
+                Menu {
+                    Button {
+                        updateMember(member, role: "Родитель")
+                    } label: {
+                        Label("Сделать родителем", systemImage: "person.fill")
+                    }
+
+                    Button {
+                        updateMember(member, role: "Родкомитет")
+                    } label: {
+                        Label("Сделать родкомитетом", systemImage: "person.2.badge.gearshape.fill")
+                    }
+
+                    Button {
+                        updateMember(member, role: "Учитель")
+                    } label: {
+                        Label("Сделать учителем", systemImage: "graduationcap.fill")
+                    }
+
+                    Button {
+                        transferAdmin(to: member)
+                    } label: {
+                        Label("Передать админа", systemImage: "checkmark.shield.fill")
+                    }
+                    .disabled(member.role == "Админ класса")
+
+                    Divider()
+
+                    Button {
+                        toggleMemberAccess(member)
+                    } label: {
+                        Label(member.status.contains("Отключен") ? "Вернуть доступ" : "Отключить доступ", systemImage: "lock.rotation")
+                    }
+
+                    Button(role: .destructive) {
+                        removeMember(member)
+                    } label: {
+                        Label("Удалить участника", systemImage: "trash")
+                    }
+                    .disabled(member.role == "Админ класса" && adminCount <= 1)
+                } label: {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(SchoolTheme.muted)
+                }
+                .accessibilityLabel("Управление участником")
+            }
         }
+    }
+
+    private var adminCount: Int {
+        members.filter { $0.role == "Админ класса" }.count
+    }
+
+    private func updateMember(_ member: ClassMemberSummary, role: String) {
+        guard let index = members.firstIndex(where: { $0.id == member.id }) else {
+            return
+        }
+
+        members[index].role = role
+        members[index].canManage = role == "Родкомитет" || role == "Учитель" || role == "Админ класса"
+        members[index].status = members[index].status.contains("Отключен") ? "Подключен" : members[index].status
+        ClassRoomLocalStore.members = members
+    }
+
+    private func transferAdmin(to member: ClassMemberSummary) {
+        guard let newAdminIndex = members.firstIndex(where: { $0.id == member.id }) else {
+            return
+        }
+
+        for index in members.indices where members[index].role == "Админ класса" {
+            members[index].role = "Родкомитет"
+            members[index].canManage = true
+        }
+
+        members[newAdminIndex].role = "Админ класса"
+        members[newAdminIndex].canManage = true
+        members[newAdminIndex].status = "Подключен"
+        ClassRoomLocalStore.members = members
+    }
+
+    private func toggleMemberAccess(_ member: ClassMemberSummary) {
+        guard let index = members.firstIndex(where: { $0.id == member.id }) else {
+            return
+        }
+
+        members[index].status = members[index].status.contains("Отключен") ? "Подключен" : "Отключен"
+        ClassRoomLocalStore.members = members
+    }
+
+    private func removeMember(_ member: ClassMemberSummary) {
+        guard !(member.role == "Админ класса" && adminCount <= 1) else {
+            return
+        }
+
+        members.removeAll { $0.id == member.id }
+        ClassRoomLocalStore.members = members
     }
 
     private func memberColor(_ role: String) -> Color {
