@@ -1,4 +1,6 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
 
 private struct TodayImportantMessage: Identifiable, Hashable, Codable {
     let id: UUID
@@ -28,6 +30,79 @@ private struct TodayImportantMessage: Identifiable, Hashable, Codable {
         self.actionTitle = actionTitle
         self.taskKind = taskKind
         self.isHandled = isHandled
+    }
+}
+
+private struct GlobalParseDraft: Identifiable, Hashable {
+    enum Kind: String, CaseIterable, Identifiable {
+        case homework
+        case familyTask
+        case event
+        case payment
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .homework:
+                "ДЗ"
+            case .familyTask:
+                "Задача"
+            case .event:
+                "Событие"
+            case .payment:
+                "Оплата"
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .homework:
+                "book.closed.fill"
+            case .familyTask:
+                "checklist.checked"
+            case .event:
+                "calendar.badge.clock"
+            case .payment:
+                "rublesign.circle.fill"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .homework:
+                SchoolTheme.success
+            case .familyTask:
+                SchoolTheme.warning
+            case .event:
+                SchoolTheme.accent
+            case .payment:
+                SchoolTheme.teal
+            }
+        }
+    }
+
+    let id: UUID
+    var kind: Kind
+    var title: String
+    var detail: String
+    var dueLabel: String
+    var assignee: String
+
+    init(
+        id: UUID = UUID(),
+        kind: Kind,
+        title: String,
+        detail: String,
+        dueLabel: String,
+        assignee: String
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.dueLabel = dueLabel
+        self.assignee = assignee
     }
 }
 
@@ -230,6 +305,10 @@ struct TodayView: View {
                     onCreateTask: createTask(from:),
                     onSave: saveImportantMessages
                 )
+            case .globalParse:
+                GlobalParseSheet(defaultAssignee: selectedChild.name) { drafts in
+                    saveGlobalParse(drafts)
+                }
             }
         }
         .onChange(of: schedule) { _, newValue in
@@ -270,6 +349,43 @@ struct TodayView: View {
 
     private func saveImportantMessages() {
         TodayLocalStore.importantMessages = importantMessages
+    }
+
+    private func saveGlobalParse(_ drafts: [GlobalParseDraft]) {
+        let validDrafts = drafts.filter { !$0.title.trimmed.isEmpty && !$0.detail.trimmed.isEmpty }
+        let parsedHomework = validDrafts
+            .filter { $0.kind == .homework }
+            .map { draft in
+                HomeworkItem(
+                    subject: draft.title.trimmed,
+                    title: draft.detail.trimmed,
+                    dueLabel: draft.dueLabel.trimmed.isEmpty ? "завтра" : draft.dueLabel.trimmed,
+                    source: "Разобрать",
+                    status: .review,
+                    bring: nil
+                )
+            }
+
+        let parsedTasks = validDrafts
+            .filter { $0.kind != .homework }
+            .map { draft in
+                ParentTask(
+                    title: draft.parentTaskTitle,
+                    dueLabel: draft.dueLabel.trimmed.isEmpty ? "Сегодня" : draft.dueLabel.trimmed,
+                    kind: draft.parentTaskKind,
+                    assignee: draft.assignee.trimmed.isEmpty ? selectedChild.name : draft.assignee.trimmed
+                )
+            }
+
+        if !parsedHomework.isEmpty {
+            homework.insert(contentsOf: parsedHomework, at: 0)
+            TodayLocalStore.homework = homework
+        }
+
+        if !parsedTasks.isEmpty {
+            parentTasks.insert(contentsOf: parsedTasks, at: 0)
+            TodayLocalStore.parentTasks = parentTasks
+        }
     }
 
     private func toggleHomework(_ item: HomeworkItem) {
@@ -378,6 +494,7 @@ struct TodayView: View {
                 }
 
                 Button {
+                    activeSheet = .globalParse
                 } label: {
                     Label("Разобрать фото ДЗ", systemImage: "camera.viewfinder")
                         .font(.subheadline.weight(.semibold))
@@ -612,6 +729,9 @@ struct TodayView: View {
                     .foregroundStyle(SchoolTheme.graphite)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    quickAction("Разобрать", "sparkles", SchoolTheme.accent) {
+                        activeSheet = .globalParse
+                    }
                     quickAction("Добавить ДЗ", "plus.circle", SchoolTheme.success) {
                         activeSheet = .addHomework
                     }
@@ -995,7 +1115,752 @@ struct TodayView: View {
             return .importantMessages
         }
 
+        if arguments.contains("-qa-today-global-parse") || arguments.contains("-qa-global-parse-photo-dialog") || arguments.contains("-qa-global-parse-file-importer") {
+            return .globalParse
+        }
+
         return nil
+    }
+}
+
+private enum GlobalParseSource: String, CaseIterable, Identifiable {
+    case photo
+    case screenshot
+    case file
+    case voice
+    case text
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .photo:
+            "Фото"
+        case .screenshot:
+            "Скрин"
+        case .file:
+            "Файл"
+        case .voice:
+            "Голос"
+        case .text:
+            "Текст"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .photo:
+            "camera.fill"
+        case .screenshot:
+            "doc.viewfinder"
+        case .file:
+            "doc.fill"
+        case .voice:
+            "mic.fill"
+        case .text:
+            "text.alignleft"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .photo, .text:
+            SchoolTheme.success
+        case .screenshot:
+            SchoolTheme.warning
+        case .file:
+            SchoolTheme.accent
+        case .voice:
+            SchoolTheme.teal
+        }
+    }
+
+    var sampleText: String {
+        switch self {
+        case .voice:
+            "математика страница 45 номера 6 7 8; завтра принести картон и клей; до пятницы подписать согласие на экскурсию"
+        case .file:
+            "русский упр 123 правило; сбор на театр 700 рублей до пятницы; музей 12 сентября в 10:00"
+        case .text:
+            "английский слова к четвергу; купить цветную бумагу; оплатить театр 700 рублей"
+        default:
+            "мат стр 45 N 6,7,8; завтра принести картон и клей; театр 12 сентября; подписать согласие до пятницы"
+        }
+    }
+}
+
+private struct GlobalParseSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let defaultAssignee: String
+    let onSave: ([GlobalParseDraft]) -> Void
+
+    @State private var source: GlobalParseSource = .photo
+    @State private var recognizedText: String
+    @State private var drafts: [GlobalParseDraft]
+    @State private var attachmentStatus: String?
+    @State private var isImageSourceDialogVisible = false
+    @State private var isImagePickerVisible = false
+    @State private var isFileImporterVisible = false
+    @State private var imagePickerSource: UIImagePickerController.SourceType = .photoLibrary
+
+    init(defaultAssignee: String, onSave: @escaping ([GlobalParseDraft]) -> Void) {
+        self.defaultAssignee = defaultAssignee
+        self.onSave = onSave
+        let sample = GlobalParseSource.photo.sampleText
+        _recognizedText = State(initialValue: sample)
+        _drafts = State(initialValue: GlobalParseParser.parse(sample, assignee: defaultAssignee))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(
+                        icon: "sparkles",
+                        color: SchoolTheme.accent,
+                        title: "Разобрать",
+                        subtitle: "Фото, скрин, файл, голос или текст в понятные дела"
+                    )
+
+                    sourcePickerCard
+                    sourceInputCard
+                    recognizedTextCard
+                    resultCard
+                    saveButton
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Разобрать")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+            .confirmationDialog("Добавить исходник", isPresented: $isImageSourceDialogVisible, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Сделать фото") {
+                        showImagePicker(.camera)
+                    }
+                }
+
+                Button("Выбрать из галереи") {
+                    showImagePicker(.photoLibrary)
+                }
+
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Фото, скрин или изображение будет привязано к разбору.")
+            }
+            .sheet(isPresented: $isImagePickerVisible) {
+                TodayImagePicker(sourceType: imagePickerSource) { displayName in
+                    attachmentStatus = "Фото прикреплено: \(displayName)"
+                }
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.pdf, .image, .plainText, .item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
+            }
+            .onAppear {
+                runQAImporterChecks()
+            }
+        }
+    }
+
+    private var sourcePickerCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Источник")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(GlobalParseSource.allCases) { option in
+                        Button {
+                            selectSource(option)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: option.iconName)
+                                    .font(.subheadline.weight(.bold))
+                                Text(option.title)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
+                            }
+                            .foregroundStyle(source == option ? .white : option.color)
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                            .background(source == option ? option.color : option.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var sourceInputCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: source.iconName, color: source.color, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Исходник")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(attachmentStatus ?? "Можно приложить фото, скрин или документ")
+                            .font(.caption)
+                            .foregroundStyle(attachmentStatus == nil ? SchoolTheme.muted : SchoolTheme.success)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        handlePrimarySourceAction()
+                    } label: {
+                        Label(primaryActionTitle, systemImage: primaryActionIcon)
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(source.color)
+
+                    Button {
+                        isFileImporterVisible = true
+                    } label: {
+                        Label("Файл", systemImage: "paperclip")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SchoolTheme.accent)
+                    .disabled(source == .text)
+                }
+            }
+        }
+    }
+
+    private var primaryActionTitle: String {
+        switch source {
+        case .voice:
+            "Голос"
+        case .file:
+            "Выбрать"
+        case .text:
+            "Вставить"
+        case .screenshot:
+            "Скрин"
+        case .photo:
+            "Фото"
+        }
+    }
+
+    private var primaryActionIcon: String {
+        switch source {
+        case .voice:
+            "mic.fill"
+        case .file:
+            "doc.fill"
+        case .text:
+            "text.cursor"
+        case .screenshot:
+            "doc.viewfinder"
+        case .photo:
+            "camera.fill"
+        }
+    }
+
+    private var recognizedTextCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Распознанный текст")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+
+                TextEditor(text: $recognizedText)
+                    .font(.subheadline)
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 128)
+                    .padding(10)
+                    .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(SchoolTheme.line, lineWidth: 1)
+                    }
+
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                        drafts = GlobalParseParser.parse(recognizedText, assignee: defaultAssignee)
+                    }
+                } label: {
+                    Label("Разобрать заново", systemImage: "sparkles")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+            }
+        }
+    }
+
+    private var resultCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Что добавим")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Spacer()
+                    InfoPill(text: "\(drafts.count)", color: SchoolTheme.accent)
+                }
+
+                if drafts.isEmpty {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "text.magnifyingglass", color: SchoolTheme.muted, size: 40)
+                        Text("Пока нечего добавить")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.muted)
+                        Spacer()
+                    }
+                } else {
+                    ForEach($drafts) { $draft in
+                        GlobalParseDraftRow(draft: $draft)
+                    }
+                }
+            }
+        }
+    }
+
+    private var saveButton: some View {
+        Button {
+            let validDrafts = drafts.filter { !$0.title.trimmed.isEmpty && !$0.detail.trimmed.isEmpty }
+            onSave(validDrafts)
+            dismiss()
+        } label: {
+            Label("Сохранить результат", systemImage: "checkmark")
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 52)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(SchoolTheme.success)
+        .disabled(drafts.allSatisfy { $0.title.trimmed.isEmpty || $0.detail.trimmed.isEmpty })
+    }
+
+    private func selectSource(_ option: GlobalParseSource) {
+        source = option
+        recognizedText = option.sampleText
+        attachmentStatus = nil
+        drafts = GlobalParseParser.parse(option.sampleText, assignee: defaultAssignee)
+    }
+
+    private func handlePrimarySourceAction() {
+        switch source {
+        case .voice:
+            attachmentStatus = "Голосовая заметка готова: 00:24"
+            recognizedText = GlobalParseSource.voice.sampleText
+            drafts = GlobalParseParser.parse(recognizedText, assignee: defaultAssignee)
+        case .file:
+            isFileImporterVisible = true
+        case .text:
+            attachmentStatus = "Текст можно вставить и поправить ниже"
+        case .photo, .screenshot:
+            isImageSourceDialogVisible = true
+        }
+    }
+
+    private func showImagePicker(_ sourceType: UIImagePickerController.SourceType) {
+        imagePickerSource = sourceType
+        isImagePickerVisible = true
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                attachmentStatus = "Файл не выбран"
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileName = url.lastPathComponent.isEmpty ? "документ" : url.lastPathComponent
+            attachmentStatus = "Файл прикреплен: \(fileName)"
+        case .failure:
+            attachmentStatus = "Не удалось прикрепить файл"
+        }
+    }
+
+    private func runQAImporterChecks() {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            if arguments.contains("-qa-global-parse-photo-dialog") {
+                isImageSourceDialogVisible = true
+            }
+
+            if arguments.contains("-qa-global-parse-file-importer") {
+                isFileImporterVisible = true
+            }
+        }
+    }
+}
+
+private struct GlobalParseDraftRow: View {
+    @Binding var draft: GlobalParseDraft
+
+    var body: some View {
+        VStack(spacing: 10) {
+            kindMenu
+            TodayTextField(title: titleFieldTitle, iconName: "text.badge.plus", color: draft.kind.color, text: $draft.title)
+            TodayTextField(title: detailFieldTitle, iconName: "text.alignleft", color: SchoolTheme.accent, text: $draft.detail)
+            TodayTextField(title: "Срок", iconName: "calendar", color: SchoolTheme.warning, text: $draft.dueLabel)
+
+            if draft.kind != .homework {
+                TodayTextField(title: "Исполнитель", iconName: "person.fill", color: SchoolTheme.teal, text: $draft.assignee)
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+    }
+
+    private var titleFieldTitle: String {
+        draft.kind == .homework ? "Предмет" : "Название"
+    }
+
+    private var detailFieldTitle: String {
+        draft.kind == .homework ? "Задание" : "Что сделать"
+    }
+
+    private var kindMenu: some View {
+        Menu {
+            ForEach(GlobalParseDraft.Kind.allCases) { kind in
+                Button(kind.title) {
+                    draft.kind = kind
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                IconBadge(systemName: draft.kind.iconName, color: draft.kind.color, size: 38)
+                Text(draft.kind.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+            .padding(12)
+            .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(SchoolTheme.line, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private enum GlobalParseParser {
+    static func parse(_ text: String, assignee: String) -> [GlobalParseDraft] {
+        let fragments = text
+            .replacingOccurrences(of: "\n", with: ";")
+            .split(separator: ";")
+            .map { String($0).trimmed }
+            .filter { !$0.isEmpty }
+
+        var drafts = fragments.map { parseFragment($0, assignee: assignee) }
+
+        if drafts.isEmpty && !text.trimmed.isEmpty {
+            drafts = [
+                GlobalParseDraft(
+                    kind: .familyTask,
+                    title: "Задача",
+                    detail: text.trimmed,
+                    dueLabel: "Сегодня",
+                    assignee: assignee
+                )
+            ]
+        }
+
+        return drafts
+    }
+
+    private static func parseFragment(_ fragment: String, assignee: String) -> GlobalParseDraft {
+        let normalized = fragment.lowercased()
+        let dueLabel = dueLabel(for: normalized)
+
+        if isPayment(normalized) {
+            return GlobalParseDraft(
+                kind: .payment,
+                title: paymentTitle(for: normalized),
+                detail: cleanTaskText(fragment),
+                dueLabel: dueLabel,
+                assignee: assignee
+            )
+        }
+
+        if isEvent(normalized) {
+            return GlobalParseDraft(
+                kind: .event,
+                title: eventTitle(for: fragment),
+                detail: cleanTaskText(fragment),
+                dueLabel: dueLabel,
+                assignee: assignee
+            )
+        }
+
+        if isFamilyTask(normalized) {
+            return GlobalParseDraft(
+                kind: .familyTask,
+                title: familyTaskTitle(for: normalized),
+                detail: cleanTaskText(fragment),
+                dueLabel: dueLabel,
+                assignee: assignee
+            )
+        }
+
+        return GlobalParseDraft(
+            kind: .homework,
+            title: subjectName(for: normalized),
+            detail: homeworkTitle(fragment, normalized: normalized),
+            dueLabel: dueLabel == "Сегодня" ? "завтра" : dueLabel,
+            assignee: assignee
+        )
+    }
+
+    private static func isPayment(_ normalized: String) -> Bool {
+        normalized.contains("оплат") || normalized.contains("сбор") || normalized.contains("руб")
+    }
+
+    private static func isEvent(_ normalized: String) -> Bool {
+        normalized.contains("экскур") || normalized.contains("театр") || normalized.contains("музей") || normalized.contains("собрание")
+    }
+
+    private static func isFamilyTask(_ normalized: String) -> Bool {
+        normalized.contains("принести") || normalized.contains("купить") || normalized.contains("подпис") || normalized.contains("согласие") || normalized.contains("форма")
+    }
+
+    private static func subjectName(for normalized: String) -> String {
+        if normalized.hasPrefix("мат") || normalized.contains("матем") {
+            return "Математика"
+        }
+
+        if normalized.hasPrefix("рус") || normalized.contains("русский") {
+            return "Русский язык"
+        }
+
+        if normalized.hasPrefix("окр") || normalized.contains("окружа") {
+            return "Окружающий мир"
+        }
+
+        if normalized.contains("англ") {
+            return "Английский язык"
+        }
+
+        if normalized.contains("литер") {
+            return "Литература"
+        }
+
+        return "Без предмета"
+    }
+
+    private static func homeworkTitle(_ fragment: String, normalized: String) -> String {
+        let prefixes = [
+            "математика",
+            "мат",
+            "русский язык",
+            "русский",
+            "рус",
+            "окружающий мир",
+            "окр мир",
+            "окр",
+            "английский",
+            "англ",
+            "литература"
+        ]
+
+        var result = fragment.trimmed
+        for prefix in prefixes where normalized.hasPrefix(prefix) {
+            result = String(result.dropFirst(prefix.count)).trimmed
+            break
+        }
+
+        return result
+            .replacingOccurrences(of: "стр", with: "страница")
+            .replacingOccurrences(of: "упр", with: "упражнение")
+            .replacingOccurrences(of: "N", with: "номер")
+            .replacingOccurrences(of: "№", with: "номер")
+            .trimmed
+    }
+
+    private static func dueLabel(for normalized: String) -> String {
+        if normalized.contains("пятниц") {
+            return "до пятницы"
+        }
+
+        if normalized.contains("четвер") {
+            return "к четвергу"
+        }
+
+        if normalized.contains("завтра") {
+            return "завтра"
+        }
+
+        if normalized.contains("сегодня") {
+            return "Сегодня"
+        }
+
+        if normalized.contains("12 сентября") {
+            return "12 сентября"
+        }
+
+        return "Сегодня"
+    }
+
+    private static func paymentTitle(for normalized: String) -> String {
+        if normalized.contains("театр") {
+            return "Театр"
+        }
+
+        if normalized.contains("экскур") {
+            return "Экскурсия"
+        }
+
+        return "Сбор класса"
+    }
+
+    private static func eventTitle(for fragment: String) -> String {
+        let normalized = fragment.lowercased()
+
+        if normalized.contains("театр") {
+            return "Театр"
+        }
+
+        if normalized.contains("музей") {
+            return "Музей"
+        }
+
+        if normalized.contains("экскур") {
+            return "Экскурсия"
+        }
+
+        return "Событие"
+    }
+
+    private static func familyTaskTitle(for normalized: String) -> String {
+        if normalized.contains("купить") {
+            return "Купить"
+        }
+
+        if normalized.contains("подпис") || normalized.contains("согласие") {
+            return "Подписать"
+        }
+
+        return "Принести"
+    }
+
+    private static func cleanTaskText(_ fragment: String) -> String {
+        fragment
+            .replacingOccurrences(of: "завтра", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "сегодня", with: "", options: .caseInsensitive)
+            .trimmed
+    }
+}
+
+private extension GlobalParseDraft {
+    var parentTaskTitle: String {
+        switch kind {
+        case .homework:
+            detail.trimmed
+        case .familyTask:
+            detail.trimmed
+        case .event:
+            "\(title.trimmed): \(detail.trimmed)"
+        case .payment:
+            "Оплатить \(title.trimmed.lowercased()): \(detail.trimmed)"
+        }
+    }
+
+    var parentTaskKind: ParentTask.Kind {
+        switch kind {
+        case .homework:
+            return .bring
+        case .familyTask:
+            if title.lowercased().contains("подпис") {
+                return .sign
+            }
+
+            if title.lowercased().contains("куп") {
+                return .buy
+            }
+
+            return .bring
+        case .event:
+            return .sign
+        case .payment:
+            return .pay
+        }
+    }
+}
+
+private struct TodayImagePicker: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+
+    let sourceType: UIImagePickerController.SourceType
+    let onPick: (String) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: TodayImagePicker
+
+        init(parent: TodayImagePicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let pickedURL = info[.imageURL] as? URL
+            let defaultName = parent.sourceType == .camera ? "снимок \(Date().todayAttachmentTimestamp)" : "изображение"
+            parent.onPick(pickedURL?.lastPathComponent ?? defaultName)
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
     }
 }
 
@@ -1961,6 +2826,7 @@ private enum TodaySheet: Identifiable {
     case addHomework
     case addTask(ParentTask.Kind)
     case importantMessages
+    case globalParse
 
     var id: String {
         switch self {
@@ -1976,7 +2842,17 @@ private enum TodaySheet: Identifiable {
             "add-task-\(kind.rawValue)"
         case .importantMessages:
             "important-messages"
+        case .globalParse:
+            "global-parse"
         }
+    }
+}
+
+private extension Date {
+    var todayAttachmentTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM HH:mm"
+        return formatter.string(from: self)
     }
 }
 
