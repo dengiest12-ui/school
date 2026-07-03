@@ -326,6 +326,8 @@ struct TodayView: View {
                 GlobalParseSheet(defaultAssignee: selectedChild.name) { drafts in
                     saveGlobalParse(drafts)
                 }
+            case .paywall:
+                TodayPaywallSheet()
             case .addChild:
                 AddChildToClassSheet { child in
                     children.append(child)
@@ -383,6 +385,10 @@ struct TodayView: View {
 
     private func saveImportantMessages() {
         TodayLocalStore.importantMessages = importantMessages
+    }
+
+    private func openGlobalParse() {
+        activeSheet = AppSubscriptionAccessStore.canUseAI ? .globalParse : .paywall
     }
 
     private func saveGlobalParse(_ drafts: [GlobalParseDraft]) {
@@ -547,7 +553,7 @@ struct TodayView: View {
 
                 if userRole != .child {
                     Button {
-                        activeSheet = .globalParse
+                        openGlobalParse()
                     } label: {
                         Label("Разобрать фото ДЗ", systemImage: "camera.viewfinder")
                             .font(.subheadline.weight(.semibold))
@@ -849,7 +855,7 @@ struct TodayView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     quickAction("Разобрать", "sparkles", SchoolTheme.accent) {
-                        activeSheet = .globalParse
+                        openGlobalParse()
                     }
                     quickAction("Добавить ДЗ", "plus.circle", SchoolTheme.success) {
                         activeSheet = .addHomework
@@ -1296,6 +1302,10 @@ struct TodayView: View {
 
         if arguments.contains("-qa-today-important") {
             return .importantMessages
+        }
+
+        if arguments.contains("-qa-today-paywall") || arguments.contains("-qa-no-subscription") {
+            return .paywall
         }
 
         if arguments.contains("-qa-today-global-parse") || arguments.contains("-qa-global-parse-photo-dialog") || arguments.contains("-qa-global-parse-file-importer") {
@@ -3430,6 +3440,88 @@ private extension ParentTask.Kind {
     }
 }
 
+private struct TodayPaywallSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    header
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Без подписки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            paywallRow("Сегодня и расписание", "Остаются доступны для просмотра и ручного ведения", "calendar.badge.clock", SchoolTheme.success)
+                            paywallRow("Ручные ДЗ и задачи", "Можно добавлять, отмечать и сохранять локально", "checklist", SchoolTheme.accent)
+                            paywallRow("AI-разбор", "Фото, скрины, голос и общий разбор включаются в trial или подписке", "sparkles", SchoolTheme.warning)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Понятно", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.warning)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Подписка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            IconBadge(systemName: "creditcard.fill", color: SchoolTheme.warning, size: 44)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Разбор по подписке")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+
+                Text(AppSubscriptionAccessStore.statusText)
+                    .font(.subheadline)
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func paywallRow(_ title: String, _ detail: String, _ icon: String, _ color: Color) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+}
+
 private enum TodaySheet: Identifiable {
     case schedule
     case addLesson
@@ -3438,6 +3530,7 @@ private enum TodaySheet: Identifiable {
     case addTask(ParentTask.Kind)
     case importantMessages
     case globalParse
+    case paywall
     case addChild
     case notifications
     case profile
@@ -3461,6 +3554,8 @@ private enum TodaySheet: Identifiable {
             "important-messages"
         case .globalParse:
             "global-parse"
+        case .paywall:
+            "paywall"
         case .addChild:
             "add-child"
         case .notifications:

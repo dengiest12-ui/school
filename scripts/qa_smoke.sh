@@ -56,6 +56,7 @@ run_case "today-urgent" -qa-tab today -qa-today-urgent
 run_case "today-homework-list" -qa-tab today -qa-today-homework-list
 run_case "today-chats" -qa-tab today -qa-today-chats
 run_case "today-add-child" -qa-tab today -qa-today-add-child
+run_case "today-paywall" -qa-tab today -qa-no-subscription -qa-today-paywall
 run_case "child-mode" -qa-role child -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
@@ -63,6 +64,7 @@ run_case "class-member-management" -qa-role parentCommittee -qa-tab classRoom -q
 run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-member-invite
 run_case "class-photo-viewer" -qa-role parentCommittee -qa-tab classRoom -qa-photo-viewer
 run_case "homework-add" -qa-tab homework -qa-homework-add
+run_case "homework-paywall" -qa-tab homework -qa-no-subscription -qa-homework-paywall
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
 run_case "calendar-detail" -qa-tab calendar -qa-calendar-detail

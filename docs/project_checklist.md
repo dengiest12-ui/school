@@ -686,8 +686,8 @@
 - [~] Ограничения без подписки
   - Проверка: базовые данные не исчезают, но AI и расширенные функции ограничиваются понятно и честно
   - Уровень: 3
-  - Артефакт: `.build/screenshots/subscription-settings-final.png`
-  - Комментарий: на экране подписки видны будущие лимиты и состав функций; реальные ограничения в сценариях еще не включены
+  - Артефакт: `.build/screenshots/today-paywall.png`, `.build/screenshots/homework-paywall.png`, `.build/screenshots/qa-smoke/today-paywall.png`, `.build/screenshots/qa-smoke/homework-paywall.png`, `SchoolApp/Models/SampleData.swift`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`
+  - Комментарий: добавлен локальный статус доступа к подписке; при отсутствии подписки AI-разбор на главной и в ДЗ открывает понятный paywall, а ручные данные, списки, расписание и фильтры остаются доступны; серверная entitlement-проверка еще не подключена
 
 ## 18. Безопасность и приватность
 
@@ -988,3 +988,4 @@
 | 2026-07-03 | API dry-run центра синхронизации | Пройдено | 3 | `.build/screenshots/more-sync-api-dry-run.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Центр синхронизации получил dev/staging/prod, типизированный каталог endpoint-ов, request id dry-run и подсчет готовых/ожидающих/заблокированных операций; реальный backend и OpenAPI-клиент остаются следующим слоем |
 | 2026-07-03 | Backend policy-аудит ролей | Пройдено | 2 | `.build/screenshots/more-sync-permissions.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift` | В центр синхронизации добавлена матрица серверных прав: объявления, сборы, оплата своей семьи, удаление фото и приглашения проверяются по ролям родитель/родкомитет/учитель/ребенок; настоящий backend enforcement остается следующим слоем |
 | 2026-07-03 | StoreKit 2 каталог подписки | Пройдено | 3 | `.build/screenshots/subscription-storekit-products.png`, `.build/screenshots/qa-smoke/more-subscription.png`, `SchoolApp/Features/More/MoreView.swift`, `docs/storekit_mvp_plan.md` | Экран подписки подключен к `Product.products(for:)`, проверяет два product id, показывает найдено/не найдено/ошибка и fallback-цены; реальные покупки, App Store Connect и entitlement-проверка остаются следующим слоем |
+| 2026-07-03 | Ограничения AI без подписки | Пройдено | 3 | `.build/screenshots/today-paywall.png`, `.build/screenshots/homework-paywall.png`, `.build/screenshots/qa-smoke/today-paywall.png`, `.build/screenshots/qa-smoke/homework-paywall.png`, `SchoolApp/Models/SampleData.swift`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлен локальный entitlement-статус подписки; AI-разбор в Today и ДЗ закрывается понятным paywall при `-qa-no-subscription`, базовые данные остаются доступны; `xcodebuild` и полный smoke-прогон проходят |

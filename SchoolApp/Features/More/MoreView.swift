@@ -3081,17 +3081,20 @@ private struct SubscriptionSheet: View {
     private func purchaseLocally() {
         transactionId = "local-\(Int(Date.now.timeIntervalSince1970))"
         subscriptionExpires = currentPlan?.title == "Пробный период" ? "trial +14 дней" : "активна до следующего месяца"
+        AppSubscriptionAccessStore.activate(planTitle: currentPlan?.title ?? "Пробный период")
         storeKitStatus = "Покупка принята локально: \(currentPlan?.title ?? "пробный период"). Настоящая проверка должна идти через StoreKit 2 Transaction.currentEntitlements."
     }
 
     private func restorePurchases() {
         restoreStatus = "Проверено локально: активен \(currentPlan?.title ?? "пробный период")"
         transactionId = "restored-local"
+        AppSubscriptionAccessStore.activate(planTitle: currentPlan?.title ?? "Пробный период")
         storeKitStatus = "\(restoreStatus). В релизе нужно вызвать AppStore.sync() и проверить entitlement."
     }
 
     private func expireSubscription() {
         subscriptionExpires = "истекла"
+        AppSubscriptionAccessStore.expireCurrentPlan()
         storeKitStatus = "Локально сымитирована истекшая подписка: платные AI-функции должны показать ограничение без потери данных."
     }
 
@@ -3101,6 +3104,7 @@ private struct SubscriptionSheet: View {
     }
 
     private func save() {
+        AppSubscriptionAccessStore.saveCurrentPlan(currentPlan)
         onSave(plans)
         dismiss()
     }

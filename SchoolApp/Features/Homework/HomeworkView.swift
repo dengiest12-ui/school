@@ -92,6 +92,8 @@ struct HomeworkView: View {
                     HomeworkLocalStore.items = homeworkItems
                     selectedScope = .tomorrow
                 }
+            case .paywall:
+                HomeworkPaywallSheet()
             }
         }
     }
@@ -110,7 +112,7 @@ struct HomeworkView: View {
             Spacer()
 
             HeaderIconButton(systemName: "camera.viewfinder") {
-                activeSheet = .parse(.photo)
+                openParse(.photo)
             }
             .accessibilityLabel("Сфотографировать ДЗ")
 
@@ -389,7 +391,7 @@ struct HomeworkView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        activeSheet = .parse(.text)
+                        openParse(.text)
                     } label: {
                         Label("Исправить через AI", systemImage: "sparkles")
                     }
@@ -404,7 +406,7 @@ struct HomeworkView: View {
 
     private func parseAction(_ kind: HomeworkInputKind, _ color: Color) -> some View {
         Button {
-            activeSheet = .parse(kind)
+            openParse(kind)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: kind.iconName)
@@ -419,6 +421,10 @@ struct HomeworkView: View {
             .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    private func openParse(_ kind: HomeworkInputKind) {
+        activeSheet = AppSubscriptionAccessStore.canUseAI ? .parse(kind) : .paywall
     }
 
     private func filterMenu(title: String, selection: Binding<String>, values: [String], iconName: String, color: Color) -> some View {
@@ -532,6 +538,10 @@ struct HomeworkView: View {
 
         if arguments.contains("-qa-homework-add") {
             return .add
+        }
+
+        if arguments.contains("-qa-homework-paywall") || arguments.contains("-qa-no-subscription") {
+            return .paywall
         }
 
         if arguments.contains("-qa-homework-file-importer") {
@@ -1147,6 +1157,7 @@ private func sheetHeader(icon: String, color: Color, title: String, subtitle: St
 private enum HomeworkSheet: Identifiable, Hashable {
     case add
     case parse(HomeworkInputKind)
+    case paywall
 
     var id: String {
         switch self {
@@ -1154,6 +1165,78 @@ private enum HomeworkSheet: Identifiable, Hashable {
             "add"
         case .parse(let inputKind):
             "parse-\(inputKind.rawValue)"
+        case .paywall:
+            "paywall"
+        }
+    }
+}
+
+private struct HomeworkPaywallSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    sheetHeader(
+                        icon: "creditcard.fill",
+                        color: SchoolTheme.warning,
+                        title: "AI-разбор по подписке",
+                        subtitle: AppSubscriptionAccessStore.statusText
+                    )
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Что останется доступно")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            paywallRow("Ручное ДЗ", "Можно добавлять предмет, срок, вложения и отметки выполнения", "checkmark.circle.fill", SchoolTheme.success)
+                            paywallRow("Список и фильтры", "Все сохраненные задания остаются на месте", "line.3.horizontal.decrease.circle.fill", SchoolTheme.accent)
+                            paywallRow("AI по фото/файлу", "Разбор доски, скрина, текста и голоса включается в trial или подписке", "sparkles", SchoolTheme.warning)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Понятно", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.warning)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Подписка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func paywallRow(_ title: String, _ detail: String, _ icon: String, _ color: Color) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
         }
     }
 }

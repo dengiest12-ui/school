@@ -584,6 +584,88 @@ struct SubscriptionPlanSummary: Identifiable, Hashable, Codable {
     }
 }
 
+enum AppSubscriptionAccessStore {
+    private static let statusKey = "school.subscription.accessStatus"
+    private static let planTitleKey = "school.subscription.planTitle"
+    private static let updatedAtKey = "school.subscription.updatedAt"
+
+    enum AccessStatus: String {
+        case trial
+        case active
+        case expired
+        case none
+
+        var title: String {
+            switch self {
+            case .trial:
+                "Пробный период"
+            case .active:
+                "Подписка активна"
+            case .expired:
+                "Подписка истекла"
+            case .none:
+                "Подписка не оформлена"
+            }
+        }
+    }
+
+    static var status: AccessStatus {
+        if ProcessInfo.processInfo.arguments.contains("-qa-no-subscription") {
+            return .none
+        }
+
+        guard let rawValue = UserDefaults.standard.string(forKey: statusKey) else {
+            return .trial
+        }
+
+        return AccessStatus(rawValue: rawValue) ?? .trial
+    }
+
+    static var planTitle: String {
+        if ProcessInfo.processInfo.arguments.contains("-qa-no-subscription") {
+            return "Нет подписки"
+        }
+
+        return UserDefaults.standard.string(forKey: planTitleKey) ?? "Пробный период"
+    }
+
+    static var statusText: String {
+        "\(status.title): \(planTitle)"
+    }
+
+    static var canUseAI: Bool {
+        status == .trial || status == .active
+    }
+
+    static func saveCurrentPlan(_ plan: SubscriptionPlanSummary?) {
+        guard let plan else {
+            save(status: .none, planTitle: "Нет тарифа")
+            return
+        }
+
+        let accessStatus: AccessStatus = plan.title == "Пробный период" ? .trial : .active
+        save(status: accessStatus, planTitle: plan.title)
+    }
+
+    static func activate(planTitle: String) {
+        save(status: planTitle == "Пробный период" ? .trial : .active, planTitle: planTitle)
+    }
+
+    static func expireCurrentPlan() {
+        save(status: .expired, planTitle: planTitle)
+    }
+
+    static func clear() {
+        [statusKey, planTitleKey, updatedAtKey].forEach(UserDefaults.standard.removeObject)
+    }
+
+    private static func save(status: AccessStatus, planTitle: String) {
+        UserDefaults.standard.set(status.rawValue, forKey: statusKey)
+        UserDefaults.standard.set(planTitle, forKey: planTitleKey)
+        UserDefaults.standard.set(Date.now.formatted(date: .numeric, time: .shortened), forKey: updatedAtKey)
+    }
+}
+
 struct ClassMemoryEntry: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
