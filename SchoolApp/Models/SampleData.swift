@@ -83,6 +83,7 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
     var source: String
     var status: Status
     var bring: String?
+    var attachment: String?
 
     init(
         id: UUID = UUID(),
@@ -91,7 +92,8 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
         dueLabel: String,
         source: String,
         status: Status,
-        bring: String?
+        bring: String?,
+        attachment: String? = nil
     ) {
         self.id = id
         self.subject = subject
@@ -100,6 +102,7 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
         self.source = source
         self.status = status
         self.bring = bring
+        self.attachment = attachment
     }
 }
 

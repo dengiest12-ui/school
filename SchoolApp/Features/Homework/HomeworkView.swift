@@ -247,6 +247,13 @@ struct HomeworkView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                if let attachment = item.attachment, !attachment.isEmpty {
+                    Label(attachment, systemImage: "paperclip")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 HStack {
                     Button {
                         toggleDone(item)
@@ -350,6 +357,11 @@ private struct AddHomeworkSheet: View {
     @State private var title = "Страница 45, номера 6, 7, 8"
     @State private var dueLabel = "завтра"
     @State private var bring = ""
+    @State private var attachmentStatus: String?
+    @State private var isImageSourceDialogVisible = false
+    @State private var isImagePickerVisible = false
+    @State private var isFileImporterVisible = false
+    @State private var imagePickerSource: UIImagePickerController.SourceType = .photoLibrary
 
     var body: some View {
         NavigationStack {
@@ -369,6 +381,10 @@ private struct AddHomeworkSheet: View {
                             HomeworkTextField(title: "Срок", iconName: "clock", color: SchoolTheme.warning, text: $dueLabel)
                             HomeworkTextField(title: "Что принести", iconName: "shippingbox", color: SchoolTheme.teal, text: $bring)
                         }
+                    }
+
+                    DashboardCard {
+                        attachmentActions
                     }
 
                     Button {
@@ -397,7 +413,78 @@ private struct AddHomeworkSheet: View {
                 }
                 KeyboardDoneToolbar()
             }
+            .confirmationDialog("Добавить вложение", isPresented: $isImageSourceDialogVisible, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Сделать фото") {
+                        showImagePicker(.camera)
+                    }
+                }
+
+                Button("Выбрать из галереи") {
+                    showImagePicker(.photoLibrary)
+                }
+
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Фото дневника, доски или тетради будет прикреплено к заданию.")
+            }
+            .sheet(isPresented: $isImagePickerVisible) {
+                HomeworkImagePicker(sourceType: imagePickerSource) { displayName in
+                    attachmentStatus = "Фото прикреплено: \(displayName)"
+                }
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.pdf, .image, .plainText, .item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
+            }
+            .onAppear {
+                runQAImporterChecks()
+            }
         }
+    }
+
+    private var attachmentActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                IconBadge(systemName: "paperclip", color: SchoolTheme.accent, size: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Вложение")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(attachmentStatus ?? "Фото доски, дневника, тетради или файл")
+                        .font(.caption)
+                        .foregroundStyle(attachmentStatus == nil ? SchoolTheme.muted : SchoolTheme.success)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    isImageSourceDialogVisible = true
+                } label: {
+                    Label("Фото", systemImage: "camera.fill")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.success)
+
+                Button {
+                    isFileImporterVisible = true
+                } label: {
+                    Label("Файл", systemImage: "doc.fill")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func save() {
@@ -408,10 +495,52 @@ private struct AddHomeworkSheet: View {
                 dueLabel: dueLabel.trimmed,
                 source: "Родитель",
                 status: .pending,
-                bring: bring.trimmed.isEmpty ? nil : bring.trimmed
+                bring: bring.trimmed.isEmpty ? nil : bring.trimmed,
+                attachment: attachmentStatus
             )
         )
         dismiss()
+    }
+
+    private func showImagePicker(_ sourceType: UIImagePickerController.SourceType) {
+        imagePickerSource = sourceType
+        isImagePickerVisible = true
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                attachmentStatus = "Файл не выбран"
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileName = url.lastPathComponent.isEmpty ? "документ" : url.lastPathComponent
+            attachmentStatus = "Файл прикреплен: \(fileName)"
+        case .failure:
+            attachmentStatus = "Не удалось прикрепить файл"
+        }
+    }
+
+    private func runQAImporterChecks() {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            if arguments.contains("-qa-homework-add-photo-dialog") {
+                isImageSourceDialogVisible = true
+            }
+
+            if arguments.contains("-qa-homework-add-file-importer") {
+                isFileImporterVisible = true
+            }
+        }
     }
 }
 
@@ -644,7 +773,8 @@ private struct ParseHomeworkSheet: View {
                         dueLabel: draft.dueLabel.trimmed.isEmpty ? "завтра" : draft.dueLabel.trimmed,
                         source: "AI из \(inputKind.sourceName)",
                         status: .review,
-                        bring: draft.bring.trimmed.isEmpty ? nil : draft.bring.trimmed
+                        bring: draft.bring.trimmed.isEmpty ? nil : draft.bring.trimmed,
+                        attachment: attachmentStatus
                     )
                 }
 

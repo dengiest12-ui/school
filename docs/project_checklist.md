@@ -338,8 +338,8 @@
 - [~] Ручное добавление ДЗ
   - Проверка: предмет, текст, дедлайн, вложения, автор, статус
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-add-final.png`, `.build/screenshots/homework-persistence-add.png`
-  - Комментарий: ручное добавление работает и сохраняется локально; вложения пока не сохраняются
+  - Артефакт: `.build/screenshots/homework-add-final.png`, `.build/screenshots/homework-persistence-add.png`, `.build/screenshots/homework-add-attachments.png`
+  - Комментарий: ручное добавление работает и сохраняется локально; можно прикрепить фото или файл как локальную пометку исходника, хранение бинарных файлов еще не подключено
 
 - [~] Список ДЗ
   - Проверка: вкладки Сегодня, Завтра, Неделя, Выполнено; фильтры по ребенку, предмету, статусу и источнику
@@ -353,17 +353,17 @@
   - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`
   - Комментарий: статус меняется и сохраняется локально между перезапусками; серверная синхронизация еще не подключена
 
-- [ ] Вложения и фото
+- [~] Вложения и фото
   - Проверка: можно прикрепить фото доски, дневника, тетради или файл
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png`
-  - Комментарий: в разборе ДЗ есть системный выбор фото/галереи и файла; хранение бинарных вложений и OCR еще не подключены
+  - Артефакт: `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png`, `.build/screenshots/homework-add-attachments.png`, `.build/screenshots/homework-add-photo-dialog.png`, `.build/screenshots/homework-add-file-importer.png`
+  - Комментарий: в разборе и ручном добавлении ДЗ есть системный выбор фото/галереи и файла; выбранный исходник сохраняется как локальная пометка, хранение бинарных вложений и OCR еще не подключены
 
-- [ ] История ДЗ
+- [~] История ДЗ
   - Проверка: старые задания доступны и не теряются после срока
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-add-attachments.png`
+  - Комментарий: выполненные задания остаются во вкладке "Выполнено", а локальное хранилище не сбрасывает ДЗ между перезапусками; календарная архивная история по датам еще не сделана
 
 - [~] ДЗ по фото
   - Проверка: съемка, распознавание, правка текста, разбиение по предметам, сохранение
@@ -957,3 +957,4 @@
 | 2026-07-03 | Безопасность, поддержка и выход | Пройдено | 3 | `.build/screenshots/more-security-screen.png`, `.build/screenshots/more-support-screen.png`, `.build/screenshots/more-problem-screen.png`, `.build/screenshots/more-logout-screen.png` | Добавлены рабочие листы для безопасности, поддержки, отчета о проблеме и выхода; настройки безопасности сохраняются локально; сборка `xcodebuild` проходит |
 | 2026-07-03 | Живое состояние главного экрана Сегодня | Пройдено | 3 | `.build/screenshots/today-state-main.png`, `.build/screenshots/today-add-homework.png`, `.build/screenshots/today-add-task-payment.png`, `.build/screenshots/today-important-chat.png` | Добавлено локальное хранение Today-состояния, отметки ДЗ и семейных задач, быстрые листы ДЗ/задач и отдельное важное из чата; сборка `xcodebuild` проходит |
 | 2026-07-03 | Комментарии под объявлениями | Пройдено | 3 | `.build/screenshots/announcement-comments-detail.png`, `.build/screenshots/announcement-comments-create.png` | Добавлены комментарии к объявлениям, поле быстрого ответа и переключатель обсуждения для автора; сборка `xcodebuild` проходит |
+| 2026-07-03 | Вложения в ручном ДЗ | Пройдено | 3 | `.build/screenshots/homework-add-attachments.png`, `.build/screenshots/homework-add-photo-dialog.png`, `.build/screenshots/homework-add-file-importer.png` | Добавлен блок фото/файла в ручное добавление ДЗ; системные picker-ы открываются, выбранный исходник сохраняется как локальная пометка; сборка `xcodebuild` проходит |
