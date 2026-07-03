@@ -123,13 +123,105 @@ struct ChildSummary: Identifiable, Hashable, Codable {
     let className: String
     let school: String
     let avatarText: String
+    let classCode: String
+    let parentRoleTitle: String
 
-    init(id: UUID = UUID(), name: String, className: String, school: String, avatarText: String) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        className: String,
+        school: String,
+        avatarText: String,
+        classCode: String = "3B-1254",
+        parentRoleTitle: String = "Родитель"
+    ) {
         self.id = id
         self.name = name
         self.className = className
         self.school = school
         self.avatarText = avatarText
+        self.classCode = classCode
+        self.parentRoleTitle = parentRoleTitle
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case className
+        case school
+        case avatarText
+        case classCode
+        case parentRoleTitle
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        className = try container.decode(String.self, forKey: .className)
+        school = try container.decode(String.self, forKey: .school)
+        avatarText = try container.decode(String.self, forKey: .avatarText)
+        classCode = try container.decodeIfPresent(String.self, forKey: .classCode) ?? "3B-1254"
+        parentRoleTitle = try container.decodeIfPresent(String.self, forKey: .parentRoleTitle) ?? "Родитель"
+    }
+}
+
+enum AppChildStore {
+    private static let childrenKey = "school.shared.children.v1"
+    private static let selectedChildIDKey = "school.shared.selectedChildID"
+
+    static var children: [ChildSummary] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: childrenKey),
+                let decoded = try? JSONDecoder().decode([ChildSummary].self, from: data),
+                !decoded.isEmpty
+            else {
+                return SampleData.children
+            }
+
+            return decoded
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: childrenKey)
+            if let first = newValue.first, selectedChild(in: newValue) == nil {
+                select(first)
+            }
+        }
+    }
+
+    static var selectedChildID: String {
+        get { UserDefaults.standard.string(forKey: selectedChildIDKey) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: selectedChildIDKey) }
+    }
+
+    static var selectedChild: ChildSummary {
+        selectedChild(in: children) ?? children[0]
+    }
+
+    static func selectedChild(in list: [ChildSummary]) -> ChildSummary? {
+        let selectedID = selectedChildID
+        return list.first { $0.id.uuidString == selectedID } ?? list.first
+    }
+
+    static func select(_ child: ChildSummary) {
+        selectedChildID = child.id.uuidString
+    }
+
+    static func add(_ child: ChildSummary) {
+        var current = children
+        current.append(child)
+        children = current
+        select(child)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: childrenKey)
+        UserDefaults.standard.removeObject(forKey: selectedChildIDKey)
     }
 }
 
@@ -761,8 +853,8 @@ struct FeedItem: Identifiable, Hashable, Codable {
 
 enum SampleData {
     static let children = [
-        ChildSummary(name: "Миша", className: "3Б", school: "Школа 1254", avatarText: "М"),
-        ChildSummary(name: "Аня", className: "4А", school: "Школа 1254", avatarText: "А")
+        ChildSummary(name: "Миша", className: "3Б", school: "Школа 1254", avatarText: "М", classCode: "3B-1254", parentRoleTitle: "Родитель"),
+        ChildSummary(name: "Аня", className: "4А", school: "Школа 1254", avatarText: "А", classCode: "4A-1254", parentRoleTitle: "Родкомитет")
     ]
 
     static let familyMembers = [

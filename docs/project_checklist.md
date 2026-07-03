@@ -136,8 +136,8 @@
 - [~] Onboarding
   - Проверка: создание класса, присоединение, авторизация, роль, ребенок, уведомления
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `.build/screenshots/onboarding-*-final.png`, `.build/screenshots/qa-smoke/onboarding-phone.png`
-  - Комментарий: реализован интерактивный первый запуск: локальная авторизация, роль, данные ребенка/класса, уведомления и обязательное локальное согласие на обработку данных ребенка; настоящая авторизация и backend-сохранение еще не подключены
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `.build/screenshots/onboarding-account-first.png`, `.build/screenshots/qa-smoke/onboarding-phone.png`
+  - Комментарий: первый запуск перестроен по шагам: сначала локальный вход в аккаунт, затем выбор статуса/роли, создание класса или вход по коду, данные ребенка/класса, уведомления и обязательное согласие; настоящая авторизация и backend-сохранение еще не подключены
 
 - [~] Экран "Сегодня / Что завтра"
   - Проверка: за 10 секунд отвечает, что сделать ребенку и родителю
@@ -256,8 +256,8 @@
 - [~] Добавление ребенка
   - Проверка: имя, класс, школа, смена; можно добавить нескольких детей
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`, `.build/screenshots/more-persistence-children.png`
-  - Комментарий: в онбординге вводится имя ребенка, в разделе "Еще" есть локальное добавление нескольких профилей; профили сохраняются локально, смена еще не реализована
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `.build/screenshots/access-children-final.png`, `.build/screenshots/today-add-child-class-code.png`
+  - Комментарий: добавлен общий локальный список детей: ребенка можно добавить из `Еще` и прямо из выбора ребенка на главной, указав класс, школу, код класса и роль родителя в этом классе; выбранный ребенок сохраняется между вкладками, backend-связи детей и классов еще не подключены
 
 - [~] Создание класса
   - Проверка: название класса, школа, город, учебный год, тип организации
@@ -294,20 +294,20 @@
 - [~] Карточка "Что завтра?"
   - Проверка: показывает уроки, ДЗ, форму, что принести, что оплатить, кружки, события и важные объявления
   - Уровень: 3
-  - Артефакт: `.build/screenshots/schedule-today-final.png`, `.build/screenshots/today-state-main.png`, `.build/screenshots/child-mode-today.png`
-  - Комментарий: показывает уроки на завтра, форму и личный кружок; для ребенка дополнительно есть безопасный рюкзак и прогресс ДЗ без оплат/чатов; ДЗ, срочные задачи, семейные дела и важное из чата живут в локальном состоянии без единого backend-дайджеста
+  - Артефакт: `.build/screenshots/schedule-today-final.png`, `.build/screenshots/today-state-main.png`, `.build/screenshots/child-mode-today.png`, `.build/screenshots/today-child-profile-switch.png`
+  - Комментарий: показывает уроки на завтра, форму и личный кружок; выбор ребенка сохраняется в общем локальном store и используется в `Сегодня` и `Класс`; для ребенка дополнительно есть безопасный рюкзак и прогресс ДЗ без оплат/чатов; единый backend-дайджест еще не подключен
 
 - [~] Срочное сегодня
   - Проверка: просроченные и срочные задачи не теряются
   - Уровень: 3
-  - Артефакт: `.build/screenshots/today-state-main.png`
-  - Комментарий: срочные семейные задачи отображаются отдельным блоком, отмечаются выполненными и сохраняются локально; реальные push-напоминания еще не подключены
+  - Артефакт: `.build/screenshots/today-state-main.png`, `.build/screenshots/qa-smoke/today-urgent.png`
+  - Комментарий: срочные семейные задачи отображаются отдельным блоком и теперь открываются в отдельный лист со списком; отметки выполнения сохраняются локально, реальные push-напоминания еще не подключены
 
 - [~] Блок ДЗ
   - Проверка: задания сгруппированы по ребенку, предмету и сроку
   - Уровень: 3
-  - Артефакт: `.build/screenshots/today-state-main.png`, `.build/screenshots/today-add-homework.png`
-  - Комментарий: ДЗ на главном экране можно отметить выполненным или добавить через быстрый лист; фильтрация по ребенку пока базовая через выбранного ребенка
+  - Артефакт: `.build/screenshots/today-state-main.png`, `.build/screenshots/today-add-homework.png`, `.build/screenshots/today-homework-sheet.png`
+  - Комментарий: ДЗ на главном экране теперь открывается в отдельный лист с заданиями и галочками; добавить ДЗ можно через быстрый лист, состояние сохраняется локально
 
 - [~] Блок "Принести / оплатить / подписать"
   - Проверка: задачи для родителя отделены от задач ребенка
@@ -324,8 +324,8 @@
 - [~] Важное из чата
   - Проверка: важное показывается без необходимости читать весь чат
   - Уровень: 3
-  - Артефакт: `.build/screenshots/today-important-chat.png`
-  - Комментарий: важные сообщения показываются отдельной карточкой, их можно закрыть или превратить в семейную задачу; реальный AI-дайджест чата еще не подключен
+  - Артефакт: `.build/screenshots/today-important-chat.png`, `.build/screenshots/today-chats-sheet.png`
+  - Комментарий: важные сообщения показываются отдельной карточкой, их можно закрыть или превратить в семейную задачу; карточка чатов на главной теперь открывает лист чатов; реальный AI-дайджест чата еще не подключен
 
 - [~] Быстрые действия
   - Проверка: доступны "Разобрать", "Добавить ДЗ", "Добавить задачу", "Добавить кружок", "Открыть чат"
@@ -795,7 +795,7 @@
   - Проверка: пользователь не может делать действия вне своей роли
   - Уровень: 3
   - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/bugfix-parent-collections.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/child-mode-today.png`
-  - Комментарий: в UI добавлены локальные запреты для родителя на создание объявлений, сборов, приглашений, изменение статусов, общего счетчика и чеков; детская роль не видит вкладки `Класс` и `Еще`, сборы и родительские обсуждения; backend-проверка прав все еще обязательна до релиза
+  - Комментарий: в UI добавлены локальные запреты для родителя на создание объявлений, сборов, приглашений, изменение статусов, общего счетчика и чеков; роль родителя может отличаться по классам выбранных детей, детская роль не видит вкладки `Класс` и `Еще`; backend-проверка прав все еще обязательна до релиза
 
 - [~] Проверка пустых состояний
   - Проверка: нет класса, нет ребенка, нет ДЗ, нет событий, нет подписки, нет прав
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -983,3 +983,4 @@
 | 2026-07-03 | Фильтры списка ДЗ | Пройдено | 3 | `.build/screenshots/homework-filters.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | В список ДЗ добавлены фильтры по ребенку, предмету, статусу и источнику, счетчик результатов и сброс фильтров; модель ДЗ получила совместимое поле ребенка; сценарий добавлен в smoke-проверку |
 | 2026-07-03 | Участники и документы событий | Пройдено | 3 | `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-detail.png`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | События календаря получили локальные участников и документы: форма создания сохраняет список участников и файл, карточка/детали показывают участников, документы и связанный сбор; сценарий деталей события добавлен в smoke-проверку |
 | 2026-07-03 | Согласие и локальное удаление данных | Пройдено | 3 | `.build/screenshots/privacy-consent-settings.png`, `.build/screenshots/security-local-delete-export.png`, `.build/screenshots/qa-smoke/more-privacy.png`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Онбординг требует локальное согласие на обработку данных ребенка и принятие политики, настройки приватности показывают сохраненный статус, а безопасность получила экспорт-сводку и очистку выбранных локальных данных; сценарий приватности добавлен в smoke-проверку |
+| 2026-07-03 | Навигация главной и мультидети | Пройдено | 3 | `.build/screenshots/onboarding-account-first.png`, `.build/screenshots/today-child-profile-switch.png`, `.build/screenshots/today-add-child-class-code.png`, `.build/screenshots/today-homework-sheet.png`, `.build/screenshots/today-chats-sheet.png`, `.build/screenshots/qa-smoke/today-notifications.png`, `.build/screenshots/qa-smoke/today-urgent.png`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Первый вход перестроен по шагам аккаунт -> статус -> класс, выбранный ребенок сохраняется между вкладками и задает контекст класса/роли, добавление ребенка требует код класса, колокольчик/профиль/срочное/домашка/чаты на главной открывают листы; smoke расширен и пройден |

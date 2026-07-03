@@ -33,16 +33,20 @@ struct OnboardingView: View {
                 VStack(spacing: 14) {
                     header
                     heroCard
-                    modePicker
 
                     if didPrepareClass {
                         readyCard
                     } else {
                         authCard
-                        roleCard
-                        detailsCard
-                        consentCard
-                        notificationCard
+                        if authIsReady {
+                            roleCard
+                            modePicker
+                            detailsCard
+                            consentCard
+                            notificationCard
+                        } else {
+                            accountFirstCard
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -294,15 +298,39 @@ struct OnboardingView: View {
     private var roleCard: some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Моя роль")
-                    .font(.headline)
-                    .foregroundStyle(SchoolTheme.graphite)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Ваш статус")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text("Выберите, кем вы будете в школьной комнате. Для разных детей роль можно поменять позже.")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 VStack(spacing: 9) {
                     ForEach(AppUserRole.allCases) { item in
                         roleRow(item)
                     }
                 }
+            }
+        }
+    }
+
+    private var accountFirstCard: some View {
+        DashboardCard {
+            HStack(spacing: 12) {
+                IconBadge(systemName: "person.crop.circle.badge.checkmark", color: SchoolTheme.accent, size: 42)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Сначала войдите в аккаунт")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text("После подтверждения телефона или Apple ID приложение спросит ваш статус и предложит создать класс или войти по коду.")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
             }
         }
     }
@@ -564,6 +592,10 @@ struct OnboardingView: View {
     private var primaryButtonTitle: String {
         if didPrepareClass {
             return "Перейти в Сегодня"
+        }
+
+        if !authIsReady {
+            return "Сначала подтвердите аккаунт"
         }
 
         return mode == .create ? "Создать комнату класса" : "Войти в класс"

@@ -61,7 +61,7 @@ struct HomeworkView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 14) {
                 header
                 scopePicker
@@ -70,6 +70,7 @@ struct HomeworkView: View {
                 filtersCard
                 homeworkList
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
             .padding(.top, 22)
             .padding(.bottom, SchoolTheme.bottomScrollPadding)

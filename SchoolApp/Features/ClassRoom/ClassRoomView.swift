@@ -200,6 +200,7 @@ private enum ClassRoomLocalStore {
 struct ClassRoomView: View {
     let userRole: AppUserRole
 
+    @AppStorage("school.shared.selectedChildID") private var selectedChildID = ""
     @State private var selectedSection: ClassSection
     @State private var feedItems: [FeedItem]
     @State private var collections: [CollectionSummary]
@@ -247,7 +248,7 @@ struct ClassRoomView: View {
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .addCollection:
-                if userRole.canManageCollections {
+                if activeUserRole.canManageCollections {
                     AddCollectionSheet { collection in
                         collections.insert(collection, at: 0)
                         ClassRoomLocalStore.collections = collections
@@ -278,7 +279,7 @@ struct ClassRoomView: View {
                     updateFeedItem(updatedItem)
                 }
             case .newAnnouncement:
-                if userRole.canPublishAnnouncements {
+                if activeUserRole.canPublishAnnouncements {
                     NewAnnouncementSheet { item in
                         feedItems.insert(item, at: 0)
                         ClassRoomLocalStore.feedItems = feedItems
@@ -292,7 +293,7 @@ struct ClassRoomView: View {
                     )
                 }
             case .inviteMembers:
-                if userRole.canInviteMembers {
+                if activeUserRole.canInviteMembers {
                     InviteMembersSheet(members: members) { updatedMembers in
                         members = updatedMembers
                         ClassRoomLocalStore.members = updatedMembers
@@ -306,7 +307,7 @@ struct ClassRoomView: View {
                     )
                 }
             case .photoAlbum(let album):
-                PhotoAlbumSheet(album: album, userRole: userRole) { updatedAlbum in
+                PhotoAlbumSheet(album: album, userRole: activeUserRole) { updatedAlbum in
                     updatePhotoAlbum(updatedAlbum)
                 }
             }
@@ -316,10 +317,10 @@ struct ClassRoomView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Класс 3Б")
+                Text("Класс \(selectedChild.className)")
                     .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(SchoolTheme.graphite)
-                Text("Лента, чаты, сборы и материалы")
+                Text("\(selectedChild.name): \(selectedChild.parentRoleTitle.lowercased()), код \(selectedChild.classCode)")
                     .font(.subheadline)
                     .foregroundStyle(SchoolTheme.muted)
             }
@@ -345,7 +346,7 @@ struct ClassRoomView: View {
                     Text("25 родителей подключены")
                         .font(.headline)
                         .foregroundStyle(SchoolTheme.graphite)
-                    Text("Сегодня: \(feedItems.count) объявления, \(activeDigestCount) задачи, \(collectionCountText)")
+                    Text("\(selectedChild.school). Сегодня: \(feedItems.count) объявления, \(activeDigestCount) задачи, \(collectionCountText)")
                         .font(.subheadline)
                         .foregroundStyle(SchoolTheme.muted)
                 }
@@ -419,7 +420,7 @@ struct ClassRoomView: View {
                                 activeSheet = .newAnnouncement
                             }
                                 .buttonStyle(.borderless)
-                                .disabled(!userRole.canPublishAnnouncements)
+                                .disabled(!activeUserRole.canPublishAnnouncements)
                             Spacer()
                         }
                         .font(.subheadline.weight(.semibold))
@@ -531,7 +532,7 @@ struct ClassRoomView: View {
     private var collectionsContent: some View {
         VStack(spacing: 12) {
             collectionSummaryCard
-            if !userRole.canManageCollections {
+            if !activeUserRole.canManageCollections {
                 roleRestrictionCard(
                     title: "Вы вошли как родитель",
                     detail: "Можно смотреть сборы и отметить оплату своей семьи. Общий счетчик, чеки и отчет ведет родкомитет.",
@@ -540,7 +541,7 @@ struct ClassRoomView: View {
                 )
             }
 
-            if userRole.canManageCollections {
+            if activeUserRole.canManageCollections {
                 Button {
                     activeSheet = .addCollection
                 } label: {
@@ -684,12 +685,12 @@ struct ClassRoomView: View {
                         .foregroundStyle(SchoolTheme.graphite)
 
                     ForEach(members) { member in
-                        memberAccessRow(member, canManage: userRole.canInviteMembers)
+                        memberAccessRow(member, canManage: activeUserRole.canInviteMembers)
                     }
                 }
             }
 
-            if userRole.canInviteMembers {
+            if activeUserRole.canInviteMembers {
                 Button {
                     activeSheet = .inviteMembers
                 } label: {
@@ -955,15 +956,15 @@ struct ClassRoomView: View {
     private func openCreateAction() {
         switch selectedSection {
         case .collections:
-            if userRole.canManageCollections {
+            if activeUserRole.canManageCollections {
                 activeSheet = .addCollection
             }
         case .feed, .chats:
-            if userRole.canPublishAnnouncements {
+            if activeUserRole.canPublishAnnouncements {
                 activeSheet = .newAnnouncement
             }
         case .photos, .members:
-            if userRole.canInviteMembers {
+            if activeUserRole.canInviteMembers {
                 activeSheet = .inviteMembers
             }
         }
@@ -972,14 +973,26 @@ struct ClassRoomView: View {
     private var canUseHeaderCreateAction: Bool {
         switch selectedSection {
         case .collections:
-            userRole.canManageCollections
+            activeUserRole.canManageCollections
         case .feed, .chats:
-            userRole.canPublishAnnouncements
+            activeUserRole.canPublishAnnouncements
         case .members:
-            userRole.canInviteMembers
+            activeUserRole.canInviteMembers
         case .photos:
             false
         }
+    }
+
+    private var selectedChild: ChildSummary {
+        AppChildStore.selectedChild
+    }
+
+    private var activeUserRole: AppUserRole {
+        if selectedChild.parentRoleTitle == "Родкомитет" {
+            return .parentCommittee
+        }
+
+        return userRole
     }
 
     private func badgeColor(for tag: String) -> Color {

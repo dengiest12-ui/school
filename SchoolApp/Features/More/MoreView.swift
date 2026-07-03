@@ -646,6 +646,7 @@ private enum MoreLocalStore {
         get { snapshot.children }
         set {
             snapshot.children = newValue
+            AppChildStore.children = newValue
             save()
         }
     }
@@ -792,6 +793,7 @@ private enum MoreLocalStore {
         switch scope {
         case "Профиль ребенка":
             snapshot.children = []
+            AppChildStore.clear()
             snapshot.privacySettings.childDataConsent = false
             snapshot.privacySettings.privacyPolicyAccepted = false
             snapshot.privacySettings.consentStatus = "Данные ребенка очищены локально \(timestamp)"
@@ -811,6 +813,7 @@ private enum MoreLocalStore {
         default:
             snapshot.profile = .sample
             snapshot.children = []
+            AppChildStore.clear()
             snapshot.familyMembers = []
             snapshot.familyTasks = []
             snapshot.classAccess = []
@@ -880,10 +883,13 @@ private enum MoreLocalStore {
             "currentUserRole",
             "authMethod",
             "authContact",
-            "authVerifiedAt"
+            "authVerifiedAt",
+            "school.shared.children.v1",
+            "school.shared.selectedChildID"
         ].forEach(UserDefaults.standard.removeObject)
 
         AppPrivacyConsentStore.clear()
+        AppChildStore.clear()
     }
 }
 
@@ -912,7 +918,7 @@ struct MoreView: View {
         MoreView.seedPrivacyConsentIfRequested()
         MoreLocalStore.resetIfRequested()
         _profile = State(initialValue: MoreLocalStore.profile)
-        _children = State(initialValue: MoreLocalStore.children)
+        _children = State(initialValue: AppChildStore.children)
         _familyMembers = State(initialValue: MoreLocalStore.familyMembers)
         _familyTasks = State(initialValue: MoreLocalStore.familyTasks)
         _classAccess = State(initialValue: MoreLocalStore.classAccess)
@@ -940,6 +946,7 @@ struct MoreView: View {
                 menuSection("Семья", items: familyItems)
                 menuSection("Приложение", items: appItems)
                 menuSection("Помощь", items: helpItems)
+                logoutButton
             }
             .padding(.horizontal, 20)
             .padding(.top, 22)
@@ -1229,6 +1236,19 @@ struct MoreView: View {
                 }
             }
         }
+    }
+
+    private var logoutButton: some View {
+        Button {
+            activeSheet = .logout
+        } label: {
+            Label("Выйти из аккаунта", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.headline)
+                .foregroundStyle(SchoolTheme.warning)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(SchoolTheme.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var familyItems: [MoreMenuItem] {
@@ -1592,6 +1612,8 @@ private struct ChildrenAccessSheet: View {
     @State private var childName = "Саша"
     @State private var className = "1А"
     @State private var school = "Школа 1254"
+    @State private var classCode = "1A-1254"
+    @State private var parentRoleTitle = "Родитель"
 
     init(children: [ChildSummary], onSave: @escaping ([ChildSummary]) -> Void) {
         self.onSave = onSave
@@ -1633,12 +1655,12 @@ private struct ChildrenAccessSheet: View {
                                         Text("\(child.name), \(child.className)")
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(SchoolTheme.graphite)
-                                        Text(child.school)
+                                        Text("\(child.school) - код \(child.classCode)")
                                             .font(.caption)
                                             .foregroundStyle(SchoolTheme.muted)
                                     }
                                     Spacer()
-                                    StatusBadge(text: "Активен", color: SchoolTheme.success)
+                                    StatusBadge(text: child.parentRoleTitle, color: child.parentRoleTitle == "Родкомитет" ? SchoolTheme.warning : SchoolTheme.success)
                                 }
                             }
                         }
@@ -1648,7 +1670,37 @@ private struct ChildrenAccessSheet: View {
                         VStack(spacing: 12) {
                             MoreTextField(title: "Имя ребенка", iconName: "person.fill", color: SchoolTheme.success, text: $childName)
                             MoreTextField(title: "Класс", iconName: "building.2.fill", color: SchoolTheme.accent, text: $className)
+                            MoreTextField(title: "Код класса", iconName: "link", color: SchoolTheme.warning, text: $classCode)
                             MoreTextField(title: "Школа", iconName: "graduationcap.fill", color: SchoolTheme.teal, text: $school)
+                            Menu {
+                                ForEach(["Родитель", "Родкомитет"], id: \.self) { role in
+                                    Button(role) {
+                                        parentRoleTitle = role
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: "person.badge.shield.checkmark.fill", color: SchoolTheme.accent, size: 40)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Роль в этом классе")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.muted)
+                                        Text(parentRoleTitle)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .foregroundStyle(SchoolTheme.muted)
+                                }
+                                .padding(12)
+                                .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(SchoolTheme.line, lineWidth: 1)
+                                }
+                            }
+                            .buttonStyle(.plain)
 
                             Button {
                                 addChild()
@@ -1659,7 +1711,7 @@ private struct ChildrenAccessSheet: View {
                             }
                             .buttonStyle(.bordered)
                             .tint(SchoolTheme.success)
-                            .disabled(childName.trimmed.isEmpty || className.trimmed.isEmpty)
+                            .disabled(childName.trimmed.isEmpty || className.trimmed.isEmpty || classCode.trimmed.isEmpty)
                         }
                     }
 
@@ -1702,11 +1754,14 @@ private struct ChildrenAccessSheet: View {
                 name: childName.trimmed,
                 className: className.trimmed,
                 school: school.trimmed,
-                avatarText: avatar.isEmpty ? "Р" : avatar
+                avatarText: avatar.isEmpty ? "Р" : avatar,
+                classCode: classCode.trimmed.uppercased(),
+                parentRoleTitle: parentRoleTitle
             )
         )
         childName = ""
         className = ""
+        classCode = ""
     }
 
     private func save() {

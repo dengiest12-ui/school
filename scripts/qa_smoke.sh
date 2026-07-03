@@ -43,13 +43,19 @@ run_case() {
   echo "Launching smoke case: $name"
   xcrun simctl terminate "$SIMULATOR_ID" "$BUNDLE_ID" >/dev/null 2>&1 || true
   xcrun simctl launch "$SIMULATOR_ID" "$BUNDLE_ID" "$@"
-  sleep 1
+  sleep 2
   xcrun simctl io "$SIMULATOR_ID" screenshot "$SCREENSHOT_DIR/$name.png"
 }
 
 run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified -qa-onboarding-consent
 run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple -qa-onboarding-consent
 run_case "today-main" -qa-tab today
+run_case "today-notifications" -qa-tab today -qa-today-notifications
+run_case "today-profile" -qa-tab today -qa-today-profile
+run_case "today-urgent" -qa-tab today -qa-today-urgent
+run_case "today-homework-list" -qa-tab today -qa-today-homework-list
+run_case "today-chats" -qa-tab today -qa-today-chats
+run_case "today-add-child" -qa-tab today -qa-today-add-child
 run_case "child-mode" -qa-role child -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom

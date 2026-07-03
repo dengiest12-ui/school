@@ -227,7 +227,8 @@ private enum TodayLocalStore {
 struct TodayView: View {
     let userRole: AppUserRole
 
-    @State private var selectedChild = SampleData.children[0]
+    @AppStorage("school.shared.selectedChildID") private var selectedChildID = ""
+    @State private var children: [ChildSummary]
     @State private var homework: [HomeworkItem]
     @State private var parentTasks: [ParentTask]
     @State private var importantMessages: [TodayImportantMessage]
@@ -239,6 +240,7 @@ struct TodayView: View {
     init(userRole: AppUserRole = .parent) {
         self.userRole = userRole
         TodayLocalStore.resetIfRequested()
+        _children = State(initialValue: AppChildStore.children)
         _homework = State(initialValue: TodayLocalStore.homework)
         _parentTasks = State(initialValue: TodayLocalStore.parentTasks)
         _importantMessages = State(initialValue: TodayLocalStore.importantMessages)
@@ -324,6 +326,23 @@ struct TodayView: View {
                 GlobalParseSheet(defaultAssignee: selectedChild.name) { drafts in
                     saveGlobalParse(drafts)
                 }
+            case .addChild:
+                AddChildToClassSheet { child in
+                    children.append(child)
+                    AppChildStore.children = children
+                    AppChildStore.select(child)
+                    selectedChildID = child.id.uuidString
+                }
+            case .notifications:
+                TodayNotificationsSheet(child: selectedChild)
+            case .profile:
+                TodayProfileSheet(child: selectedChild, children: children)
+            case .homeworkList:
+                TodayHomeworkListSheet(homework: $homework, selectedChild: selectedChild)
+            case .urgentTasks:
+                TodayUrgentTasksSheet(tasks: $parentTasks, selectedChild: selectedChild)
+            case .chats:
+                TodayChatsSheet()
             }
         }
         .onChange(of: schedule) { _, newValue in
@@ -431,14 +450,18 @@ struct TodayView: View {
 
             Spacer()
 
-            HeaderIconButton(systemName: "bell", badgeColor: SchoolTheme.success)
+            HeaderIconButton(systemName: "bell", badgeColor: SchoolTheme.success) {
+                activeSheet = .notifications
+            }
                 .accessibilityLabel("Уведомления")
             if userRole == .child {
                 HeaderIconButton(systemName: "backpack.fill")
                     .accessibilityLabel("Режим ребенка")
             } else {
-                HeaderIconButton(systemName: "person.crop.circle")
-                    .accessibilityLabel("Профиль")
+                HeaderIconButton(systemName: "person.crop.circle") {
+                    activeSheet = .profile
+                }
+                .accessibilityLabel("Профиль")
             }
         }
         .padding(.top, 2)
@@ -446,10 +469,15 @@ struct TodayView: View {
 
     private var childCard: some View {
         Menu {
-            ForEach(SampleData.children) { child in
+            ForEach(children) { child in
                 Button("\(child.name), \(child.className)") {
-                    selectedChild = child
+                    selectedChildID = child.id.uuidString
+                    AppChildStore.select(child)
                 }
+            }
+            Divider()
+            Button("Добавить ребенка") {
+                activeSheet = .addChild
             }
         } label: {
             DashboardCard(padding: 0) {
@@ -462,7 +490,7 @@ struct TodayView: View {
                         Text("\(selectedChild.name), \(selectedChild.className)")
                             .font(.title3.weight(.bold))
                             .foregroundStyle(SchoolTheme.graphite)
-                        Text(selectedChild.school)
+                        Text("\(selectedChild.school) - \(selectedChild.parentRoleTitle.lowercased()), код \(selectedChild.classCode)")
                             .font(.caption)
                             .foregroundStyle(SchoolTheme.muted)
                     }
@@ -533,7 +561,10 @@ struct TodayView: View {
     }
 
     private var urgentCard: some View {
-        DashboardCard {
+        Button {
+            activeSheet = .urgentTasks
+        } label: {
+            DashboardCard {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     IconBadge(systemName: "exclamationmark", color: SchoolTheme.danger)
@@ -555,21 +586,21 @@ struct TodayView: View {
                         emptyTodayRow("Срочных дел нет", "checkmark.seal.fill", SchoolTheme.success)
                     } else {
                         ForEach(urgentTasks.prefix(2)) { task in
-                            Button {
-                                toggleParentTask(task)
-                            } label: {
                                 urgentTaskRow(task)
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
         }
+        }
+        .buttonStyle(.plain)
     }
 
     private var homeworkCard: some View {
-        DashboardCard {
+        Button {
+            activeSheet = .homeworkList
+        } label: {
+            DashboardCard {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     IconBadge(systemName: "book.closed", color: SchoolTheme.success)
@@ -584,16 +615,13 @@ struct TodayView: View {
 
                 VStack(spacing: 13) {
                     ForEach(homework) { item in
-                        Button {
-                            toggleHomework(item)
-                        } label: {
-                            homeworkRow(item: item)
-                        }
-                        .buttonStyle(.plain)
+                        homeworkRow(item: item)
                     }
                 }
             }
         }
+        }
+        .buttonStyle(.plain)
     }
 
     private var childBackpackCard: some View {
@@ -785,7 +813,10 @@ struct TodayView: View {
     }
 
     private var chatsCard: some View {
-        DashboardCard {
+        Button {
+            activeSheet = .chats
+        } label: {
+            DashboardCard {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     IconBadge(systemName: "bubble.left.and.bubble.right", color: SchoolTheme.accent)
@@ -805,6 +836,8 @@ struct TodayView: View {
                 }
             }
         }
+        }
+        .buttonStyle(.plain)
     }
 
     private var quickActionsCard: some View {
@@ -885,6 +918,10 @@ struct TodayView: View {
 
         items.append(contentsOf: tomorrowCircles.map { "\($0.title): \($0.place)" })
         return Array(items.prefix(5))
+    }
+
+    private var selectedChild: ChildSummary {
+        AppChildStore.selectedChild(in: children) ?? children.first ?? SampleData.children[0]
     }
 
     private func lessons(for day: String) -> [ScheduleItem] {
@@ -1265,7 +1302,435 @@ struct TodayView: View {
             return .globalParse
         }
 
+        if arguments.contains("-qa-today-add-child") {
+            return .addChild
+        }
+
+        if arguments.contains("-qa-today-notifications") {
+            return .notifications
+        }
+
+        if arguments.contains("-qa-today-profile") {
+            return .profile
+        }
+
+        if arguments.contains("-qa-today-homework-list") {
+            return .homeworkList
+        }
+
+        if arguments.contains("-qa-today-urgent") {
+            return .urgentTasks
+        }
+
+        if arguments.contains("-qa-today-chats") {
+            return .chats
+        }
+
         return nil
+    }
+}
+
+private struct AddChildToClassSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: (ChildSummary) -> Void
+
+    @State private var childName = "Соня"
+    @State private var className = "2В"
+    @State private var school = "Школа 1254"
+    @State private var classCode = "2V-1254"
+    @State private var parentRoleTitle = "Родитель"
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(
+                        icon: "person.crop.square.badge.plus",
+                        color: SchoolTheme.success,
+                        title: "Добавить ребенка",
+                        subtitle: "Для каждого ребенка можно указать свой класс и код приглашения"
+                    )
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            TodayTextField(title: "Имя ребенка", iconName: "person.fill", color: SchoolTheme.success, text: $childName)
+                            TodayTextField(title: "Класс", iconName: "person.3.fill", color: SchoolTheme.accent, text: $className)
+                            TodayTextField(title: "Код класса", iconName: "link", color: SchoolTheme.warning, text: $classCode)
+                            TodayTextField(title: "Школа", iconName: "building.columns.fill", color: SchoolTheme.teal, text: $school)
+                            roleMenu
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Добавить и выбрать", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                    .disabled(!canSave)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Новый ребенок")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+        }
+    }
+
+    private var roleMenu: some View {
+        Menu {
+            ForEach(["Родитель", "Родкомитет"], id: \.self) { role in
+                Button(role) {
+                    parentRoleTitle = role
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                IconBadge(systemName: "person.badge.shield.checkmark.fill", color: SchoolTheme.accent, size: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Ваша роль в классе")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+                    Text(parentRoleTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                }
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+            .padding(12)
+            .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(SchoolTheme.line, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var canSave: Bool {
+        !childName.trimmed.isEmpty && !className.trimmed.isEmpty && !classCode.trimmed.isEmpty
+    }
+
+    private func save() {
+        let avatar = String(childName.trimmed.prefix(1)).uppercased()
+        onSave(
+            ChildSummary(
+                name: childName.trimmed,
+                className: className.trimmed,
+                school: school.trimmed,
+                avatarText: avatar.isEmpty ? "Р" : avatar,
+                classCode: classCode.trimmed.uppercased(),
+                parentRoleTitle: parentRoleTitle
+            )
+        )
+        dismiss()
+    }
+}
+
+private struct TodayNotificationsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let child: ChildSummary
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(icon: "bell.badge.fill", color: SchoolTheme.warning, title: "Уведомления", subtitle: "Что важно по \(child.name) и классу \(child.className)")
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            notificationRow("ДЗ на завтра", "Сегодня в 20:30", "book.closed.fill", SchoolTheme.success)
+                            notificationRow("Срочные задачи", "Сразу после важных объявлений", "exclamationmark.circle.fill", SchoolTheme.danger)
+                            notificationRow("Сборы и дедлайны", "За день до срока", "rublesign.circle.fill", SchoolTheme.warning)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Уведомления")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func notificationRow(_ title: String, _ detail: String, _ icon: String, _ color: Color) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+            Spacer()
+            StatusBadge(text: "Вкл", color: SchoolTheme.success)
+        }
+    }
+}
+
+private struct TodayProfileSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let child: ChildSummary
+    let children: [ChildSummary]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(icon: "person.crop.circle.fill", color: SchoolTheme.accent, title: "Профиль", subtitle: "Текущий ребенок, класс и роль")
+                    DashboardCard {
+                        HStack(spacing: 14) {
+                            InitialAvatar(text: child.avatarText, color: SchoolTheme.success, size: 56)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(child.name), \(child.className)")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Text("\(child.school) - код \(child.classCode)")
+                                    .font(.caption)
+                                    .foregroundStyle(SchoolTheme.muted)
+                            }
+                            Spacer()
+                            StatusBadge(text: child.parentRoleTitle, color: child.parentRoleTitle == "Родкомитет" ? SchoolTheme.warning : SchoolTheme.success)
+                        }
+                    }
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Все профили")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            ForEach(children) { item in
+                                HStack(spacing: 10) {
+                                    InitialAvatar(text: item.avatarText, color: item.id == child.id ? SchoolTheme.success : SchoolTheme.accent, size: 36)
+                                    Text("\(item.name) - \(item.className), \(item.parentRoleTitle.lowercased())")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.graphite)
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Профиль")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct TodayHomeworkListSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var homework: [HomeworkItem]
+    let selectedChild: ChildSummary
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(icon: "book.closed.fill", color: SchoolTheme.success, title: "Домашка", subtitle: "\(selectedChild.name), \(selectedChild.className)")
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            ForEach(homework) { item in
+                                Button {
+                                    toggle(item)
+                                } label: {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        Image(systemName: item.status == .done ? "checkmark.circle.fill" : "circle")
+                                            .font(.title3)
+                                            .foregroundStyle(item.status == .done ? SchoolTheme.success : SchoolTheme.muted.opacity(0.55))
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(item.subject)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                            Text(item.title)
+                                                .font(.caption)
+                                                .foregroundStyle(SchoolTheme.muted)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer()
+                                        StatusBadge(text: item.dueLabel, color: SchoolTheme.warning)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Домашка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ item: HomeworkItem) {
+        guard let index = homework.firstIndex(where: { $0.id == item.id }) else {
+            return
+        }
+
+        homework[index].status = homework[index].status == .done ? .pending : .done
+    }
+}
+
+private struct TodayUrgentTasksSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var tasks: [ParentTask]
+    let selectedChild: ChildSummary
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(icon: "exclamationmark.circle.fill", color: SchoolTheme.danger, title: "Срочно", subtitle: "Дела родителя по \(selectedChild.name)")
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            ForEach(tasks) { task in
+                                Button {
+                                    toggle(task)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
+                                            .font(.title3)
+                                            .foregroundStyle(task.isDone ? SchoolTheme.success : SchoolTheme.muted.opacity(0.55))
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(task.title)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                            Text("\(task.kind.title) - \(task.dueLabel)")
+                                                .font(.caption)
+                                                .foregroundStyle(SchoolTheme.muted)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Срочно")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ task: ParentTask) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else {
+            return
+        }
+
+        tasks[index].isDone.toggle()
+    }
+}
+
+private struct TodayChatsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    TodaySheetHeader(icon: "bubble.left.and.bubble.right.fill", color: SchoolTheme.accent, title: "Чаты", subtitle: "Класс, родкомитет и объявления")
+                    DashboardCard {
+                        VStack(spacing: 14) {
+                            ForEach(SampleData.chats) { chat in
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: chat.icon, color: color(for: chat.colorName), size: 42)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(chat.title)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text(chat.message)
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    if chat.hasUnread {
+                                        Circle()
+                                            .fill(SchoolTheme.accent)
+                                            .frame(width: 9, height: 9)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Чаты")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func color(for colorName: String) -> Color {
+        switch colorName {
+        case "green":
+            SchoolTheme.success
+        case "teal":
+            SchoolTheme.teal
+        case "blue":
+            SchoolTheme.accent
+        default:
+            SchoolTheme.warning
+        }
     }
 }
 
@@ -2973,6 +3438,12 @@ private enum TodaySheet: Identifiable {
     case addTask(ParentTask.Kind)
     case importantMessages
     case globalParse
+    case addChild
+    case notifications
+    case profile
+    case homeworkList
+    case urgentTasks
+    case chats
 
     var id: String {
         switch self {
@@ -2990,6 +3461,18 @@ private enum TodaySheet: Identifiable {
             "important-messages"
         case .globalParse:
             "global-parse"
+        case .addChild:
+            "add-child"
+        case .notifications:
+            "notifications"
+        case .profile:
+            "profile"
+        case .homeworkList:
+            "homework-list"
+        case .urgentTasks:
+            "urgent-tasks"
+        case .chats:
+            "chats"
         }
     }
 }
