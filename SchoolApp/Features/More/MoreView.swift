@@ -2065,6 +2065,9 @@ private struct SubscriptionSheet: View {
 
     @State private var plans: [SubscriptionPlanSummary]
     @State private var restoreStatus = "Покупки еще не проверялись"
+    @State private var storeKitStatus = "StoreKit 2 не подключен: работает локальная проверка сценариев"
+    @State private var transactionId = "нет транзакции"
+    @State private var subscriptionExpires = "trial +14 дней"
 
     init(plans: [SubscriptionPlanSummary], onSave: @escaping ([SubscriptionPlanSummary]) -> Void) {
         self.onSave = onSave
@@ -2091,6 +2094,59 @@ private struct SubscriptionSheet: View {
                             MoreMetric(value: "2", title: "ребенка", color: SchoolTheme.accent)
                         }
                         .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Покупки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            storeKitRow(
+                                icon: "shippingbox.fill",
+                                color: SchoolTheme.accent,
+                                title: "Продукт",
+                                detail: productId
+                            )
+
+                            storeKitRow(
+                                icon: "receipt.fill",
+                                color: SchoolTheme.success,
+                                title: "Транзакция",
+                                detail: transactionId
+                            )
+
+                            storeKitRow(
+                                icon: "calendar.badge.clock",
+                                color: SchoolTheme.warning,
+                                title: "Действует",
+                                detail: subscriptionExpires
+                            )
+
+                            Text(storeKitStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack(spacing: 8) {
+                                purchaseButton("Купить", icon: "cart.fill", color: SchoolTheme.success) {
+                                    purchaseLocally()
+                                }
+                                purchaseButton("Вернуть", icon: "arrow.clockwise", color: SchoolTheme.accent) {
+                                    restorePurchases()
+                                }
+                            }
+
+                            HStack(spacing: 8) {
+                                purchaseButton("Истекла", icon: "clock.badge.exclamationmark.fill", color: SchoolTheme.warning) {
+                                    expireSubscription()
+                                }
+                                purchaseButton("Ошибка", icon: "exclamationmark.triangle.fill", color: SchoolTheme.danger) {
+                                    failPurchase()
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     DashboardCard {
@@ -2134,28 +2190,6 @@ private struct SubscriptionSheet: View {
                         }
                     }
 
-                    DashboardCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Покупки")
-                                .font(.headline)
-                                .foregroundStyle(SchoolTheme.graphite)
-                            Text(restoreStatus)
-                                .font(.caption)
-                                .foregroundStyle(SchoolTheme.muted)
-
-                            Button {
-                                restoreStatus = "Проверено локально: активен \(currentPlan?.title ?? "пробный период")"
-                            } label: {
-                                Label("Восстановить покупки", systemImage: "arrow.clockwise")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 46)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(SchoolTheme.accent)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
                     Button {
                         save()
                     } label: {
@@ -2184,6 +2218,17 @@ private struct SubscriptionSheet: View {
 
     private var currentPlan: SubscriptionPlanSummary? {
         plans.first(where: \.isCurrent)
+    }
+
+    private var productId: String {
+        switch currentPlan?.title {
+        case "1 ребенок":
+            "school.class.family.monthly.child1"
+        case "Семья+":
+            "school.class.family.monthly.extra_child"
+        default:
+            "school.class.family.trial"
+        }
     }
 
     private func subscriptionPlanRow(_ plan: SubscriptionPlanSummary) -> some View {
@@ -2225,6 +2270,58 @@ private struct SubscriptionSheet: View {
         for index in plans.indices {
             plans[index].isCurrent = plans[index].id == plan.id
         }
+        storeKitStatus = "Выбран продукт \(productId). Нажмите Купить для локальной проверки сценария."
+    }
+
+    private func storeKitRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                Text(detail)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func purchaseButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(color.opacity(0.11), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func purchaseLocally() {
+        transactionId = "local-\(Int(Date.now.timeIntervalSince1970))"
+        subscriptionExpires = currentPlan?.title == "Пробный период" ? "trial +14 дней" : "активна до следующего месяца"
+        storeKitStatus = "Покупка принята локально: \(currentPlan?.title ?? "пробный период"). Настоящая проверка должна идти через StoreKit 2 Transaction.currentEntitlements."
+    }
+
+    private func restorePurchases() {
+        restoreStatus = "Проверено локально: активен \(currentPlan?.title ?? "пробный период")"
+        transactionId = "restored-local"
+        storeKitStatus = "\(restoreStatus). В релизе нужно вызвать AppStore.sync() и проверить entitlement."
+    }
+
+    private func expireSubscription() {
+        subscriptionExpires = "истекла"
+        storeKitStatus = "Локально сымитирована истекшая подписка: платные AI-функции должны показать ограничение без потери данных."
+    }
+
+    private func failPurchase() {
+        transactionId = "ошибка оплаты"
+        storeKitStatus = "Локально сымитирована ошибка оплаты: показать понятную причину и оставить текущий тариф без изменений."
     }
 
     private func save() {
