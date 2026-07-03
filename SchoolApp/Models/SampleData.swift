@@ -4,6 +4,7 @@ enum AppUserRole: String, CaseIterable, Identifiable {
     case parent
     case parentCommittee
     case teacher
+    case child
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum AppUserRole: String, CaseIterable, Identifiable {
             "Родкомитет"
         case .teacher:
             "Учитель"
+        case .child:
+            "Ребенок"
         }
     }
 
@@ -26,6 +29,8 @@ enum AppUserRole: String, CaseIterable, Identifiable {
             "Сборы, приглашения, отчеты и объявления класса"
         case .teacher:
             "Объявления, домашние задания и важные отметки"
+        case .child:
+            "Домашка, расписание, кружки и что взять завтра"
         }
     }
 
@@ -37,6 +42,8 @@ enum AppUserRole: String, CaseIterable, Identifiable {
             "person.badge.shield.checkmark.fill"
         case .teacher:
             "graduationcap.fill"
+        case .child:
+            "backpack.fill"
         }
     }
 

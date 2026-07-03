@@ -27,7 +27,7 @@ struct AppView: View {
     private var mainApp: some View {
         ZStack(alignment: .bottom) {
             NavigationStack {
-                selectedTab.content(userRole: currentUserRole)
+                activeTab.content(userRole: currentUserRole)
             }
 
             SchoolTheme.page
@@ -36,11 +36,15 @@ struct AppView: View {
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
 
-            CustomTabBar(selectedTab: $selectedTab)
+            CustomTabBar(selectedTab: $selectedTab, tabs: visibleTabs)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .onAppear(perform: normalizeSelectedTab)
+        .onChange(of: currentUserRole.rawValue) { _, _ in
+            normalizeSelectedTab()
+        }
     }
 
     private var showsOnboarding: Bool {
@@ -59,6 +63,14 @@ struct AppView: View {
         return AppUserRole(rawValue: currentUserRoleRaw) ?? .parent
     }
 
+    private var visibleTabs: [AppTab] {
+        AppTab.visibleTabs(for: currentUserRole)
+    }
+
+    private var activeTab: AppTab {
+        visibleTabs.contains(selectedTab) ? selectedTab : visibleTabs[0]
+    }
+
     private func completeOnboarding(role: AppUserRole) {
         hasCompletedOnboarding = true
         onboardingVersion = Self.requiredOnboardingVersion
@@ -75,6 +87,14 @@ struct AppView: View {
         onboardingVersion = 0
         currentUserRoleRaw = AppUserRole.parent.rawValue
         completedForcedOnboarding = false
+    }
+
+    private func normalizeSelectedTab() {
+        guard !visibleTabs.contains(selectedTab) else {
+            return
+        }
+
+        selectedTab = visibleTabs[0]
     }
 
     private static func launchTab() -> AppTab {
@@ -122,10 +142,11 @@ struct AppView: View {
 
 private struct CustomTabBar: View {
     @Binding var selectedTab: AppTab
+    let tabs: [AppTab]
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(AppTab.allCases) { tab in
+            ForEach(tabs) { tab in
                 Button {
                     selectedTab = tab
                 } label: {

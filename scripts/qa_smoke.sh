@@ -50,6 +50,7 @@ run_case() {
 run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified
 run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple
 run_case "today-main" -qa-tab today
+run_case "child-mode" -qa-role child -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
 run_case "class-member-management" -qa-role parentCommittee -qa-tab classRoom -qa-member-management

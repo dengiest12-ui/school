@@ -28,7 +28,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     func content(userRole: AppUserRole = .parent) -> some View {
         switch self {
         case .today:
-            TodayView()
+            TodayView(userRole: userRole)
         case .classRoom:
             ClassRoomView(userRole: userRole)
         case .homework:
@@ -68,6 +68,15 @@ enum AppTab: String, CaseIterable, Identifiable {
             "calendar"
         case .more:
             "ellipsis"
+        }
+    }
+
+    static func visibleTabs(for role: AppUserRole) -> [AppTab] {
+        switch role {
+        case .child:
+            [.today, .homework, .calendar]
+        case .parent, .parentCommittee, .teacher:
+            AppTab.allCases
         }
     }
 }

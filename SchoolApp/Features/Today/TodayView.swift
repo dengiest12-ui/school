@@ -225,6 +225,8 @@ private enum TodayLocalStore {
 }
 
 struct TodayView: View {
+    let userRole: AppUserRole
+
     @State private var selectedChild = SampleData.children[0]
     @State private var homework: [HomeworkItem]
     @State private var parentTasks: [ParentTask]
@@ -234,7 +236,8 @@ struct TodayView: View {
     @State private var selectedScheduleDay = "Чт"
     @State private var activeSheet: TodaySheet?
 
-    init() {
+    init(userRole: AppUserRole = .parent) {
+        self.userRole = userRole
         TodayLocalStore.resetIfRequested()
         _homework = State(initialValue: TodayLocalStore.homework)
         _parentTasks = State(initialValue: TodayLocalStore.parentTasks)
@@ -250,13 +253,25 @@ struct TodayView: View {
                 header
                 childCard
                 tomorrowCard
-                urgentCard
+                if userRole == .child {
+                    childBackpackCard
+                } else {
+                    urgentCard
+                }
                 homeworkCard
-                parentActionsCard
+                if userRole == .child {
+                    childProgressCard
+                } else {
+                    parentActionsCard
+                }
                 scheduleCard
-                importantChatsCard
-                chatsCard
-                quickActionsCard
+                if userRole != .child {
+                    importantChatsCard
+                    chatsCard
+                }
+                if userRole != .child {
+                    quickActionsCard
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 22)
@@ -418,8 +433,13 @@ struct TodayView: View {
 
             HeaderIconButton(systemName: "bell", badgeColor: SchoolTheme.success)
                 .accessibilityLabel("Уведомления")
-            HeaderIconButton(systemName: "person.crop.circle")
-                .accessibilityLabel("Профиль")
+            if userRole == .child {
+                HeaderIconButton(systemName: "backpack.fill")
+                    .accessibilityLabel("Режим ребенка")
+            } else {
+                HeaderIconButton(systemName: "person.crop.circle")
+                    .accessibilityLabel("Профиль")
+            }
         }
         .padding(.top, 2)
     }
@@ -475,12 +495,16 @@ struct TodayView: View {
 
                     Spacer()
 
-                    Button {
-                        activeSheet = .schedule
-                    } label: {
+                    if userRole == .child {
                         InfoPill(text: "План дня", color: SchoolTheme.success)
+                    } else {
+                        Button {
+                            activeSheet = .schedule
+                        } label: {
+                            InfoPill(text: "План дня", color: SchoolTheme.success)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
 
                 VStack(spacing: 11) {
@@ -493,15 +517,17 @@ struct TodayView: View {
                     }
                 }
 
-                Button {
-                    activeSheet = .globalParse
-                } label: {
-                    Label("Разобрать фото ДЗ", systemImage: "camera.viewfinder")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 42)
+                if userRole != .child {
+                    Button {
+                        activeSheet = .globalParse
+                    } label: {
+                        Label("Разобрать фото ДЗ", systemImage: "camera.viewfinder")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(SchoolTheme.success)
             }
         }
     }
@@ -570,6 +596,62 @@ struct TodayView: View {
         }
     }
 
+    private var childBackpackCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 14) {
+                    IconBadge(systemName: "backpack.fill", color: SchoolTheme.warning)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Рюкзак завтра")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text("Только учебные вещи, без оплат и родительских чатов")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                    InfoPill(text: "\(childBackpackItems.count)", color: SchoolTheme.warning)
+                }
+
+                VStack(spacing: 12) {
+                    if childBackpackItems.isEmpty {
+                        emptyTodayRow("Особых вещей не нужно", "checkmark.seal.fill", SchoolTheme.success)
+                    } else {
+                        ForEach(Array(childBackpackItems.enumerated()), id: \.offset) { _, item in
+                            childBackpackRow(item)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var childProgressCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 14) {
+                    IconBadge(systemName: "checkmark.seal.fill", color: SchoolTheme.success)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Мой прогресс")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(SchoolTheme.success)
+                        Text("Отмечай готовую домашку")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                    InfoPill(text: "\(doneHomeworkCount)/\(homework.count)", color: SchoolTheme.success)
+                }
+
+                HStack(spacing: 10) {
+                    childProgressMetric(title: "активно", value: "\(openHomeworkCount)", color: SchoolTheme.warning)
+                    childProgressMetric(title: "готово", value: "\(doneHomeworkCount)", color: SchoolTheme.success)
+                    childProgressMetric(title: "урока", value: "\(tomorrowLessons.count)", color: SchoolTheme.accent)
+                }
+            }
+        }
+    }
+
     private var parentActionsCard: some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 16) {
@@ -622,12 +704,16 @@ struct TodayView: View {
                         .font(.title3.weight(.bold))
                         .foregroundStyle(SchoolTheme.accent)
                     Spacer()
-                    Button {
-                        activeSheet = .schedule
-                    } label: {
+                    if userRole == .child {
                         InfoPill(text: "\(selectedLessons.count) урока", color: SchoolTheme.accent)
+                    } else {
+                        Button {
+                            activeSheet = .schedule
+                        } label: {
+                            InfoPill(text: "\(selectedLessons.count) урока", color: SchoolTheme.accent)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     Image(systemName: "chevron.right")
                         .foregroundStyle(SchoolTheme.muted)
                 }
@@ -738,17 +824,20 @@ struct TodayView: View {
                     quickAction("Кружок", "figure.run", SchoolTheme.teal) {
                         activeSheet = .schedule
                     }
-                    quickAction("Событие", "calendar.badge.plus", SchoolTheme.accent) {
-                        activeSheet = .addTask(.sign)
-                    }
-                    quickAction("Сбор", "rublesign.circle", SchoolTheme.warning) {
-                        activeSheet = .addTask(.pay)
-                    }
                     quickAction("Расписание", "clock.badge.checkmark", SchoolTheme.accent) {
                         activeSheet = .schedule
                     }
-                    quickAction("Открыть чат", "bubble.left", SchoolTheme.teal) {
-                        activeSheet = .importantMessages
+
+                    if userRole != .child {
+                        quickAction("Событие", "calendar.badge.plus", SchoolTheme.accent) {
+                            activeSheet = .addTask(.sign)
+                        }
+                        quickAction("Сбор", "rublesign.circle", SchoolTheme.warning) {
+                            activeSheet = .addTask(.pay)
+                        }
+                        quickAction("Открыть чат", "bubble.left", SchoolTheme.teal) {
+                            activeSheet = .importantMessages
+                        }
                     }
                 }
             }
@@ -771,6 +860,10 @@ struct TodayView: View {
         homework.filter { $0.status != .done }.count
     }
 
+    private var doneHomeworkCount: Int {
+        homework.filter { $0.status == .done }.count
+    }
+
     private var activeImportantMessages: [TodayImportantMessage] {
         importantMessages.filter { !$0.isHandled }
     }
@@ -781,6 +874,17 @@ struct TodayView: View {
 
     private var selectedCircles: [PersonalCircle] {
         circles(for: selectedScheduleDay)
+    }
+
+    private var childBackpackItems: [String] {
+        var items = homework.compactMap { $0.bring?.trimmed }.filter { !$0.isEmpty }
+
+        if tomorrowLessons.contains(where: \.requiresForm) {
+            items.append("Форма и сменная обувь для физкультуры")
+        }
+
+        items.append(contentsOf: tomorrowCircles.map { "\($0.title): \($0.place)" })
+        return Array(items.prefix(5))
     }
 
     private func lessons(for day: String) -> [ScheduleItem] {
@@ -880,6 +984,48 @@ struct TodayView: View {
             Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
                 .font(.title3)
                 .foregroundStyle(isDone ? SchoolTheme.success : SchoolTheme.muted.opacity(0.55))
+        }
+    }
+
+    private func childBackpackRow(_ title: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(SchoolTheme.success)
+                .frame(width: 26)
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+        }
+        .padding(12)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+
+    private func childProgressMetric(title: String, value: String, color: Color) -> some View {
+        VStack(spacing: 5) {
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(color)
+                .monospacedDigit()
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
         }
     }
 

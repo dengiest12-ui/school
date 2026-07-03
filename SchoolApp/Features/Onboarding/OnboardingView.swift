@@ -307,22 +307,24 @@ struct OnboardingView: View {
                     .foregroundStyle(SchoolTheme.graphite)
 
                 OnboardingTextField(
-                    title: "Ваше имя",
-                    placeholder: "Имя родителя",
-                    iconName: "person.fill",
-                    color: SchoolTheme.accent,
+                    title: role == .child ? "Имя ребенка" : "Ваше имя",
+                    placeholder: role == .child ? "Например, Миша" : "Имя родителя",
+                    iconName: role == .child ? "figure.child" : "person.fill",
+                    color: role == .child ? SchoolTheme.success : SchoolTheme.accent,
                     text: $parentName
                 )
                 .focused($focusedField, equals: .parentName)
 
-                OnboardingTextField(
-                    title: "Ребенок",
-                    placeholder: "Имя ребенка",
-                    iconName: "figure.child",
-                    color: SchoolTheme.success,
-                    text: $childName
-                )
-                .focused($focusedField, equals: .childName)
+                if role != .child {
+                    OnboardingTextField(
+                        title: "Ребенок",
+                        placeholder: "Имя ребенка",
+                        iconName: "figure.child",
+                        color: SchoolTheme.success,
+                        text: $childName
+                    )
+                    .focused($focusedField, equals: .childName)
+                }
 
                 if mode == .create {
                     OnboardingTextField(
@@ -491,7 +493,7 @@ struct OnboardingView: View {
     }
 
     private var canPrepare: Bool {
-        guard authIsReady, !parentName.trimmed.isEmpty, !childName.trimmed.isEmpty else {
+        guard authIsReady, !parentName.trimmed.isEmpty, role == .child || !childName.trimmed.isEmpty else {
             return false
         }
 
@@ -530,8 +532,16 @@ struct OnboardingView: View {
     private var readySubtitle: String {
         switch mode {
         case .create:
+            if role == .child {
+                return "\(parentName.trimmed), \(className.trimmed). Включен детский режим без сборов и родительских чатов."
+            }
+
             return "\(childName.trimmed), \(className.trimmed). Можно приглашать родителей."
         case .join:
+            if role == .child {
+                return "\(parentName.trimmed) вошел в класс по коду \(inviteCode.trimmed.uppercased()) в детском режиме."
+            }
+
             return "\(childName.trimmed) добавлен в класс по коду \(inviteCode.trimmed.uppercased())."
         }
     }

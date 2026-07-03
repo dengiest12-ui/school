@@ -41,7 +41,7 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[x]` | 2 | Создан `docs/mvp_scope.md`: главный оффер, MVP / позже / не делать, главный сценарий и North Star Metric. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, детский режим, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
 | Backend / синхронизация | `[~]` | 2 | Для MVP добавлены локальное хранение, backend-контракты и экран очереди синхронизации; настоящий backend, API-клиент и серверные права еще не подключены. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
@@ -110,14 +110,14 @@
 - [~] Ребенок, опционально
   - Проверка: видит только ДЗ, расписание и чеклист рюкзака, не видит сборы и родительские обсуждения
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`
-  - Комментарий: добавлены профили детей и локальная привязка к классам; отдельный детский режим и ограничение видимости еще не реализованы
+  - Артефакт: `SchoolApp/App/AppView.swift`, `SchoolApp/App/AppTab.swift`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`, `.build/screenshots/child-mode-today.png`, `.build/screenshots/qa-smoke/child-mode.png`
+  - Комментарий: добавлены профили детей, роль "Ребенок", укороченная навигация `Сегодня / ДЗ / Календарь` и детский главный экран с ДЗ, расписанием, прогрессом и рюкзаком без сборов и родительских чатов; отдельный серверный детский аккаунт и backend-ограничения еще не реализованы
 
 - [~] Матрица прав доступа
   - Проверка: для каждой роли понятно, какие действия разрешены, запрещены и требуют настройки админом
   - Уровень: 3
-  - Артефакт: `SchoolApp/Models/SampleData.swift`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
-  - Комментарий: локальная модель ролей и статусов показана в интерфейсе; полноценная матрица прав нужна до backend/API
+  - Артефакт: `SchoolApp/Models/SampleData.swift`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/child-mode-today.png`
+  - Комментарий: локальная модель ролей и статусов показана в интерфейсе, включая детский режим без доступа к классу, сборам и родительским обсуждениям; полноценная серверная матрица прав нужна до backend/API
 
 ## 3. Дизайн и UX
 
@@ -294,8 +294,8 @@
 - [~] Карточка "Что завтра?"
   - Проверка: показывает уроки, ДЗ, форму, что принести, что оплатить, кружки, события и важные объявления
   - Уровень: 3
-  - Артефакт: `.build/screenshots/schedule-today-final.png`, `.build/screenshots/today-state-main.png`
-  - Комментарий: показывает уроки на завтра, форму и личный кружок; ДЗ, срочные задачи, семейные дела и важное из чата живут в локальном состоянии без единого backend-дайджеста
+  - Артефакт: `.build/screenshots/schedule-today-final.png`, `.build/screenshots/today-state-main.png`, `.build/screenshots/child-mode-today.png`
+  - Комментарий: показывает уроки на завтра, форму и личный кружок; для ребенка дополнительно есть безопасный рюкзак и прогресс ДЗ без оплат/чатов; ДЗ, срочные задачи, семейные дела и важное из чата живут в локальном состоянии без единого backend-дайджеста
 
 - [~] Срочное сегодня
   - Проверка: просроченные и срочные задачи не теряются
@@ -794,8 +794,8 @@
 - [~] Проверка ролей и прав
   - Проверка: пользователь не может делать действия вне своей роли
   - Уровень: 3
-  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/bugfix-parent-collections.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`
-  - Комментарий: в UI добавлены локальные запреты для родителя на создание объявлений, сборов, приглашений, изменение статусов, общего счетчика и чеков; backend-проверка прав все еще обязательна до релиза
+  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/bugfix-parent-collections.png`, `.build/screenshots/bugfix-parent-collection-detail.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/child-mode-today.png`
+  - Комментарий: в UI добавлены локальные запреты для родителя на создание объявлений, сборов, приглашений, изменение статусов, общего счетчика и чеков; детская роль не видит вкладки `Класс` и `Еще`, сборы и родительские обсуждения; backend-проверка прав все еще обязательна до релиза
 
 - [~] Проверка пустых состояний
   - Проверка: нет класса, нет ребенка, нет ДЗ, нет событий, нет подписки, нет прав
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Class parent/committee/member management, Homework add, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -979,3 +979,4 @@
 | 2026-07-03 | Локальные iOS-уведомления | Пройдено | 3 | `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Экран уведомлений дополнен `UserNotifications`: системный запрос разрешения, статус iOS, тестовое уведомление через 5 секунд и локальное расписание вечернего/утреннего дайджеста и дедлайна оплаты; APNs/backend-доставка остаются следующим этапом |
 | 2026-07-03 | Приглашения по ссылке и QR | Пройдено | 3 | `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/invite-link-qr-family.png`, `.build/screenshots/qa-smoke/class-member-invite.png`, `.build/screenshots/qa-smoke/more-family.png`, `scripts/qa_smoke.sh` | В приглашения класса и семьи добавлены deep link-ссылки, QR-коды, системный ShareLink и обновление локального кода; сценарии добавлены в smoke-проверку, backend invite-token и отзыв ссылок остаются следующим этапом |
 | 2026-07-03 | Управление участниками класса | Пройдено | 3 | `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Добавлено локальное меню участника: смена роли, отключение/возврат доступа, удаление и передача админа с защитой последнего администратора; сценарий добавлен в smoke-проверку, backend-аудит и серверные права остаются следующим этапом |
+| 2026-07-03 | Детский режим MVP | Пройдено | 3 | `.build/screenshots/child-mode-today.png`, `.build/screenshots/qa-smoke/child-mode.png`, `SchoolApp/App/AppView.swift`, `SchoolApp/App/AppTab.swift`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `scripts/qa_smoke.sh` | Добавлена роль "Ребенок": видит только `Сегодня`, `ДЗ`, `Календарь`; онбординг использует детскую форму имени; на главном экране показаны ДЗ, расписание, прогресс и рюкзак, а сборы/класс/родительские чаты и создание новых сущностей скрыты; серверные ограничения остаются следующим этапом |
