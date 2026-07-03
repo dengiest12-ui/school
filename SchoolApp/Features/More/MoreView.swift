@@ -526,6 +526,181 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
     ]
 }
 
+private enum BackendEnvironment: String, CaseIterable, Identifiable, Codable {
+    case development
+    case staging
+    case production
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .development:
+            "Dev"
+        case .staging:
+            "Staging"
+        case .production:
+            "Prod"
+        }
+    }
+
+    var baseURL: String {
+        switch self {
+        case .development:
+            "https://dev-api.school-class.local"
+        case .staging:
+            "https://staging-api.school-class.app"
+        case .production:
+            "https://api.school-class.app"
+        }
+    }
+
+    var status: String {
+        switch self {
+        case .development:
+            "готовить sandbox-данные"
+        case .staging:
+            "проверять TestFlight"
+        case .production:
+            "только после юридической проверки"
+        }
+    }
+}
+
+private enum SyncEndpointKind: String, CaseIterable, Identifiable {
+    case classRoom
+    case homework
+    case announcementRead
+    case receipt
+    case familyInvite
+    case photo
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .classRoom:
+            "Класс"
+        case .homework:
+            "ДЗ"
+        case .announcementRead:
+            "Прочтение"
+        case .receipt:
+            "Чек"
+        case .familyInvite:
+            "Инвайт"
+        case .photo:
+            "Фото"
+        }
+    }
+
+    var method: String {
+        switch self {
+        case .announcementRead:
+            "PUT"
+        default:
+            "POST"
+        }
+    }
+
+    var path: String {
+        switch self {
+        case .classRoom:
+            "/classes"
+        case .homework:
+            "/homework"
+        case .announcementRead:
+            "/announcements/{id}/reads/me"
+        case .receipt:
+            "/collections/{id}/receipts"
+        case .familyInvite:
+            "/classes/{id}/invites"
+        case .photo:
+            "/classes/{id}/albums/{albumId}/photos"
+        }
+    }
+
+    var entity: String {
+        switch self {
+        case .classRoom:
+            "class_room"
+        case .homework:
+            "homework"
+        case .announcementRead:
+            "announcement_read"
+        case .receipt:
+            "collection_receipt"
+        case .familyInvite:
+            "class_invite"
+        case .photo:
+            "album_photo"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .classRoom:
+            "building.2.fill"
+        case .homework:
+            "book.closed.fill"
+        case .announcementRead:
+            "checkmark.message.fill"
+        case .receipt:
+            "receipt.fill"
+        case .familyInvite:
+            "person.badge.plus"
+        case .photo:
+            "photo.stack.fill"
+        }
+    }
+
+    var risk: String {
+        switch self {
+        case .classRoom:
+            "создает владельца и код класса"
+        case .homework:
+            "нужна история правок"
+        case .announcementRead:
+            "идемпотентный повтор"
+        case .receipt:
+            "сначала файл, потом метаданные"
+        case .familyInvite:
+            "нужен отзыв ссылки"
+        case .photo:
+            "приватное storage и модерация"
+        }
+    }
+
+    var contractLine: String {
+        "\(method) \(path)"
+    }
+}
+
+private struct SyncDryRunResult: Hashable {
+    var environment: BackendEnvironment
+    var acceptedCount: Int
+    var queuedCount: Int
+    var blockedCount: Int
+    var requestID: String
+    var summary: String
+
+    static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
+        let queued = operations.filter { ["В очереди", "Локально", "Offline"].contains($0.status) }.count
+        let blocked = operations.filter { ["Нужен storage", "Конфликт"].contains($0.status) }.count
+        let accepted = max(operations.count - queued - blocked, 0)
+        let suffix = UUID().uuidString.prefix(8).uppercased()
+
+        return SyncDryRunResult(
+            environment: environment,
+            acceptedCount: accepted,
+            queuedCount: queued,
+            blockedCount: blocked,
+            requestID: "dry-\(suffix)",
+            summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API."
+        )
+    }
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -4865,10 +5040,16 @@ private struct SyncCenterSheet: View {
 
     @State private var operations: [SyncOperationSummary]
     @State private var syncStatus = "Backend еще не подключен: проверяется локальная очередь"
+    @State private var environment: BackendEnvironment = .staging
+    @State private var dryRunResult: SyncDryRunResult?
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
         _operations = State(initialValue: operations)
+        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync") {
+            _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: operations))
+            _syncStatus = State(initialValue: "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
+        }
     }
 
     var body: some View {
@@ -4893,17 +5074,37 @@ private struct SyncCenterSheet: View {
                         .frame(height: 62)
                     }
 
+                    if let dryRunResult {
+                        DashboardCard {
+                            dryRunCard(dryRunResult)
+                        }
+                    }
+
                     DashboardCard {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Состояние backend MVP")
                                 .font(.headline)
                                 .foregroundStyle(SchoolTheme.graphite)
 
+                            VStack(alignment: .leading, spacing: 8) {
+                                Picker("Окружение", selection: $environment) {
+                                    ForEach(BackendEnvironment.allCases) { item in
+                                        Text(item.title).tag(item)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                Text("\(environment.baseURL) - \(environment.status)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(SchoolTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
                             syncStateRow(
                                 icon: "server.rack",
                                 color: SchoolTheme.accent,
                                 title: "API-контракты",
-                                detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md"
+                                detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md; экран уже использует типизированный каталог endpoint-ов"
                             )
                             syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
@@ -4917,6 +5118,23 @@ private struct SyncCenterSheet: View {
                                 title: "Offline",
                                 detail: "Черновики не теряются, операции повторяются после восстановления сети"
                             )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Каталог endpoint-ов")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                StatusBadge(text: "\(SyncEndpointKind.allCases.count)", color: SchoolTheme.accent)
+                            }
+
+                            ForEach(SyncEndpointKind.allCases) { endpoint in
+                                endpointRow(endpoint)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -4958,6 +5176,9 @@ private struct SyncCenterSheet: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             HStack(spacing: 8) {
+                                syncActionButton("Dry-run", icon: "play.circle.fill", color: SchoolTheme.accent) {
+                                    runDrySync()
+                                }
                                 syncActionButton("Sync OK", icon: "checkmark.icloud.fill", color: SchoolTheme.success) {
                                     markAllSynced()
                                 }
@@ -5078,6 +5299,59 @@ private struct SyncCenterSheet: View {
         .padding(.vertical, 4)
     }
 
+    private func endpointRow(_ endpoint: SyncEndpointKind) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: endpoint.iconName, color: endpointColor(endpoint), size: 38)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(endpoint.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: endpoint.method, color: endpointColor(endpoint))
+                }
+
+                Text(endpoint.path)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.76))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\(endpoint.entity) - \(endpoint.risk)")
+                    .font(.caption2)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func dryRunCard(_ result: SyncDryRunResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(result.requestID)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.environment.title, color: SchoolTheme.accent)
+            }
+
+            Text(result.summary)
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                MoreMetric(value: "\(result.acceptedCount)", title: "можно", color: SchoolTheme.success)
+                Divider()
+                MoreMetric(value: "\(result.queuedCount)", title: "очередь", color: SchoolTheme.warning)
+                Divider()
+                MoreMetric(value: "\(result.blockedCount)", title: "блок", color: SchoolTheme.danger)
+            }
+            .frame(height: 54)
+        }
+        .padding(12)
+        .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func syncActionButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
@@ -5104,6 +5378,17 @@ private struct SyncCenterSheet: View {
         }
     }
 
+    private func endpointColor(_ endpoint: SyncEndpointKind) -> Color {
+        switch endpoint {
+        case .classRoom, .announcementRead:
+            SchoolTheme.success
+        case .homework, .familyInvite:
+            SchoolTheme.accent
+        case .receipt, .photo:
+            SchoolTheme.warning
+        }
+    }
+
     private func update(_ operation: SyncOperationSummary, mutate: (inout SyncOperationSummary) -> Void) {
         guard let index = operations.firstIndex(where: { $0.id == operation.id }) else {
             return
@@ -5127,6 +5412,11 @@ private struct SyncCenterSheet: View {
             at: 0
         )
         syncStatus = "Добавлена локальная операция приглашения: должна уйти в backend после подключения API."
+    }
+
+    private func runDrySync() {
+        dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
+        syncStatus = "Dry-run подготовил запросы для \(environment.title): сеть не вызывается, но операции разложены по готовности."
     }
 
     private func markAllSynced() {
