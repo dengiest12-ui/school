@@ -58,5 +58,6 @@ run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-security" -qa-tab more -qa-more-security
 run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
+run_case "more-sync" -qa-tab more -qa-more-sync
 
 echo "QA smoke completed. Screenshots: $SCREENSHOT_DIR"

@@ -398,6 +398,83 @@ private struct QaStateScenario: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct SyncOperationSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var entity: String
+    var endpoint: String
+    var status: String
+    var retryPolicy: String
+    var conflictRule: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        entity: String,
+        endpoint: String,
+        status: String,
+        retryPolicy: String,
+        conflictRule: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.entity = entity
+        self.endpoint = endpoint
+        self.status = status
+        self.retryPolicy = retryPolicy
+        self.conflictRule = conflictRule
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        SyncOperationSummary(
+            title: "Создать класс 3Б",
+            entity: "class_room",
+            endpoint: "POST /classes",
+            status: "Готово к API",
+            retryPolicy: "Повторить при offline",
+            conflictRule: "Код класса уникален, владелец получает роль admin",
+            iconName: "building.2.fill",
+            colorName: "green"
+        ),
+        SyncOperationSummary(
+            title: "Опубликовать ДЗ",
+            entity: "homework",
+            endpoint: "POST /homework",
+            status: "В очереди",
+            retryPolicy: "Сохранить черновик и повторить",
+            conflictRule: "Последняя правка автора побеждает, история остается в AuditLog",
+            iconName: "book.closed.fill",
+            colorName: "orange"
+        ),
+        SyncOperationSummary(
+            title: "Подтвердить прочтение объявления",
+            entity: "announcement_read",
+            endpoint: "PUT /announcements/{id}/reads/me",
+            status: "Локально",
+            retryPolicy: "Отправить фоном",
+            conflictRule: "Read receipt идемпотентный, повтор безопасен",
+            iconName: "checkmark.message.fill",
+            colorName: "blue"
+        ),
+        SyncOperationSummary(
+            title: "Добавить чек к сбору",
+            entity: "collection_receipt",
+            endpoint: "POST /collections/{id}/receipts",
+            status: "Нужен storage",
+            retryPolicy: "Сначала загрузить файл, затем метаданные",
+            conflictRule: "Удаление и правка только родкомитетом или автором",
+            iconName: "receipt.fill",
+            colorName: "orange"
+        )
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -416,6 +493,7 @@ private struct MoreStoreSnapshot: Codable {
     var mvpMetrics: [MvpMetricSummary]
     var aiQualityLogs: [AIQualityLogEntry]
     var qaScenarios: [QaStateScenario]
+    var syncOperations: [SyncOperationSummary]
 
     init(
         profile: ParentProfileState = .sample,
@@ -434,7 +512,8 @@ private struct MoreStoreSnapshot: Codable {
         analyticsEvents: [AnalyticsEventSummary] = AnalyticsEventSummary.sample,
         mvpMetrics: [MvpMetricSummary] = MvpMetricSummary.sample,
         aiQualityLogs: [AIQualityLogEntry] = AIQualityLogEntry.sample,
-        qaScenarios: [QaStateScenario] = QaStateScenario.sample
+        qaScenarios: [QaStateScenario] = QaStateScenario.sample,
+        syncOperations: [SyncOperationSummary] = SyncOperationSummary.sample
     ) {
         self.profile = profile
         self.children = children
@@ -453,6 +532,7 @@ private struct MoreStoreSnapshot: Codable {
         self.mvpMetrics = mvpMetrics
         self.aiQualityLogs = aiQualityLogs
         self.qaScenarios = qaScenarios
+        self.syncOperations = syncOperations
     }
 
     init(from decoder: Decoder) throws {
@@ -474,6 +554,7 @@ private struct MoreStoreSnapshot: Codable {
         mvpMetrics = try container.decodeIfPresent([MvpMetricSummary].self, forKey: .mvpMetrics) ?? MvpMetricSummary.sample
         aiQualityLogs = try container.decodeIfPresent([AIQualityLogEntry].self, forKey: .aiQualityLogs) ?? AIQualityLogEntry.sample
         qaScenarios = try container.decodeIfPresent([QaStateScenario].self, forKey: .qaScenarios) ?? QaStateScenario.sample
+        syncOperations = try container.decodeIfPresent([SyncOperationSummary].self, forKey: .syncOperations) ?? SyncOperationSummary.sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -493,7 +574,8 @@ private struct MoreStoreSnapshot: Codable {
         analyticsEvents: AnalyticsEventSummary.sample,
         mvpMetrics: MvpMetricSummary.sample,
         aiQualityLogs: AIQualityLogEntry.sample,
-        qaScenarios: QaStateScenario.sample
+        qaScenarios: QaStateScenario.sample,
+        syncOperations: SyncOperationSummary.sample
     )
 }
 
@@ -637,6 +719,14 @@ private enum MoreLocalStore {
         }
     }
 
+    static var syncOperations: [SyncOperationSummary] {
+        get { snapshot.syncOperations }
+        set {
+            snapshot.syncOperations = newValue
+            save()
+        }
+    }
+
     static func recordAudit(_ entry: AuditLogEntry) {
         snapshot.auditEntries.insert(entry, at: 0)
         save()
@@ -689,6 +779,7 @@ struct MoreView: View {
     @State private var mvpMetrics: [MvpMetricSummary]
     @State private var aiQualityLogs: [AIQualityLogEntry]
     @State private var qaScenarios: [QaStateScenario]
+    @State private var syncOperations: [SyncOperationSummary]
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -710,6 +801,7 @@ struct MoreView: View {
         _mvpMetrics = State(initialValue: MoreLocalStore.mvpMetrics)
         _aiQualityLogs = State(initialValue: MoreLocalStore.aiQualityLogs)
         _qaScenarios = State(initialValue: MoreLocalStore.qaScenarios)
+        _syncOperations = State(initialValue: MoreLocalStore.syncOperations)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -917,6 +1009,19 @@ struct MoreView: View {
                         colorName: "green"
                     )
                 }
+            case .syncCenter:
+                SyncCenterSheet(operations: syncOperations) { updatedOperations in
+                    syncOperations = updatedOperations
+                    MoreLocalStore.syncOperations = updatedOperations
+                    recordAudit(
+                        title: "Синхронизация проверена",
+                        detail: "Очередь: \(updatedOperations.filter { $0.status != "Синхронизировано" }.count) задач",
+                        target: "Backend readiness",
+                        category: "Синхронизация",
+                        iconName: "arrow.triangle.2.circlepath",
+                        colorName: "blue"
+                    )
+                }
             case .support:
                 SupportMessageSheet(kind: .support)
             case .problem:
@@ -1016,7 +1121,8 @@ struct MoreView: View {
             MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files),
             MoreMenuItem(title: "Журнал действий", subtitle: "\(auditEntries.count) записей: роли, доступы, файлы", icon: "list.bullet.rectangle.portrait.fill", color: SchoolTheme.graphite, sheet: .audit),
             MoreMenuItem(title: "MVP-метрики", subtitle: "\(eventsTotal) событий: активация, ДЗ, сборы, trial", icon: "chart.bar.xaxis", color: SchoolTheme.accent, sheet: .metrics),
-            MoreMenuItem(title: "Качество AI", subtitle: "\(aiReviewCount) требуют проверки: повторы, промпты, ошибки", icon: "sparkles", color: SchoolTheme.warning, sheet: .aiQuality)
+            MoreMenuItem(title: "Качество AI", subtitle: "\(aiReviewCount) требуют проверки: повторы, промпты, ошибки", icon: "sparkles", color: SchoolTheme.warning, sheet: .aiQuality),
+            MoreMenuItem(title: "Синхронизация", subtitle: syncSubtitle, icon: "arrow.triangle.2.circlepath", color: SchoolTheme.accent, sheet: .syncCenter)
         ]
     }
 
@@ -1042,6 +1148,11 @@ struct MoreView: View {
 
     private var aiReviewCount: Int {
         aiQualityLogs.filter { $0.status != "Принято" }.count
+    }
+
+    private var syncSubtitle: String {
+        let pending = syncOperations.filter { $0.status != "Синхронизировано" }.count
+        return "\(pending) в очереди: API, offline, конфликты"
     }
 
     private var helpItems: [MoreMenuItem] {
@@ -1138,6 +1249,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-states") {
             return .qaStates
+        }
+
+        if arguments.contains("-qa-more-sync") {
+            return .syncCenter
         }
 
         if arguments.contains("-qa-more-support") {
@@ -4225,6 +4340,311 @@ private struct QaStatesSheet: View {
     }
 }
 
+private struct SyncCenterSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([SyncOperationSummary]) -> Void
+
+    @State private var operations: [SyncOperationSummary]
+    @State private var syncStatus = "Backend еще не подключен: проверяется локальная очередь"
+
+    init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
+        self.onSave = onSave
+        _operations = State(initialValue: operations)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "arrow.triangle.2.circlepath",
+                        color: SchoolTheme.accent,
+                        title: "Синхронизация",
+                        subtitle: "Очередь offline-действий, API-контракты и конфликты"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(readyCount)", title: "готово", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(pendingCount)", title: "очередь", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(storageCount)", title: "storage", color: SchoolTheme.accent)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Состояние backend MVP")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            syncStateRow(
+                                icon: "server.rack",
+                                color: SchoolTheme.accent,
+                                title: "API-контракты",
+                                detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md"
+                            )
+                            syncStateRow(
+                                icon: "externaldrive.connected.to.line.below",
+                                color: SchoolTheme.warning,
+                                title: "Локальное хранилище",
+                                detail: "Пока UserDefaults JSON; после backend нужен единый репозиторий данных и миграция"
+                            )
+                            syncStateRow(
+                                icon: "wifi.exclamationmark",
+                                color: SchoolTheme.teal,
+                                title: "Offline",
+                                detail: "Черновики не теряются, операции повторяются после восстановления сети"
+                            )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Очередь операций")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                Button {
+                                    addInviteOperation()
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(SchoolTheme.accent)
+                                        .frame(width: 34, height: 34)
+                                        .background(SchoolTheme.accent.opacity(0.10), in: Circle())
+                                }
+                                .accessibilityLabel("Добавить операцию синхронизации")
+                            }
+
+                            ForEach(operations) { operation in
+                                operationRow(operation)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Статус проверки", systemImage: "checkmark.seal.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(syncStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack(spacing: 8) {
+                                syncActionButton("Sync OK", icon: "checkmark.icloud.fill", color: SchoolTheme.success) {
+                                    markAllSynced()
+                                }
+                                syncActionButton("Offline", icon: "wifi.exclamationmark", color: SchoolTheme.warning) {
+                                    simulateOffline()
+                                }
+                                syncActionButton("Конфликт", icon: "exclamationmark.arrow.triangle.2.circlepath", color: SchoolTheme.danger) {
+                                    simulateConflict()
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить состояние синхронизации", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Синхронизация")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var readyCount: Int {
+        operations.filter { $0.status == "Готово к API" || $0.status == "Синхронизировано" }.count
+    }
+
+    private var pendingCount: Int {
+        operations.filter { $0.status == "В очереди" || $0.status == "Локально" || $0.status == "Offline" }.count
+    }
+
+    private var storageCount: Int {
+        operations.filter { $0.status == "Нужен storage" }.count
+    }
+
+    private func syncStateRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func operationRow(_ operation: SyncOperationSummary) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: operation.iconName, color: moreColor(for: operation.colorName), size: 42)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(operation.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        StatusBadge(text: operation.status, color: statusColor(operation.status))
+                    }
+                    Text("\(operation.entity) - \(operation.endpoint)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(operation.retryPolicy)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(operation.conflictRule)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                syncActionButton("Готово", icon: "checkmark", color: SchoolTheme.success) {
+                    update(operation) { item in
+                        item.status = "Синхронизировано"
+                        item.colorName = "green"
+                    }
+                }
+                syncActionButton("Повтор", icon: "arrow.clockwise", color: SchoolTheme.accent) {
+                    update(operation) { item in
+                        item.status = "В очереди"
+                        item.colorName = "blue"
+                    }
+                }
+                syncActionButton("Storage", icon: "folder.badge.gearshape", color: SchoolTheme.warning) {
+                    update(operation) { item in
+                        item.status = "Нужен storage"
+                        item.colorName = "orange"
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func syncActionButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(color.opacity(0.11), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status {
+        case "Синхронизировано", "Готово к API":
+            SchoolTheme.success
+        case "Нужен storage", "Offline":
+            SchoolTheme.warning
+        case "Конфликт":
+            SchoolTheme.danger
+        default:
+            SchoolTheme.accent
+        }
+    }
+
+    private func update(_ operation: SyncOperationSummary, mutate: (inout SyncOperationSummary) -> Void) {
+        guard let index = operations.firstIndex(where: { $0.id == operation.id }) else {
+            return
+        }
+
+        mutate(&operations[index])
+    }
+
+    private func addInviteOperation() {
+        operations.insert(
+            SyncOperationSummary(
+                title: "Отправить приглашение семье",
+                entity: "class_invite",
+                endpoint: "POST /classes/{id}/invites",
+                status: "В очереди",
+                retryPolicy: "Повторить до получения invite token",
+                conflictRule: "Повторная отправка возвращает тот же активный invite",
+                iconName: "person.badge.plus",
+                colorName: "blue"
+            ),
+            at: 0
+        )
+        syncStatus = "Добавлена локальная операция приглашения: должна уйти в backend после подключения API."
+    }
+
+    private func markAllSynced() {
+        for index in operations.indices {
+            operations[index].status = "Синхронизировано"
+            operations[index].colorName = "green"
+        }
+        syncStatus = "Локально сымитирована успешная синхронизация всех операций."
+    }
+
+    private func simulateOffline() {
+        guard !operations.isEmpty else {
+            return
+        }
+
+        operations[0].status = "Offline"
+        operations[0].colorName = "orange"
+        syncStatus = "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются."
+    }
+
+    private func simulateConflict() {
+        guard !operations.isEmpty else {
+            return
+        }
+
+        operations[0].status = "Конфликт"
+        operations[0].colorName = "red"
+        syncStatus = "Конфликт: нужна серверная версия, правило merge и запись в AuditLog."
+    }
+
+    private func save() {
+        onSave(operations)
+        dismiss()
+    }
+}
+
 private struct SupportMessageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -4604,6 +5024,7 @@ private enum MoreSheet: String, Identifiable {
     case metrics
     case aiQuality
     case qaStates
+    case syncCenter
     case support
     case problem
     case logout
