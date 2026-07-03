@@ -31,7 +31,22 @@ private struct SecuritySettingsState: Codable, Hashable {
     )
 }
 
+private struct ParentProfileState: Codable, Hashable {
+    var name: String
+    var contact: String
+    var appleID: String
+    var roleSummary: String
+
+    static let sample = ParentProfileState(
+        name: "Владимир",
+        contact: "+7 999 000-12-34",
+        appleID: "vladimir@example.com",
+        roleSummary: "Родитель Миши, 3Б"
+    )
+}
+
 private struct MoreStoreSnapshot: Codable {
+    var profile: ParentProfileState
     var children: [ChildSummary]
     var familyMembers: [FamilyAccessMember]
     var classAccess: [ClassAccessSummary]
@@ -43,6 +58,7 @@ private struct MoreStoreSnapshot: Codable {
     var securitySettings: SecuritySettingsState
 
     init(
+        profile: ParentProfileState = .sample,
         children: [ChildSummary],
         familyMembers: [FamilyAccessMember],
         classAccess: [ClassAccessSummary],
@@ -53,6 +69,7 @@ private struct MoreStoreSnapshot: Codable {
         classFiles: [ClassFileSummary],
         securitySettings: SecuritySettingsState = .sample
     ) {
+        self.profile = profile
         self.children = children
         self.familyMembers = familyMembers
         self.classAccess = classAccess
@@ -66,6 +83,7 @@ private struct MoreStoreSnapshot: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        profile = try container.decodeIfPresent(ParentProfileState.self, forKey: .profile) ?? .sample
         children = try container.decode([ChildSummary].self, forKey: .children)
         familyMembers = try container.decode([FamilyAccessMember].self, forKey: .familyMembers)
         classAccess = try container.decode([ClassAccessSummary].self, forKey: .classAccess)
@@ -78,6 +96,7 @@ private struct MoreStoreSnapshot: Codable {
     }
 
     static let sample = MoreStoreSnapshot(
+        profile: .sample,
         children: SampleData.children,
         familyMembers: SampleData.familyMembers,
         classAccess: SampleData.classAccess,
@@ -93,6 +112,14 @@ private struct MoreStoreSnapshot: Codable {
 private enum MoreLocalStore {
     private static let defaultsKey = "school.more.store.v1"
     private static var snapshot: MoreStoreSnapshot = load()
+
+    static var profile: ParentProfileState {
+        get { snapshot.profile }
+        set {
+            snapshot.profile = newValue
+            save()
+        }
+    }
 
     static var children: [ChildSummary] {
         get { snapshot.children }
@@ -196,6 +223,7 @@ private enum MoreLocalStore {
 }
 
 struct MoreView: View {
+    @State private var profile: ParentProfileState
     @State private var children: [ChildSummary]
     @State private var familyMembers: [FamilyAccessMember]
     @State private var classAccess: [ClassAccessSummary]
@@ -209,6 +237,7 @@ struct MoreView: View {
 
     init() {
         MoreLocalStore.resetIfRequested()
+        _profile = State(initialValue: MoreLocalStore.profile)
         _children = State(initialValue: MoreLocalStore.children)
         _familyMembers = State(initialValue: MoreLocalStore.familyMembers)
         _classAccess = State(initialValue: MoreLocalStore.classAccess)
@@ -237,6 +266,16 @@ struct MoreView: View {
         .background(SchoolTheme.page.ignoresSafeArea())
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
+            case .profile:
+                ParentProfileSheet(
+                    profile: profile,
+                    children: children,
+                    familyMembers: familyMembers,
+                    classAccess: classAccess
+                ) { updatedProfile in
+                    profile = updatedProfile
+                    MoreLocalStore.profile = updatedProfile
+                }
             case .children:
                 ChildrenAccessSheet(children: children) { updatedChildren in
                     children = updatedChildren
@@ -304,16 +343,16 @@ struct MoreView: View {
 
     private var profileCard: some View {
         Button {
-            activeSheet = .family
+            activeSheet = .profile
         } label: {
             DashboardCard {
                 HStack(spacing: 14) {
-                    InitialAvatar(text: "В", color: SchoolTheme.accent, size: 58)
+                    InitialAvatar(text: String(profile.name.prefix(1)), color: SchoolTheme.accent, size: 58)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Владимир")
+                        Text(profile.name)
                             .font(.headline)
                             .foregroundStyle(SchoolTheme.graphite)
-                        Text("Родитель Миши, 3Б")
+                        Text(profile.roleSummary)
                             .font(.subheadline)
                             .foregroundStyle(SchoolTheme.muted)
                     }
@@ -412,6 +451,10 @@ struct MoreView: View {
     private static func launchSheet() -> MoreSheet? {
         let arguments = ProcessInfo.processInfo.arguments
 
+        if arguments.contains("-qa-more-profile") {
+            return .profile
+        }
+
         if arguments.contains("-qa-more-children") {
             return .children
         }
@@ -457,6 +500,149 @@ struct MoreView: View {
         }
 
         return nil
+    }
+}
+
+private struct ParentProfileSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let children: [ChildSummary]
+    let familyMembers: [FamilyAccessMember]
+    let classAccess: [ClassAccessSummary]
+    let onSave: (ParentProfileState) -> Void
+
+    @State private var profile: ParentProfileState
+
+    init(
+        profile: ParentProfileState,
+        children: [ChildSummary],
+        familyMembers: [FamilyAccessMember],
+        classAccess: [ClassAccessSummary],
+        onSave: @escaping (ParentProfileState) -> Void
+    ) {
+        self.children = children
+        self.familyMembers = familyMembers
+        self.classAccess = classAccess
+        self.onSave = onSave
+        _profile = State(initialValue: profile)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "person.crop.circle.fill",
+                        color: SchoolTheme.accent,
+                        title: "Профиль родителя",
+                        subtitle: "Контакт, роли в классах и семейные участники"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(children.count)", title: "детей", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(classAccess.count)", title: "класса", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(familyMembers.count)", title: "семья", color: SchoolTheme.teal)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Имя", iconName: "person.fill", color: SchoolTheme.accent, text: $profile.name)
+                            MoreTextField(title: "Телефон", iconName: "phone.fill", color: SchoolTheme.success, text: $profile.contact)
+                            MoreTextField(title: "Apple ID / email", iconName: "at", color: SchoolTheme.teal, text: $profile.appleID)
+                            MoreTextField(title: "Роль", iconName: "person.badge.shield.checkmark.fill", color: SchoolTheme.warning, text: $profile.roleSummary)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Роли в классах")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(classAccess) { classItem in
+                                profileInfoRow(
+                                    icon: "person.3.fill",
+                                    color: SchoolTheme.accent,
+                                    title: "\(classItem.title), \(classItem.school)",
+                                    detail: "\(classItem.role) - \(classItem.status)"
+                                )
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Семья")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(familyMembers.prefix(3)) { member in
+                                profileInfoRow(
+                                    icon: "person.2.fill",
+                                    color: SchoolTheme.teal,
+                                    title: member.name,
+                                    detail: "\(member.role) - \(member.access)"
+                                )
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить профиль", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                    .disabled(profile.name.trimmed.isEmpty || profile.contact.trimmed.isEmpty)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Профиль")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+        }
+    }
+
+    private func profileInfoRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: icon, color: color, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func save() {
+        onSave(profile)
+        dismiss()
     }
 }
 
@@ -2225,6 +2411,7 @@ private struct MoreTextField: View {
 }
 
 private enum MoreSheet: String, Identifiable {
+    case profile
     case children
     case family
     case classes
