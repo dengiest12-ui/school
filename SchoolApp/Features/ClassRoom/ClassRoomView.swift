@@ -6,6 +6,7 @@ struct ClassRoomView: View {
     @State private var collections = SampleData.collections
     @State private var chatThreads = SampleData.chatThreads
     @State private var digestItems = SampleData.chatDigestItems
+    @State private var members = SampleData.classMembers
     @State private var activeSheet: ClassRoomSheet?
 
     init() {
@@ -52,6 +53,11 @@ struct ClassRoomView: View {
                 NewAnnouncementSheet { item in
                     feedItems.insert(item, at: 0)
                     selectedSection = .feed
+                }
+            case .inviteMembers:
+                InviteMembersSheet(members: members) { updatedMembers in
+                    members = updatedMembers
+                    selectedSection = .members
                 }
             }
         }
@@ -374,14 +380,30 @@ struct ClassRoomView: View {
     private var membersContent: some View {
         VStack(spacing: 12) {
             DashboardCard {
-                VStack(spacing: 14) {
-                    memberRow("Родители", "25 участников", "person.2.fill", SchoolTheme.success)
-                    memberRow("Классный руководитель", "1 учитель", "graduationcap.fill", SchoolTheme.accent)
-                    memberRow("Родкомитет", "3 ответственных", "person.badge.shield.checkmark.fill", SchoolTheme.teal)
+                HStack(spacing: 12) {
+                    collectionMetric(value: "\(members.count)", title: "людей", color: SchoolTheme.success)
+                    Divider()
+                    collectionMetric(value: "\(members.filter { $0.canManage }.count)", title: "админа", color: SchoolTheme.accent)
+                    Divider()
+                    collectionMetric(value: "\(members.filter { $0.status.contains("Ожидает") }.count)", title: "ждут", color: SchoolTheme.warning)
+                }
+                .frame(height: 62)
+            }
+
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Участники класса")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+
+                    ForEach(members) { member in
+                        memberAccessRow(member)
+                    }
                 }
             }
 
             Button {
+                activeSheet = .inviteMembers
             } label: {
                 Label("Пригласить родителей", systemImage: "link")
                     .font(.headline)
@@ -434,20 +456,41 @@ struct ClassRoomView: View {
         }
     }
 
-    private func memberRow(_ title: String, _ subtitle: String, _ icon: String, _ color: Color) -> some View {
+    private func memberAccessRow(_ member: ClassMemberSummary) -> some View {
         HStack(spacing: 12) {
-            IconBadge(systemName: icon, color: color, size: 42)
+            InitialAvatar(text: member.avatarText, color: memberColor(member.role), size: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(SchoolTheme.graphite)
-                Text(subtitle)
+                HStack(spacing: 7) {
+                    Text(member.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: member.role, color: memberColor(member.role))
+                }
+                Text(member.childName)
                     .font(.caption)
                     .foregroundStyle(SchoolTheme.muted)
+                Text(member.status)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(member.status.contains("Ожидает") ? SchoolTheme.warning : SchoolTheme.success)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundStyle(SchoolTheme.muted)
+            if member.canManage {
+                Image(systemName: "checkmark.shield.fill")
+                    .foregroundStyle(SchoolTheme.success)
+            }
+        }
+    }
+
+    private func memberColor(_ role: String) -> Color {
+        switch role {
+        case "Учитель":
+            SchoolTheme.accent
+        case "Родкомитет", "Админ класса":
+            SchoolTheme.success
+        case "Семья":
+            SchoolTheme.teal
+        default:
+            SchoolTheme.muted
         }
     }
 
@@ -557,6 +600,10 @@ struct ClassRoomView: View {
 
         if arguments.contains("-qa-announcement-add") {
             return .newAnnouncement
+        }
+
+        if arguments.contains("-qa-member-invite") {
+            return .inviteMembers
         }
 
         return nil
@@ -1446,6 +1493,165 @@ private struct NewAnnouncementSheet: View {
     }
 }
 
+private struct InviteMembersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([ClassMemberSummary]) -> Void
+
+    @State private var members: [ClassMemberSummary]
+    @State private var inviteName = "Новый родитель"
+    @State private var childName = "Имя ребенка"
+    @State private var role = "Родитель"
+    @State private var inviteCode = "3B-4821"
+
+    init(members: [ClassMemberSummary], onSave: @escaping ([ClassMemberSummary]) -> Void) {
+        self.onSave = onSave
+        _members = State(initialValue: members)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    CollectionSheetHeader(
+                        icon: "person.badge.plus",
+                        color: SchoolTheme.success,
+                        title: "Пригласить в класс",
+                        subtitle: "Роль, ребенок и закрытый код доступа"
+                    )
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Код приглашения")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            HStack(spacing: 12) {
+                                IconBadge(systemName: "number", color: SchoolTheme.warning, size: 42)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(inviteCode)
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(SchoolTheme.graphite)
+                                    Text("Действует для класса 3Б")
+                                        .font(.caption)
+                                        .foregroundStyle(SchoolTheme.muted)
+                                }
+                                Spacer()
+                                StatusBadge(text: "Закрытый класс", color: SchoolTheme.success)
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            CollectionTextField(title: "Имя", iconName: "person.fill", color: SchoolTheme.success, text: $inviteName)
+                            CollectionTextField(title: "Ребенок", iconName: "person.crop.square", color: SchoolTheme.teal, text: $childName)
+
+                            Picker("Роль", selection: $role) {
+                                Text("Родитель").tag("Родитель")
+                                Text("Родкомитет").tag("Родкомитет")
+                                Text("Учитель").tag("Учитель")
+                            }
+                            .pickerStyle(.segmented)
+
+                            Button {
+                                addInvite()
+                            } label: {
+                                Label("Добавить приглашение", systemImage: "link")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.success)
+                            .disabled(inviteName.trimmed.isEmpty || childName.trimmed.isEmpty)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Кого пригласили")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(members.suffix(4)) { member in
+                                HStack(spacing: 12) {
+                                    InitialAvatar(text: member.avatarText, color: color(for: member.role), size: 38)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 7) {
+                                            Text(member.name)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                            StatusBadge(text: member.role, color: color(for: member.role))
+                                        }
+                                        Text("\(member.childName) - \(member.status)")
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить участников", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Приглашение")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private func addInvite() {
+        let avatar = String(inviteName.trimmed.prefix(1)).uppercased()
+        members.append(
+            ClassMemberSummary(
+                name: inviteName.trimmed,
+                childName: childName.trimmed,
+                role: role,
+                status: "Ожидает вход",
+                avatarText: avatar.isEmpty ? "Р" : avatar,
+                canManage: role == "Родкомитет" || role == "Учитель"
+            )
+        )
+        inviteName = ""
+        childName = ""
+    }
+
+    private func save() {
+        onSave(members)
+        dismiss()
+    }
+
+    private func color(for role: String) -> Color {
+        switch role {
+        case "Учитель":
+            SchoolTheme.accent
+        case "Родкомитет":
+            SchoolTheme.success
+        default:
+            SchoolTheme.teal
+        }
+    }
+}
+
 private struct CollectionSheetHeader: View {
     let icon: String
     let color: Color
@@ -1508,6 +1714,7 @@ private enum ClassRoomSheet: Identifiable, Hashable {
     case digestDetail
     case announcementDetail(FeedItem)
     case newAnnouncement
+    case inviteMembers
 
     var id: String {
         switch self {
@@ -1523,6 +1730,8 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             "announcement-\(item.id.uuidString)"
         case .newAnnouncement:
             "new-announcement"
+        case .inviteMembers:
+            "invite-members"
         }
     }
 
@@ -1534,6 +1743,8 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             .chats
         case .announcementDetail, .newAnnouncement:
             .feed
+        case .inviteMembers:
+            .members
         }
     }
 }

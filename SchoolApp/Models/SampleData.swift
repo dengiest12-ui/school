@@ -225,6 +225,62 @@ struct ParentTask: Identifiable, Hashable {
     let kind: Kind
 }
 
+struct FamilyAccessMember: Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var role: String
+    var access: String
+    var avatarText: String
+    var status: String
+
+    init(id: UUID = UUID(), name: String, role: String, access: String, avatarText: String, status: String) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.access = access
+        self.avatarText = avatarText
+        self.status = status
+    }
+}
+
+struct ClassAccessSummary: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var school: String
+    var role: String
+    var inviteCode: String
+    var status: String
+
+    init(id: UUID = UUID(), title: String, school: String, role: String, inviteCode: String, status: String) {
+        self.id = id
+        self.title = title
+        self.school = school
+        self.role = role
+        self.inviteCode = inviteCode
+        self.status = status
+    }
+}
+
+struct ClassMemberSummary: Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var childName: String
+    var role: String
+    var status: String
+    var avatarText: String
+    var canManage: Bool
+
+    init(id: UUID = UUID(), name: String, childName: String, role: String, status: String, avatarText: String, canManage: Bool) {
+        self.id = id
+        self.name = name
+        self.childName = childName
+        self.role = role
+        self.status = status
+        self.avatarText = avatarText
+        self.canManage = canManage
+    }
+}
+
 enum EventResponse: String, CaseIterable, Hashable {
     case undecided = "Жду ответа"
     case going = "Идем"
@@ -337,6 +393,25 @@ enum SampleData {
     static let children = [
         ChildSummary(name: "Миша", className: "3Б", school: "Школа 1254", avatarText: "М"),
         ChildSummary(name: "Аня", className: "4А", school: "Школа 1254", avatarText: "А")
+    ]
+
+    static let familyMembers = [
+        FamilyAccessMember(name: "Владимир", role: "Родитель", access: "Все задачи и уведомления", avatarText: "В", status: "Админ семьи"),
+        FamilyAccessMember(name: "Екатерина", role: "Второй родитель", access: "ДЗ, календарь, чаты", avatarText: "Е", status: "Подключена"),
+        FamilyAccessMember(name: "Ирина", role: "Бабушка", access: "Календарь и что принести", avatarText: "И", status: "Ожидает вход")
+    ]
+
+    static let classAccess = [
+        ClassAccessSummary(title: "3Б", school: "Школа 1254", role: "Админ класса", inviteCode: "3B-4821", status: "25 родителей"),
+        ClassAccessSummary(title: "4А", school: "Школа 1254", role: "Родитель", inviteCode: "4A-1930", status: "18 родителей")
+    ]
+
+    static let classMembers = [
+        ClassMemberSummary(name: "Владимир", childName: "Миша", role: "Админ класса", status: "Подключен", avatarText: "В", canManage: true),
+        ClassMemberSummary(name: "Елена Сергеевна", childName: "Классный руководитель", role: "Учитель", status: "Подключена", avatarText: "Е", canManage: false),
+        ClassMemberSummary(name: "Мария", childName: "Соня", role: "Родкомитет", status: "Подключена", avatarText: "М", canManage: true),
+        ClassMemberSummary(name: "Антон", childName: "Дима", role: "Родитель", status: "Подключен", avatarText: "А", canManage: false),
+        ClassMemberSummary(name: "Ирина", childName: "Миша", role: "Семья", status: "Ожидает вход", avatarText: "И", canManage: false)
     ]
 
     static let homework = [

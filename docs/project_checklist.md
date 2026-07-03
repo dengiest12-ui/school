@@ -41,7 +41,7 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[ ]` | 0 | Нужно отдельно отделить первый релиз от будущих функций. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты и объявления собираются и проверяются на iPhone 17 Simulator. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли и приглашения собираются и проверяются на iPhone 17 Simulator. |
 | Backend / синхронизация | `[ ]` | 0 | Нужно выбрать подход: backend-first или локальная модель + синхронизация. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[ ]` | 0 | Вечерний и утренний дайджесты, срочные объявления, дедлайны. |
@@ -83,41 +83,41 @@
 
 ## 2. Роли и права
 
-- [ ] Родитель
+- [~] Родитель
   - Проверка: может читать класс, видеть ДЗ, события, сборы, приглашать семью, добавлять личные задачи
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/access-family-final.png`, `.build/screenshots/access-class-members-final.png`
+  - Комментарий: роль отображается в профиле, семье и участниках класса; серверная проверка прав еще не реализована
 
-- [ ] Учитель / классный руководитель
+- [~] Учитель / классный руководитель
   - Проверка: может публиковать объявления, добавлять ДЗ, видеть прочтения, ограничивать обсуждения
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
+  - Комментарий: роль учителя видна в участниках и приглашениях; ограничения обсуждений и реальные права будут после backend/API
 
-- [ ] Родкомитет
+- [~] Родкомитет
   - Проверка: может создавать сборы, отмечать оплаты, добавлять чеки, отчеты, события и организационные объявления
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/collections-main-final.png`
+  - Комментарий: роль родкомитета есть в UI участников, чатах и сборах; финансовые права пока не защищены backend-логикой
 
-- [ ] Администратор класса
+- [~] Администратор класса
   - Проверка: управляет участниками, ролями, приглашениями и доступом
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
+  - Комментарий: показаны админ класса, код приглашения и управление участниками; удаление, передача прав и аудит еще не реализованы
 
-- [ ] Ребенок, опционально
+- [~] Ребенок, опционально
   - Проверка: видит только ДЗ, расписание и чеклист рюкзака, не видит сборы и родительские обсуждения
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий: не обязательно для первого релиза, если MVP сужается
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`
+  - Комментарий: добавлены профили детей и локальная привязка к классам; отдельный детский режим и ограничение видимости еще не реализованы
 
-- [ ] Матрица прав доступа
+- [~] Матрица прав доступа
   - Проверка: для каждой роли понятно, какие действия разрешены, запрещены и требуют настройки админом
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий: нужна до проектирования backend/API
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Models/SampleData.swift`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
+  - Комментарий: локальная модель ролей и статусов показана в интерфейсе; полноценная матрица прав нужна до backend/API
 
 ## 3. Дизайн и UX
 
@@ -250,8 +250,8 @@
 - [~] Добавление ребенка
   - Проверка: имя, класс, школа, смена; можно добавить нескольких детей
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`
-  - Комментарий: в онбординге вводится имя ребенка; несколько детей и смена еще не реализованы
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`
+  - Комментарий: в онбординге вводится имя ребенка, в разделе "Еще" есть локальное добавление нескольких профилей; смена и постоянное хранение еще не реализованы
 
 - [~] Создание класса
   - Проверка: название класса, школа, город, учебный год, тип организации
@@ -265,23 +265,23 @@
   - Артефакт: `.build/screenshots/onboarding-join-final.png`
   - Комментарий: реализован UI входа по коду; QR, ссылка и ошибки доступа требуют backend/API
 
-- [ ] Приглашение участников
+- [~] Приглашение участников
   - Проверка: можно пригласить родителей, учителя, родкомитет и семейных участников
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/access-family-final.png`
+  - Комментарий: реализованы локальные формы приглашения в класс и семью; реальные ссылки, QR и отправка приглашений требуют backend/API
 
-- [ ] Управление участниками
+- [~] Управление участниками
   - Проверка: роли можно изменить, участника можно удалить, права админа можно передать
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/access-class-members-final.png`
+  - Комментарий: список участников, роли, статусы и админские бейджи реализованы локально; удаление, смена роли и передача админа еще не готовы
 
-- [ ] Семейный доступ
+- [~] Семейный доступ
   - Проверка: второй родитель, бабушка, няня получают только нужные задачи и напоминания
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`
+  - Комментарий: есть роли семьи, статусы доступа и форма приглашения; адресные уведомления и реальные ограничения данных еще не подключены
 
 ## 7. Главный экран "Сегодня / Что завтра"
 
@@ -539,11 +539,11 @@
 
 ## 14. Семейный диспетчер
 
-- [ ] Члены семьи
+- [~] Члены семьи
   - Проверка: можно добавить второго родителя, бабушку, няню
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`
+  - Комментарий: локально добавляются и отображаются члены семьи с ролью и объемом доступа; синхронизация и реальные приглашения еще не реализованы
 
 - [ ] Назначение задач
   - Проверка: задача может быть назначена конкретному члену семьи
@@ -673,11 +673,11 @@
 
 ## 18. Безопасность и приватность
 
-- [ ] Закрытые классы
+- [~] Закрытые классы
   - Проверка: доступ только по приглашению, бывших участников можно удалить
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-member-invite-final.png`
+  - Комментарий: в UI показаны закрытый код класса и приглашения; настоящее закрытие доступа, удаление бывших участников и проверка на сервере еще не реализованы
 
 - [ ] Минимизация данных детей
   - Проверка: собираются только нужные данные, нет лишней персональной информации
@@ -761,11 +761,11 @@
 
 ## 20. QA и приемка
 
-- [ ] Smoke-тест основного сценария
+- [~] Smoke-тест основного сценария
   - Проверка: создать класс, пригласить родителя, добавить ДЗ, добавить событие/сбор, получить напоминание
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/onboarding-create-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/homework-add-final.png`, `.build/screenshots/calendar-add-event-final.png`, `.build/screenshots/collections-add-final.png`
+  - Комментарий: ключевые части сценария пройдены локально в Simulator; непрерывный end-to-end поток с аккаунтом, backend и уведомлениями еще не готов
 
 - [ ] Проверка без учителя
   - Проверка: родитель или родкомитет может запустить пользу продукта самостоятельно
@@ -773,11 +773,11 @@
   - Артефакт:
   - Комментарий: ключевой продуктовый принцип
 
-- [ ] Проверка ролей и прав
+- [!] Проверка ролей и прав
   - Проверка: пользователь не может делать действия вне своей роли
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`
+  - Комментарий: роли и статусы видны в UI, но реальные запреты действий вне роли пока не реализованы; это отдельный риск до backend
 
 - [ ] Проверка пустых состояний
   - Проверка: нет класса, нет ребенка, нет ДЗ, нет событий, нет подписки, нет прав
@@ -794,7 +794,7 @@
 - [~] Проверка на iPhone Simulator
   - Проверка: основные экраны открываются, верстка не ломается, сценарии проходят
   - Уровень: 3
-  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`
+  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`
   - Комментарий: сборка проходит; пять вкладок запускались в booted Simulator через QA-параметр `-qa-tab`, для вкладки `Класс` используется внутреннее имя `classRoom`
 
 - [ ] Проверка на реальном iPhone
@@ -921,3 +921,5 @@
 | 2026-07-03 | Регрессия основных вкладок после расписания | Пройдено | 3 | `.build/screenshots/regression-today-after-schedule.png`, `.build/screenshots/regression-class-after-schedule.png`, `.build/screenshots/regression-homework-after-schedule.png`, `.build/screenshots/regression-calendar-after-schedule.png`, `.build/screenshots/regression-more-after-schedule.png` | После изменения модели расписания проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Интерактивные чаты, объявления и тихий дайджест | Пройдено | 3 | `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-detail-final.png`, `.build/screenshots/chat-digest-final.png`, `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png` | Проверены список чатов, детальный чат, действия из важных сообщений, тихий дайджест, создание объявления и подтверждение прочтения |
 | 2026-07-03 | Регрессия основных вкладок после чатов | Пройдено | 3 | `.build/screenshots/regression-today-after-chats.png`, `.build/screenshots/regression-class-after-chats.png`, `.build/screenshots/regression-homework-after-chats.png`, `.build/screenshots/regression-calendar-after-chats.png`, `.build/screenshots/regression-more-after-chats.png` | После изменения модели чатов и ленты проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Семейный доступ, роли и приглашения | Пройдено | 3 | `.build/screenshots/access-more-main-final.png`, `.build/screenshots/access-children-final.png`, `.build/screenshots/access-family-final.png`, `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png` | Проверены профили детей, семейный доступ, коды классов, роли участников и локальное приглашение в класс |
+| 2026-07-03 | Регрессия основных вкладок после доступа | Пройдено | 3 | `.build/screenshots/regression-today-after-access.png`, `.build/screenshots/regression-class-after-access.png`, `.build/screenshots/regression-homework-after-access.png`, `.build/screenshots/regression-calendar-after-access.png`, `.build/screenshots/regression-more-after-access.png` | После изменения моделей семьи и участников проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |

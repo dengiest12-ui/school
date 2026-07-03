@@ -1,6 +1,15 @@
 import SwiftUI
 
 struct MoreView: View {
+    @State private var children = SampleData.children
+    @State private var familyMembers = SampleData.familyMembers
+    @State private var classAccess = SampleData.classAccess
+    @State private var activeSheet: MoreSheet?
+
+    init() {
+        _activeSheet = State(initialValue: MoreView.launchSheet())
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 14) {
@@ -15,6 +24,22 @@ struct MoreView: View {
             .padding(.bottom, SchoolTheme.bottomScrollPadding)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .children:
+                ChildrenAccessSheet(children: children) { updatedChildren in
+                    children = updatedChildren
+                }
+            case .family:
+                FamilyAccessSheet(members: familyMembers) { updatedMembers in
+                    familyMembers = updatedMembers
+                }
+            case .classes:
+                ClassesAccessSheet(classes: classAccess) { updatedClasses in
+                    classAccess = updatedClasses
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -23,28 +48,35 @@ struct MoreView: View {
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(SchoolTheme.graphite)
             Spacer()
-            HeaderIconButton(systemName: "gearshape")
-                .accessibilityLabel("Настройки")
+            HeaderIconButton(systemName: "gearshape") {
+                activeSheet = .family
+            }
+            .accessibilityLabel("Настройки")
         }
     }
 
     private var profileCard: some View {
-        DashboardCard {
-            HStack(spacing: 14) {
-                InitialAvatar(text: "В", color: SchoolTheme.accent, size: 58)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Владимир")
-                        .font(.headline)
-                        .foregroundStyle(SchoolTheme.graphite)
-                    Text("Родитель Миши, 3Б")
-                        .font(.subheadline)
+        Button {
+            activeSheet = .family
+        } label: {
+            DashboardCard {
+                HStack(spacing: 14) {
+                    InitialAvatar(text: "В", color: SchoolTheme.accent, size: 58)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Владимир")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text("Родитель Миши, 3Б")
+                            .font(.subheadline)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .foregroundStyle(SchoolTheme.muted)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(SchoolTheme.muted)
             }
         }
+        .buttonStyle(.plain)
     }
 
     private func menuSection(_ title: String, items: [MoreMenuItem]) -> some View {
@@ -55,20 +87,28 @@ struct MoreView: View {
                     .foregroundStyle(SchoolTheme.graphite)
 
                 ForEach(items) { item in
-                    HStack(spacing: 12) {
-                        IconBadge(systemName: item.icon, color: item.color, size: 40)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(SchoolTheme.graphite)
-                            Text(item.subtitle)
-                                .font(.caption)
+                    Button {
+                        if let sheet = item.sheet {
+                            activeSheet = sheet
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            IconBadge(systemName: item.icon, color: item.color, size: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Text(item.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(SchoolTheme.muted)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .foregroundStyle(SchoolTheme.muted)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(SchoolTheme.muted)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -76,9 +116,9 @@ struct MoreView: View {
 
     private var familyItems: [MoreMenuItem] {
         [
-            MoreMenuItem(title: "Дети", subtitle: "2 профиля", icon: "person.crop.square", color: SchoolTheme.success),
-            MoreMenuItem(title: "Семья", subtitle: "Второй родитель, бабушка, няня", icon: "person.2.fill", color: SchoolTheme.teal),
-            MoreMenuItem(title: "Классы", subtitle: "3Б и 4А", icon: "building.2.fill", color: SchoolTheme.accent)
+            MoreMenuItem(title: "Дети", subtitle: "\(children.count) профиля", icon: "person.crop.square", color: SchoolTheme.success, sheet: .children),
+            MoreMenuItem(title: "Семья", subtitle: "\(familyMembers.count) доступа: родители, бабушка, няня", icon: "person.2.fill", color: SchoolTheme.teal, sheet: .family),
+            MoreMenuItem(title: "Классы", subtitle: classAccess.map(\.title).joined(separator: " и "), icon: "building.2.fill", color: SchoolTheme.accent, sheet: .classes)
         ]
     }
 
@@ -98,6 +138,516 @@ struct MoreView: View {
             MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger)
         ]
     }
+
+    private static func launchSheet() -> MoreSheet? {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        if arguments.contains("-qa-more-children") {
+            return .children
+        }
+
+        if arguments.contains("-qa-more-family") {
+            return .family
+        }
+
+        if arguments.contains("-qa-more-classes") {
+            return .classes
+        }
+
+        return nil
+    }
+}
+
+private struct ChildrenAccessSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([ChildSummary]) -> Void
+
+    @State private var children: [ChildSummary]
+    @State private var childName = "Саша"
+    @State private var className = "1А"
+    @State private var school = "Школа 1254"
+
+    init(children: [ChildSummary], onSave: @escaping ([ChildSummary]) -> Void) {
+        self.onSave = onSave
+        _children = State(initialValue: children)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "person.crop.square",
+                        color: SchoolTheme.success,
+                        title: "Дети",
+                        subtitle: "Профили, классы и школьные связи"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(children.count)", title: "профиля", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "2", title: "класса", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "1", title: "семья", color: SchoolTheme.teal)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Профили детей")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(children) { child in
+                                HStack(spacing: 12) {
+                                    InitialAvatar(text: child.avatarText, color: SchoolTheme.success, size: 42)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(child.name), \(child.className)")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text(child.school)
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                    Spacer()
+                                    StatusBadge(text: "Активен", color: SchoolTheme.success)
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Имя ребенка", iconName: "person.fill", color: SchoolTheme.success, text: $childName)
+                            MoreTextField(title: "Класс", iconName: "building.2.fill", color: SchoolTheme.accent, text: $className)
+                            MoreTextField(title: "Школа", iconName: "graduationcap.fill", color: SchoolTheme.teal, text: $school)
+
+                            Button {
+                                addChild()
+                            } label: {
+                                Label("Добавить ребенка", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.success)
+                            .disabled(childName.trimmed.isEmpty || className.trimmed.isEmpty)
+                        }
+                    }
+
+                    saveButton
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Дети")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var saveButton: some View {
+        Button {
+            save()
+        } label: {
+            Label("Сохранить детей", systemImage: "checkmark")
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 52)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(SchoolTheme.success)
+    }
+
+    private func addChild() {
+        let avatar = String(childName.trimmed.prefix(1)).uppercased()
+        children.append(
+            ChildSummary(
+                name: childName.trimmed,
+                className: className.trimmed,
+                school: school.trimmed,
+                avatarText: avatar.isEmpty ? "Р" : avatar
+            )
+        )
+        childName = ""
+        className = ""
+    }
+
+    private func save() {
+        onSave(children)
+        dismiss()
+    }
+}
+
+private struct FamilyAccessSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([FamilyAccessMember]) -> Void
+
+    @State private var members: [FamilyAccessMember]
+    @State private var inviteName = "Наталья"
+    @State private var inviteRole = "Няня"
+    @State private var inviteAccess = "Календарь и что забрать"
+
+    init(members: [FamilyAccessMember], onSave: @escaping ([FamilyAccessMember]) -> Void) {
+        self.onSave = onSave
+        _members = State(initialValue: members)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 14) {
+                        MoreSheetHeader(
+                            icon: "person.2.fill",
+                            color: SchoolTheme.teal,
+                            title: "Семья",
+                            subtitle: "Кто помогает с ребенком и что видит"
+                        )
+                        .id("family-top")
+
+                        DashboardCard {
+                            HStack(spacing: 12) {
+                                MoreMetric(value: "\(members.count)", title: "доступа", color: SchoolTheme.teal)
+                                Divider()
+                                MoreMetric(value: "\(members.filter { $0.status.contains("Ожидает") }.count)", title: "ожидают", color: SchoolTheme.warning)
+                                Divider()
+                                MoreMetric(value: "1", title: "админ", color: SchoolTheme.success)
+                            }
+                            .frame(height: 62)
+                        }
+
+                        DashboardCard {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Семейный доступ")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+
+                                ForEach(members) { member in
+                                    HStack(spacing: 12) {
+                                        InitialAvatar(text: member.avatarText, color: color(for: member.role), size: 42)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack(spacing: 7) {
+                                                Text(member.name)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(SchoolTheme.graphite)
+                                                StatusBadge(text: member.role, color: color(for: member.role))
+                                            }
+                                            Text(member.access)
+                                                .font(.caption)
+                                                .foregroundStyle(SchoolTheme.muted)
+                                            Text(member.status)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(member.status.contains("Ожидает") ? SchoolTheme.warning : SchoolTheme.success)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                            }
+                        }
+
+                        DashboardCard {
+                            VStack(spacing: 12) {
+                                MoreTextField(title: "Кого пригласить", iconName: "person.badge.plus", color: SchoolTheme.success, text: $inviteName)
+
+                                Picker("Роль", selection: $inviteRole) {
+                                    Text("Родитель").tag("Второй родитель")
+                                    Text("Бабушка").tag("Бабушка")
+                                    Text("Няня").tag("Няня")
+                                }
+                                .pickerStyle(.segmented)
+
+                                MoreTextField(title: "Доступ", iconName: "lock.open.fill", color: SchoolTheme.accent, text: $inviteAccess)
+
+                                Button {
+                                    inviteMember()
+                                } label: {
+                                    Label("Отправить приглашение", systemImage: "link")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 46)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.success)
+                                .disabled(inviteName.trimmed.isEmpty)
+                            }
+                        }
+
+                        Button {
+                            save()
+                        } label: {
+                            Label("Сохранить семью", systemImage: "checkmark")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SchoolTheme.success)
+                    }
+                    .padding(20)
+                    .padding(.bottom, 20)
+                }
+                .onAppear {
+                    proxy.scrollTo("family-top", anchor: .top)
+                }
+                .background(SchoolTheme.page.ignoresSafeArea())
+                .navigationTitle("Семья")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Закрыть") {
+                            save()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func inviteMember() {
+        let avatar = String(inviteName.trimmed.prefix(1)).uppercased()
+        members.append(
+            FamilyAccessMember(
+                name: inviteName.trimmed,
+                role: inviteRole,
+                access: inviteAccess.trimmed,
+                avatarText: avatar.isEmpty ? "С" : avatar,
+                status: "Ожидает вход"
+            )
+        )
+        inviteName = ""
+    }
+
+    private func save() {
+        onSave(members)
+        dismiss()
+    }
+
+    private func color(for role: String) -> Color {
+        switch role {
+        case "Бабушка", "Няня":
+            SchoolTheme.teal
+        case "Второй родитель":
+            SchoolTheme.accent
+        default:
+            SchoolTheme.success
+        }
+    }
+}
+
+private struct ClassesAccessSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([ClassAccessSummary]) -> Void
+
+    @State private var classes: [ClassAccessSummary]
+    @State private var inviteCode = "NEW-2048"
+    @State private var newClassTitle = "2В"
+    @State private var newRole = "Родитель"
+
+    init(classes: [ClassAccessSummary], onSave: @escaping ([ClassAccessSummary]) -> Void) {
+        self.onSave = onSave
+        _classes = State(initialValue: classes)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "building.2.fill",
+                        color: SchoolTheme.accent,
+                        title: "Классы",
+                        subtitle: "Роли, коды приглашения и закрытый доступ"
+                    )
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Мои классы")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(classes) { classItem in
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: "building.2.fill", color: classItem.role.contains("Админ") ? SchoolTheme.success : SchoolTheme.accent, size: 42)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack(spacing: 7) {
+                                            Text(classItem.title)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                            StatusBadge(text: classItem.role, color: classItem.role.contains("Админ") ? SchoolTheme.success : SchoolTheme.accent)
+                                        }
+                                        Text(classItem.school)
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                        Text("\(classItem.status) - код \(classItem.inviteCode)")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Название класса", iconName: "text.badge.plus", color: SchoolTheme.success, text: $newClassTitle)
+                            MoreTextField(title: "Код приглашения", iconName: "number", color: SchoolTheme.warning, text: $inviteCode)
+
+                            Picker("Роль", selection: $newRole) {
+                                Text("Родитель").tag("Родитель")
+                                Text("Админ").tag("Админ класса")
+                                Text("Учитель").tag("Учитель")
+                            }
+                            .pickerStyle(.segmented)
+
+                            Button {
+                                joinClass()
+                            } label: {
+                                Label("Добавить класс", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.success)
+                            .disabled(newClassTitle.trimmed.isEmpty || inviteCode.trimmed.isEmpty)
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить классы", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Классы")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private func joinClass() {
+        classes.append(
+            ClassAccessSummary(
+                title: newClassTitle.trimmed,
+                school: "Школа 1254",
+                role: newRole,
+                inviteCode: inviteCode.trimmed,
+                status: "Ожидает подтверждения"
+            )
+        )
+        newClassTitle = ""
+        inviteCode = ""
+    }
+
+    private func save() {
+        onSave(classes)
+        dismiss()
+    }
+}
+
+private struct MoreSheetHeader: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        DashboardCard {
+            HStack(spacing: 14) {
+                IconBadge(systemName: icon, color: color, size: 52)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+        }
+    }
+}
+
+private struct MoreMetric: View {
+    let value: String
+    let title: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct MoreTextField: View {
+    let title: String
+    let iconName: String
+    let color: Color
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: iconName, color: color, size: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                TextField(title, text: $text, axis: .vertical)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1...3)
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+}
+
+private enum MoreSheet: String, Identifiable {
+    case children
+    case family
+    case classes
+
+    var id: String { rawValue }
 }
 
 private struct MoreMenuItem: Identifiable {
@@ -106,6 +656,13 @@ private struct MoreMenuItem: Identifiable {
     let subtitle: String
     let icon: String
     let color: Color
+    var sheet: MoreSheet?
+}
+
+private extension String {
+    var trimmed: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 #Preview {
