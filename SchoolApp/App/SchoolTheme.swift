@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum SchoolTheme {
     static let accent = Color(red: 0.11, green: 0.46, blue: 0.86)
@@ -15,4 +16,21 @@ enum SchoolTheme {
     static let page = Color(red: 0.97, green: 0.98, blue: 0.97)
     static let cardRadius: CGFloat = 22
     static let bottomScrollPadding: CGFloat = 118
+}
+
+struct KeyboardDoneToolbar: ToolbarContent {
+    var body: some ToolbarContent {
+        ToolbarItemGroup(placement: .keyboard) {
+            Spacer()
+            Button("Готово") {
+                UIApplication.shared.hideKeyboard()
+            }
+        }
+    }
+}
+
+extension UIApplication {
+    func hideKeyboard() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }

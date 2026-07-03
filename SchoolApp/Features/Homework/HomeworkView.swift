@@ -385,6 +385,7 @@ private struct AddHomeworkSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Новое ДЗ")
             .navigationBarTitleDisplayMode(.inline)
@@ -394,6 +395,7 @@ private struct AddHomeworkSheet: View {
                         dismiss()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -456,6 +458,7 @@ private struct ParseHomeworkSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Разобрать ДЗ")
             .navigationBarTitleDisplayMode(.inline)
@@ -465,6 +468,7 @@ private struct ParseHomeworkSheet: View {
                         dismiss()
                     }
                 }
+                KeyboardDoneToolbar()
             }
             .confirmationDialog("Добавить исходник ДЗ", isPresented: $isImageSourceDialogVisible, titleVisibility: .visible) {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {

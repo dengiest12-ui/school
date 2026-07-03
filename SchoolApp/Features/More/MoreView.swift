@@ -478,6 +478,7 @@ private struct ChildrenAccessSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Дети")
             .navigationBarTitleDisplayMode(.inline)
@@ -487,6 +488,7 @@ private struct ChildrenAccessSheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -633,6 +635,7 @@ private struct FamilyAccessSheet: View {
                 .onAppear {
                     proxy.scrollTo("family-top", anchor: .top)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .background(SchoolTheme.page.ignoresSafeArea())
                 .navigationTitle("Семья")
                 .navigationBarTitleDisplayMode(.inline)
@@ -642,6 +645,7 @@ private struct FamilyAccessSheet: View {
                             save()
                         }
                     }
+                    KeyboardDoneToolbar()
                 }
             }
         }
@@ -771,6 +775,7 @@ private struct ClassesAccessSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Классы")
             .navigationBarTitleDisplayMode(.inline)
@@ -780,6 +785,7 @@ private struct ClassesAccessSheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -1121,6 +1127,7 @@ private struct NotificationSettingsSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Уведомления")
             .navigationBarTitleDisplayMode(.inline)
@@ -1130,6 +1137,7 @@ private struct NotificationSettingsSheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -1245,6 +1253,7 @@ private struct ClassMemorySheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Память класса")
             .navigationBarTitleDisplayMode(.inline)
@@ -1254,6 +1263,7 @@ private struct ClassMemorySheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
@@ -1477,6 +1487,7 @@ private struct ClassFilesSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Файлы")
             .navigationBarTitleDisplayMode(.inline)
@@ -1486,6 +1497,7 @@ private struct ClassFilesSheet: View {
                         save()
                     }
                 }
+                KeyboardDoneToolbar()
             }
             .fileImporter(
                 isPresented: $isFileImporterVisible,

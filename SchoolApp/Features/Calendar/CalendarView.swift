@@ -378,6 +378,7 @@ private struct AddEventSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Новое событие")
             .navigationBarTitleDisplayMode(.inline)
@@ -387,6 +388,7 @@ private struct AddEventSheet: View {
                         dismiss()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }

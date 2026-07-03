@@ -2006,6 +2006,7 @@ private struct NewAnnouncementSheet: View {
                 .padding(20)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Объявление")
             .navigationBarTitleDisplayMode(.inline)
@@ -2015,6 +2016,7 @@ private struct NewAnnouncementSheet: View {
                         dismiss()
                     }
                 }
+                KeyboardDoneToolbar()
             }
         }
     }
