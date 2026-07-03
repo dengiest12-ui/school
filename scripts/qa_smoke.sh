@@ -68,7 +68,10 @@ run_case "homework-paywall" -qa-tab homework -qa-no-subscription -qa-homework-pa
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
 run_case "calendar-detail" -qa-tab calendar -qa-calendar-detail
+run_case "more-profile" -qa-tab more -qa-more-profile
+run_case "more-children" -qa-tab more -qa-more-children
 run_case "more-family" -qa-tab more -qa-more-family
+run_case "more-classes" -qa-tab more -qa-more-classes
 run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
 run_case "more-security" -qa-tab more -qa-more-security

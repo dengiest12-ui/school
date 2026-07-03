@@ -101,6 +101,12 @@
   - Артефакт: `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png`, `.build/screenshots/collections-main-final.png`
   - Комментарий: роль родкомитета есть в UI участников, чатах и сборах; финансовые права ограничены в интерфейсе, но еще не защищены backend-логикой
 
+- [~] Разные роли в разных классах
+  - Проверка: один аккаунт может быть родителем в одном классе и родкомитетом/учителем в другом; выбор ребенка переключает контекст класса
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/more-multi-role-profile.png`, `.build/screenshots/more-multi-role-children.png`, `.build/screenshots/more-multi-role-classes.png`, `.build/screenshots/qa-smoke/more-profile.png`, `.build/screenshots/qa-smoke/more-children.png`, `.build/screenshots/qa-smoke/more-classes.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`
+  - Комментарий: профиль родителя показывает роли по каждому ребенку/классу, в детских профилях роль можно изменить точечно, а раздел классов строится из тех же профилей; серверная проверка прав и синхронизация ролей остаются backend-слоем
+
 - [~] Администратор класса
   - Проверка: управляет участниками, ролями, приглашениями и доступом
   - Уровень: 3
@@ -990,3 +996,4 @@
 | 2026-07-03 | StoreKit 2 каталог подписки | Пройдено | 3 | `.build/screenshots/subscription-storekit-products.png`, `.build/screenshots/qa-smoke/more-subscription.png`, `SchoolApp/Features/More/MoreView.swift`, `docs/storekit_mvp_plan.md` | Экран подписки подключен к `Product.products(for:)`, проверяет два product id, показывает найдено/не найдено/ошибка и fallback-цены; реальные покупки, App Store Connect и entitlement-проверка остаются следующим слоем |
 | 2026-07-03 | Ограничения AI без подписки | Пройдено | 3 | `.build/screenshots/today-paywall.png`, `.build/screenshots/homework-paywall.png`, `.build/screenshots/qa-smoke/today-paywall.png`, `.build/screenshots/qa-smoke/homework-paywall.png`, `SchoolApp/Models/SampleData.swift`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлен локальный entitlement-статус подписки; AI-разбор в Today и ДЗ закрывается понятным paywall при `-qa-no-subscription`, базовые данные остаются доступны; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Фикс ширины экрана ДЗ | Пройдено | 3 | `.build/screenshots/homework-width-fixed.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift` | Экран ДЗ зафиксирован по ширине viewport, метаданные и кнопки карточек используют адаптивный перенос вместо расширения страницы; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | Мультипрофили и роли по классам | Пройдено | 3 | `.build/screenshots/more-multi-role-profile.png`, `.build/screenshots/more-multi-role-children.png`, `.build/screenshots/more-multi-role-classes.png`, `.build/screenshots/qa-smoke/more-profile.png`, `.build/screenshots/qa-smoke/more-children.png`, `.build/screenshots/qa-smoke/more-classes.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Профиль показывает роли отдельно по детям/классам, экран детей позволяет менять роль конкретного профиля, а классы синхронизированы с детскими профилями; `xcodebuild` и полный smoke-прогон проходят |

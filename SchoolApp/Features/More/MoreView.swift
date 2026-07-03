@@ -1212,23 +1212,29 @@ struct MoreView: View {
                     profile: profile,
                     children: children,
                     familyMembers: familyMembers,
-                    classAccess: classAccess
-                ) { updatedProfile in
-                    profile = updatedProfile
-                    MoreLocalStore.profile = updatedProfile
-                    recordAudit(
-                        title: "Профиль обновлен",
-                        detail: "Изменены контакт или роль родителя",
-                        target: updatedProfile.roleSummary,
-                        category: "Аккаунт",
-                        iconName: "person.crop.circle.fill",
-                        colorName: "blue"
-                    )
-                }
+                    classAccess: classAccess,
+                    onOpenChildren: {
+                        activeSheet = .children
+                    },
+                    onSave: { updatedProfile in
+                        profile = updatedProfile
+                        MoreLocalStore.profile = updatedProfile
+                        recordAudit(
+                            title: "Профиль обновлен",
+                            detail: "Изменены контакт родителя",
+                            target: updatedProfile.name,
+                            category: "Аккаунт",
+                            iconName: "person.crop.circle.fill",
+                            colorName: "blue"
+                        )
+                    }
+                )
             case .children:
                 ChildrenAccessSheet(children: children) { updatedChildren in
                     children = updatedChildren
                     MoreLocalStore.children = updatedChildren
+                    classAccess = MoreView.classAccess(from: updatedChildren)
+                    MoreLocalStore.classAccess = classAccess
                     recordAudit(
                         title: "Профили детей сохранены",
                         detail: "Всего профилей: \(updatedChildren.count)",
@@ -1265,7 +1271,7 @@ struct MoreView: View {
                     )
                 }
             case .classes:
-                ClassesAccessSheet(classes: classAccess) { updatedClasses in
+                ClassesAccessSheet(classes: MoreView.classAccess(from: children)) { updatedClasses in
                     classAccess = updatedClasses
                     MoreLocalStore.classAccess = updatedClasses
                     recordAudit(
@@ -1505,11 +1511,35 @@ struct MoreView: View {
 
     private var familyItems: [MoreMenuItem] {
         [
-            MoreMenuItem(title: "Дети", subtitle: "\(children.count) профиля", icon: "person.crop.square", color: SchoolTheme.success, sheet: .children),
+            MoreMenuItem(title: "Дети и классы", subtitle: childRoleSummary, icon: "person.crop.square", color: SchoolTheme.success, sheet: .children),
             MoreMenuItem(title: "Семья", subtitle: "\(familyMembers.count) доступа: родители, бабушка, няня", icon: "person.2.fill", color: SchoolTheme.teal, sheet: .family),
             MoreMenuItem(title: "Задачи семьи", subtitle: "\(openFamilyTaskCount) активных: назначение и напоминания", icon: "checklist.checked", color: SchoolTheme.warning, sheet: .familyTasks),
-            MoreMenuItem(title: "Классы", subtitle: classAccess.map(\.title).joined(separator: " и "), icon: "building.2.fill", color: SchoolTheme.accent, sheet: .classes)
+            MoreMenuItem(title: "Классы", subtitle: classRoleSummary, icon: "building.2.fill", color: SchoolTheme.accent, sheet: .classes)
         ]
+    }
+
+    private var childRoleSummary: String {
+        let classCount = Set(children.map(\.classCode)).count
+        let committeeCount = children.filter { $0.parentRoleTitle == "Родкомитет" }.count
+        return "\(children.count) профиля, \(classCount) класса, родкомитет: \(committeeCount)"
+    }
+
+    private var classRoleSummary: String {
+        children
+            .map { "\($0.className): \($0.parentRoleTitle.lowercased())" }
+            .joined(separator: ", ")
+    }
+
+    private static func classAccess(from children: [ChildSummary]) -> [ClassAccessSummary] {
+        children.map { child in
+            ClassAccessSummary(
+                title: child.className,
+                school: child.school,
+                role: child.parentRoleTitle,
+                inviteCode: child.classCode,
+                status: "Профиль: \(child.name)"
+            )
+        }
     }
 
     private var appItems: [MoreMenuItem] {
@@ -1718,6 +1748,7 @@ private struct ParentProfileSheet: View {
     let children: [ChildSummary]
     let familyMembers: [FamilyAccessMember]
     let classAccess: [ClassAccessSummary]
+    let onOpenChildren: () -> Void
     let onSave: (ParentProfileState) -> Void
 
     @State private var profile: ParentProfileState
@@ -1727,11 +1758,13 @@ private struct ParentProfileSheet: View {
         children: [ChildSummary],
         familyMembers: [FamilyAccessMember],
         classAccess: [ClassAccessSummary],
+        onOpenChildren: @escaping () -> Void,
         onSave: @escaping (ParentProfileState) -> Void
     ) {
         self.children = children
         self.familyMembers = familyMembers
         self.classAccess = classAccess
+        self.onOpenChildren = onOpenChildren
         self.onSave = onSave
         _profile = State(initialValue: profile)
     }
@@ -1751,7 +1784,7 @@ private struct ParentProfileSheet: View {
                         HStack(spacing: 12) {
                             MoreMetric(value: "\(children.count)", title: "детей", color: SchoolTheme.success)
                             Divider()
-                            MoreMetric(value: "\(classAccess.count)", title: "класса", color: SchoolTheme.accent)
+                            MoreMetric(value: "\(classProfileCount)", title: "класса", color: SchoolTheme.accent)
                             Divider()
                             MoreMetric(value: "\(familyMembers.count)", title: "семья", color: SchoolTheme.teal)
                         }
@@ -1763,7 +1796,6 @@ private struct ParentProfileSheet: View {
                             MoreTextField(title: "Имя", iconName: "person.fill", color: SchoolTheme.accent, text: $profile.name)
                             MoreTextField(title: "Телефон", iconName: "phone.fill", color: SchoolTheme.success, text: $profile.contact)
                             MoreTextField(title: "Apple ID / email", iconName: "at", color: SchoolTheme.teal, text: $profile.appleID)
-                            MoreTextField(title: "Роль", iconName: "person.badge.shield.checkmark.fill", color: SchoolTheme.warning, text: $profile.roleSummary)
                         }
                     }
 
@@ -1773,14 +1805,24 @@ private struct ParentProfileSheet: View {
                                 .font(.headline)
                                 .foregroundStyle(SchoolTheme.graphite)
 
-                            ForEach(classAccess) { classItem in
-                                profileInfoRow(
-                                    icon: "person.3.fill",
-                                    color: SchoolTheme.accent,
-                                    title: "\(classItem.title), \(classItem.school)",
-                                    detail: "\(classItem.role) - \(classItem.status)"
-                                )
+                            Text("Один аккаунт может иметь разные права в разных классах. При выборе ребенка приложение переключает класс и роль.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            ForEach(children) { child in
+                                profileClassRoleRow(child)
                             }
+
+                            Button {
+                                openChildrenProfiles()
+                            } label: {
+                                Label("Добавить профиль в другом классе", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.success)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1832,6 +1874,48 @@ private struct ParentProfileSheet: View {
         }
     }
 
+    private var classProfileCount: Int {
+        Set(children.map(\.classCode)).count
+    }
+
+    private func profileClassRoleRow(_ child: ChildSummary) -> some View {
+        HStack(spacing: 12) {
+            InitialAvatar(text: child.avatarText, color: roleColor(child.parentRoleTitle), size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text("\(child.name), \(child.className)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: child.parentRoleTitle, color: roleColor(child.parentRoleTitle))
+                }
+                Text("\(child.school) - код \(child.classCode)")
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func roleColor(_ role: String) -> Color {
+        switch role {
+        case "Родкомитет":
+            SchoolTheme.warning
+        case "Учитель":
+            SchoolTheme.accent
+        default:
+            SchoolTheme.success
+        }
+    }
+
+    private func openChildrenProfiles() {
+        onSave(profile)
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            onOpenChildren()
+        }
+    }
+
     private func profileInfoRow(icon: String, color: Color, title: String, detail: String) -> some View {
         HStack(spacing: 12) {
             IconBadge(systemName: icon, color: color, size: 40)
@@ -1857,6 +1941,7 @@ private struct ParentProfileSheet: View {
 
 private struct ChildrenAccessSheet: View {
     @Environment(\.dismiss) private var dismiss
+    private let roleOptions = ["Родитель", "Родкомитет", "Учитель"]
 
     let onSave: ([ChildSummary]) -> Void
 
@@ -1912,7 +1997,7 @@ private struct ChildrenAccessSheet: View {
                                             .foregroundStyle(SchoolTheme.muted)
                                     }
                                     Spacer()
-                                    StatusBadge(text: child.parentRoleTitle, color: child.parentRoleTitle == "Родкомитет" ? SchoolTheme.warning : SchoolTheme.success)
+                                    roleMenu(for: child)
                                 }
                             }
                         }
@@ -1925,7 +2010,7 @@ private struct ChildrenAccessSheet: View {
                             MoreTextField(title: "Код класса", iconName: "link", color: SchoolTheme.warning, text: $classCode)
                             MoreTextField(title: "Школа", iconName: "graduationcap.fill", color: SchoolTheme.teal, text: $school)
                             Menu {
-                                ForEach(["Родитель", "Родкомитет"], id: \.self) { role in
+                                ForEach(roleOptions, id: \.self) { role in
                                     Button(role) {
                                         parentRoleTitle = role
                                     }
@@ -1999,6 +2084,31 @@ private struct ChildrenAccessSheet: View {
         .tint(SchoolTheme.success)
     }
 
+    private func roleMenu(for child: ChildSummary) -> some View {
+        Menu {
+            ForEach(roleOptions, id: \.self) { role in
+                Button {
+                    updateRole(for: child, role: role)
+                } label: {
+                    if child.parentRoleTitle == role {
+                        Label(role, systemImage: "checkmark")
+                    } else {
+                        Text(role)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                StatusBadge(text: child.parentRoleTitle, color: roleColor(child.parentRoleTitle))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Изменить роль в классе \(child.className)")
+    }
+
     private func addChild() {
         let avatar = String(childName.trimmed.prefix(1)).uppercased()
         children.append(
@@ -2014,6 +2124,33 @@ private struct ChildrenAccessSheet: View {
         childName = ""
         className = ""
         classCode = ""
+    }
+
+    private func updateRole(for child: ChildSummary, role: String) {
+        guard let index = children.firstIndex(where: { $0.id == child.id }) else {
+            return
+        }
+
+        children[index] = ChildSummary(
+            id: child.id,
+            name: child.name,
+            className: child.className,
+            school: child.school,
+            avatarText: child.avatarText,
+            classCode: child.classCode,
+            parentRoleTitle: role
+        )
+    }
+
+    private func roleColor(_ role: String) -> Color {
+        switch role {
+        case "Родкомитет":
+            SchoolTheme.warning
+        case "Учитель":
+            SchoolTheme.accent
+        default:
+            SchoolTheme.success
+        }
     }
 
     private func save() {
@@ -2604,6 +2741,7 @@ private struct ClassesAccessSheet: View {
     @State private var inviteCode = "NEW-2048"
     @State private var newClassTitle = "2В"
     @State private var newRole = "Родитель"
+    private let roleOptions = ["Родитель", "Родкомитет", "Учитель"]
 
     init(classes: [ClassAccessSummary], onSave: @escaping ([ClassAccessSummary]) -> Void) {
         self.onSave = onSave
@@ -2629,13 +2767,13 @@ private struct ClassesAccessSheet: View {
 
                             ForEach(classes) { classItem in
                                 HStack(spacing: 12) {
-                                    IconBadge(systemName: "building.2.fill", color: classItem.role.contains("Админ") ? SchoolTheme.success : SchoolTheme.accent, size: 42)
+                                    IconBadge(systemName: "building.2.fill", color: roleColor(classItem.role), size: 42)
                                     VStack(alignment: .leading, spacing: 3) {
                                         HStack(spacing: 7) {
                                             Text(classItem.title)
                                                 .font(.subheadline.weight(.semibold))
                                                 .foregroundStyle(SchoolTheme.graphite)
-                                            StatusBadge(text: classItem.role, color: classItem.role.contains("Админ") ? SchoolTheme.success : SchoolTheme.accent)
+                                            StatusBadge(text: classItem.role, color: roleColor(classItem.role))
                                         }
                                         Text(classItem.school)
                                             .font(.caption)
@@ -2656,9 +2794,9 @@ private struct ClassesAccessSheet: View {
                             MoreTextField(title: "Код приглашения", iconName: "number", color: SchoolTheme.warning, text: $inviteCode)
 
                             Picker("Роль", selection: $newRole) {
-                                Text("Родитель").tag("Родитель")
-                                Text("Админ").tag("Админ класса")
-                                Text("Учитель").tag("Учитель")
+                                ForEach(roleOptions, id: \.self) { role in
+                                    Text(role).tag(role)
+                                }
                             }
                             .pickerStyle(.segmented)
 
@@ -2715,6 +2853,17 @@ private struct ClassesAccessSheet: View {
         )
         newClassTitle = ""
         inviteCode = ""
+    }
+
+    private func roleColor(_ role: String) -> Color {
+        switch role {
+        case "Родкомитет":
+            SchoolTheme.warning
+        case "Учитель":
+            SchoolTheme.accent
+        default:
+            SchoolTheme.success
+        }
     }
 
     private func save() {
