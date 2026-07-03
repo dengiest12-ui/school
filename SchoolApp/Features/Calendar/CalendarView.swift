@@ -1,11 +1,54 @@
 import SwiftUI
 
+private enum CalendarLocalStore {
+    private static let defaultsKey = "school.calendar.events.v1"
+    private static var storedEvents: [ClassEvent] = load()
+
+    static var events: [ClassEvent] {
+        get { storedEvents }
+        set {
+            storedEvents = newValue
+            save()
+        }
+    }
+
+    static func resetIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-reset-calendar-store") else {
+            return
+        }
+
+        storedEvents = SampleData.events
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    private static func load() -> [ClassEvent] {
+        guard
+            let data = UserDefaults.standard.data(forKey: defaultsKey),
+            let decoded = try? JSONDecoder().decode([ClassEvent].self, from: data)
+        else {
+            return SampleData.events
+        }
+
+        return decoded
+    }
+
+    private static func save() {
+        guard let data = try? JSONEncoder().encode(storedEvents) else {
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
+}
+
 struct CalendarView: View {
     @State private var selectedMode: CalendarMode = .list
-    @State private var events = SampleData.events
+    @State private var events: [ClassEvent]
     @State private var activeSheet: CalendarSheet?
 
     init() {
+        CalendarLocalStore.resetIfRequested()
+        _events = State(initialValue: CalendarLocalStore.events)
         _activeSheet = State(initialValue: CalendarView.launchSheet())
     }
 
@@ -29,6 +72,7 @@ struct CalendarView: View {
             case .add:
                 AddEventSheet { event in
                     events.insert(event, at: 0)
+                    CalendarLocalStore.events = events
                     selectedMode = .list
                 }
             case .detail(let event):
@@ -213,6 +257,7 @@ struct CalendarView: View {
         }
 
         events[index].response = response
+        CalendarLocalStore.events = events
     }
 
     private func iconName(for type: String) -> String {

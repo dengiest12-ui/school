@@ -1,11 +1,54 @@
 import SwiftUI
 
+private enum HomeworkLocalStore {
+    private static let defaultsKey = "school.homework.items.v1"
+    private static var storedItems: [HomeworkItem] = load()
+
+    static var items: [HomeworkItem] {
+        get { storedItems }
+        set {
+            storedItems = newValue
+            save()
+        }
+    }
+
+    static func resetIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-reset-homework-store") else {
+            return
+        }
+
+        storedItems = SampleData.homework
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    private static func load() -> [HomeworkItem] {
+        guard
+            let data = UserDefaults.standard.data(forKey: defaultsKey),
+            let decoded = try? JSONDecoder().decode([HomeworkItem].self, from: data)
+        else {
+            return SampleData.homework
+        }
+
+        return decoded
+    }
+
+    private static func save() {
+        guard let data = try? JSONEncoder().encode(storedItems) else {
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
+}
+
 struct HomeworkView: View {
     @State private var selectedScope: HomeworkScope = .tomorrow
-    @State private var homeworkItems = SampleData.homework
+    @State private var homeworkItems: [HomeworkItem]
     @State private var activeSheet: HomeworkSheet?
 
     init() {
+        HomeworkLocalStore.resetIfRequested()
+        _homeworkItems = State(initialValue: HomeworkLocalStore.items)
         _activeSheet = State(initialValue: HomeworkView.launchSheet())
     }
 
@@ -28,10 +71,12 @@ struct HomeworkView: View {
             case .add:
                 AddHomeworkSheet { newItem in
                     homeworkItems.insert(newItem, at: 0)
+                    HomeworkLocalStore.items = homeworkItems
                 }
             case .parse(let inputKind):
                 ParseHomeworkSheet(inputKind: inputKind) { parsedItems in
                     homeworkItems.insert(contentsOf: parsedItems, at: 0)
+                    HomeworkLocalStore.items = homeworkItems
                     selectedScope = .tomorrow
                 }
             }
@@ -261,6 +306,7 @@ struct HomeworkView: View {
         }
 
         homeworkItems[index].status = homeworkItems[index].status == .done ? .pending : .done
+        HomeworkLocalStore.items = homeworkItems
     }
 
     private func badgeColor(for status: HomeworkItem.Status) -> Color {

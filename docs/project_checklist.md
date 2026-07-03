@@ -196,9 +196,9 @@
   - Комментарий: для MVP раздел "Класс" сохраняется локально JSON-снимком в `UserDefaults`; финальная архитектура backend/синхронизации еще не выбрана
 
 - [~] Локальное хранение MVP
-  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты и участники класса не сбрасываются при перезапуске приложения
+  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты, участники класса, ДЗ и события календаря не сбрасываются при перезапуске приложения
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Models/SampleData.swift`
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`
   - Комментарий: временное хранение подходит для проверки UX, но не заменяет аккаунт, серверную синхронизацию, аудит прав и хранение файлов
 
 - [ ] Описать основные сущности
@@ -338,20 +338,20 @@
 - [~] Ручное добавление ДЗ
   - Проверка: предмет, текст, дедлайн, вложения, автор, статус
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-add-final.png`
-  - Комментарий: ручное добавление работает локально; вложения пока не сохраняются
+  - Артефакт: `.build/screenshots/homework-add-final.png`, `.build/screenshots/homework-persistence-add.png`
+  - Комментарий: ручное добавление работает и сохраняется локально; вложения пока не сохраняются
 
 - [~] Список ДЗ
   - Проверка: вкладки Сегодня, Завтра, Неделя, Выполнено; фильтры по ребенку, предмету, статусу и источнику
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-main-final.png`
-  - Комментарий: есть вкладки по сроку и статусу, счетчики и локальная фильтрация; фильтры по ребенку/источнику еще не вынесены отдельно
+  - Артефакт: `.build/screenshots/homework-main-final.png`, `.build/screenshots/homework-persistence-main.png`
+  - Комментарий: есть вкладки по сроку и статусу, счетчики, локальная фильтрация и хранение между перезапусками; фильтры по ребенку/источнику еще не вынесены отдельно
 
 - [~] Отметка выполнения
   - Проверка: родитель/ребенок может отметить ДЗ выполненным, статус сохраняется
   - Уровень: 3
   - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`
-  - Комментарий: статус меняется в локальном состоянии экрана; постоянное хранение будет после выбора архитектуры данных
+  - Комментарий: статус меняется и сохраняется локально между перезапусками; серверная синхронизация еще не подключена
 
 - [ ] Вложения и фото
   - Проверка: можно прикрепить фото доски, дневника, тетради или файл
@@ -444,8 +444,8 @@
 - [~] Подтверждение участия
   - Проверка: участник может подтвердить, отказаться или задать вопрос
   - Уровень: 3
-  - Артефакт: `.build/screenshots/calendar-event-detail-final.png`
-  - Комментарий: ответ семьи меняется локально между "Жду ответа", "Идем", "Не сможем" и "Есть вопрос"; серверное сохранение и уведомление организатора еще не реализованы
+  - Артефакт: `.build/screenshots/calendar-event-detail-final.png`, `.build/screenshots/calendar-persistence-detail.png`
+  - Комментарий: ответ семьи меняется между "Жду ответа", "Идем", "Не сможем" и "Есть вопрос" и сохраняется локально; серверное сохранение и уведомление организатора еще не реализованы
 
 - [~] Связь события со сбором
   - Проверка: экскурсия или праздник могут иметь связанный сбор
@@ -935,3 +935,5 @@
 | 2026-07-03 | Регрессия основных вкладок после багфиксов | Пройдено | 3 | `.build/screenshots/regression-today-after-bugfixes.png`, `.build/screenshots/regression-class-after-bugfixes.png`, `.build/screenshots/regression-homework-after-bugfixes.png`, `.build/screenshots/regression-calendar-after-bugfixes.png`, `.build/screenshots/regression-more-after-bugfixes.png` | После правок AppView, Onboarding, ролей и ClassRoom проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Локальное постоянное хранение раздела Класс | Пройдено | 3 | `.build/screenshots/persistence-collections-reset.png`, `.build/screenshots/persistence-collection-detail.png` | Добавлен JSON-снимок в `UserDefaults` для объявлений, сборов, чатов, дайджестов и участников; сборка `xcodebuild` проходит |
 | 2026-07-03 | Фото и файлы чеков в расходах сбора | Пройдено | 3 | `.build/screenshots/receipt-attachments-form-final.png`, `.build/screenshots/receipt-photo-dialog.png`, `.build/screenshots/receipt-file-importer.png` | Проверены форма расхода, системное меню фото/галереи и системный выбор файла; на Simulator камера недоступна, на iPhone появится вариант съемки |
+| 2026-07-03 | Локальное хранение ДЗ и календаря | Пройдено | 3 | `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-persistence-add.png`, `.build/screenshots/homework-persistence-parse.png`, `.build/screenshots/calendar-persistence-main.png`, `.build/screenshots/calendar-persistence-add.png`, `.build/screenshots/calendar-persistence-detail.png` | Добавлено сохранение ДЗ, AI-результатов, отметок выполнения, событий и ответов семьи в `UserDefaults`; сборка `xcodebuild` проходит |
+| 2026-07-03 | Регрессия основных вкладок после хранения ДЗ и календаря | Пройдено | 3 | `.build/screenshots/regression-today-after-homework-calendar-persistence.png`, `.build/screenshots/regression-class-after-homework-calendar-persistence.png`, `.build/screenshots/regression-homework-after-homework-calendar-persistence.png`, `.build/screenshots/regression-calendar-after-homework-calendar-persistence.png`, `.build/screenshots/regression-more-after-homework-calendar-persistence.png` | После изменения `HomeworkView`, `CalendarView` и моделей проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |

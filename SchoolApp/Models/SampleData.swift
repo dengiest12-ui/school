@@ -61,8 +61,8 @@ struct ChildSummary: Identifiable, Hashable {
     let avatarText: String
 }
 
-struct HomeworkItem: Identifiable, Hashable {
-    enum Status: String {
+struct HomeworkItem: Identifiable, Hashable, Codable {
+    enum Status: String, Codable {
         case pending = "Нужно сделать"
         case done = "Готово"
         case review = "Проверить"
@@ -378,20 +378,20 @@ struct SubscriptionBenefit: Identifiable, Hashable {
     let colorName: String
 }
 
-enum EventResponse: String, CaseIterable, Hashable {
+enum EventResponse: String, CaseIterable, Hashable, Codable {
     case undecided = "Жду ответа"
     case going = "Идем"
     case declined = "Не сможем"
     case question = "Есть вопрос"
 }
 
-struct EventLinkedCollection: Hashable {
+struct EventLinkedCollection: Hashable, Codable {
     var title: String
     var amount: String
     var status: CollectionStatus
 }
 
-struct ClassEvent: Identifiable, Hashable {
+struct ClassEvent: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var dateLabel: String
