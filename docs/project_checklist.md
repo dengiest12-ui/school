@@ -862,8 +862,8 @@
 - [~] Поддержка
   - Проверка: есть способ написать в поддержку и сообщить о проблеме
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-support-screen.png`, `.build/screenshots/more-problem-screen.png`, `.build/screenshots/more-logout-screen.png`
-  - Комментарий: добавлены локальные формы поддержки, отчета о проблеме и экран выхода/подготовки переноса; реальная отправка обращений еще не подключена
+  - Артефакт: `.build/screenshots/more-support-screen.png`, `.build/screenshots/more-problem-screen.png`, `.build/screenshots/more-support-history.png`, `.build/screenshots/more-problem-history.png`, `.build/screenshots/qa-smoke/more-support.png`, `.build/screenshots/qa-smoke/more-problem.png`, `.build/screenshots/more-logout-screen.png`
+  - Комментарий: добавлены локальные формы поддержки, отчета о проблеме, история последних обращений, системная отправка текста через iOS Share Sheet и экран выхода/подготовки переноса; backend helpdesk еще не подключен
 
 - [ ] Beta / TestFlight
   - Проверка: собрана тестовая версия, есть список тестеров и сценарии проверки
@@ -1000,3 +1000,4 @@
 | 2026-07-03 | Создание фотоальбомов класса | Пройдено | 3 | `.build/screenshots/class-photo-album-create.png`, `.build/screenshots/qa-smoke/class-photo-album-create.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Родкомитет или учитель может создать закрытый альбом класса с типом, названием и описанием; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Отчет по сбору | Пройдено | 3 | `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Детальный экран сбора получил финансовую сводку, список расходов и системную отправку текстового отчета; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Локальная очередь уведомлений | Пройдено | 3 | `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Настройки уведомлений планируют вечерний/утренний дайджест, срочное объявление и дедлайн оплаты в iOS Notification Center; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | Поддержка и отчеты о проблеме | Пройдено | 3 | `.build/screenshots/more-support-history.png`, `.build/screenshots/more-problem-history.png`, `.build/screenshots/qa-smoke/more-support.png`, `.build/screenshots/qa-smoke/more-problem.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Формы поддержки сохраняют историю обращений локально и готовят текст для системной отправки через iOS Share Sheet; `xcodebuild` и полный smoke-прогон проходят |

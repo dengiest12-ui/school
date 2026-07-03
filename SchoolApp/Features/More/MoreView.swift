@@ -6065,11 +6065,14 @@ private struct SupportMessageSheet: View {
     @State private var message: String
     @State private var contact = "Telegram или email"
     @State private var sendStatus = "Черновик не отправлялся"
+    @State private var history: [SupportMessageDraft]
+    @State private var didRunQAAutosave = false
 
     init(kind: SupportMessageKind) {
         self.kind = kind
         _subject = State(initialValue: kind.defaultSubject)
         _message = State(initialValue: kind.defaultMessage)
+        _history = State(initialValue: SupportMessageStore.messages(for: kind))
     }
 
     var body: some View {
@@ -6101,7 +6104,7 @@ private struct SupportMessageSheet: View {
                                 .foregroundStyle(SchoolTheme.muted)
 
                             Button {
-                                sendStatus = "Готово: обращение сохранено локально для отправки после подключения поддержки"
+                                saveDraft()
                             } label: {
                                 Label(kind.actionTitle, systemImage: kind.actionIcon)
                                     .font(.subheadline.weight(.semibold))
@@ -6110,6 +6113,42 @@ private struct SupportMessageSheet: View {
                             .buttonStyle(.borderedProminent)
                             .tint(kind.color)
                             .disabled(subject.trimmed.isEmpty || message.trimmed.isEmpty)
+
+                            ShareLink(item: shareText) {
+                                Label("Отправить через iOS", systemImage: "square.and.arrow.up")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(kind.color)
+                            .disabled(subject.trimmed.isEmpty || message.trimmed.isEmpty)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("История")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                StatusBadge(text: "\(history.count)", color: kind.color)
+                            }
+
+                            if history.isEmpty {
+                                MoreEmptyState(
+                                    icon: "tray.fill",
+                                    title: "Обращений пока нет",
+                                    detail: "Сохраненные сообщения появятся здесь и не потеряются при закрытии формы."
+                                )
+                            } else {
+                                VStack(spacing: 10) {
+                                    ForEach(history.prefix(3)) { draft in
+                                        supportHistoryRow(draft)
+                                    }
+                                }
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -6129,7 +6168,108 @@ private struct SupportMessageSheet: View {
                 }
                 KeyboardDoneToolbar()
             }
+            .onAppear {
+                runQAAutosaveIfNeeded()
+            }
         }
+    }
+
+    private var shareText: String {
+        [
+            kind.shareTitle,
+            "Тема: \(subject.trimmed)",
+            "Контакт: \(contact.trimmed.isEmpty ? "не указан" : contact.trimmed)",
+            "Сообщение:",
+            message.trimmed
+        ].joined(separator: "\n")
+    }
+
+    private func supportHistoryRow(_ draft: SupportMessageDraft) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: kind.icon, color: kind.color, size: 38)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(draft.subject)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(2)
+                Text(draft.message)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(2)
+                Text("\(draft.contact) - \(draft.createdAt)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(kind.color)
+            }
+            Spacer()
+        }
+    }
+
+    private func saveDraft() {
+        let draft = SupportMessageDraft(kind: kind, subject: subject.trimmed, message: message.trimmed, contact: contact.trimmed.isEmpty ? "Контакт не указан" : contact.trimmed)
+        history.insert(draft, at: 0)
+        history = Array(history.prefix(8))
+        SupportMessageStore.save(history, for: kind)
+        sendStatus = "Готово: обращение сохранено локально и готово к отправке через iOS"
+    }
+
+    private func runQAAutosaveIfNeeded() {
+        guard !didRunQAAutosave else {
+            return
+        }
+
+        let arguments = ProcessInfo.processInfo.arguments
+        guard
+            (kind == .support && arguments.contains("-qa-more-support"))
+                || (kind == .problem && arguments.contains("-qa-more-problem"))
+        else {
+            return
+        }
+
+        didRunQAAutosave = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            saveDraft()
+        }
+    }
+}
+
+private struct SupportMessageDraft: Identifiable, Hashable, Codable {
+    let id: UUID
+    var kind: String
+    var subject: String
+    var message: String
+    var contact: String
+    var createdAt: String
+
+    init(id: UUID = UUID(), kind: SupportMessageKind, subject: String, message: String, contact: String, createdAt: String = Date().supportMessageTimestamp) {
+        self.id = id
+        self.kind = kind.storageKey
+        self.subject = subject
+        self.message = message
+        self.contact = contact
+        self.createdAt = createdAt
+    }
+}
+
+private enum SupportMessageStore {
+    private static let defaults = UserDefaults.standard
+
+    static func messages(for kind: SupportMessageKind) -> [SupportMessageDraft] {
+        guard
+            let data = defaults.data(forKey: kind.defaultsKey),
+            let messages = try? JSONDecoder().decode([SupportMessageDraft].self, from: data)
+        else {
+            return []
+        }
+
+        return messages
+    }
+
+    static func save(_ messages: [SupportMessageDraft], for kind: SupportMessageKind) {
+        guard let data = try? JSONEncoder().encode(messages) else {
+            return
+        }
+
+        defaults.set(data, forKey: kind.defaultsKey)
     }
 }
 
@@ -6229,6 +6369,19 @@ private enum SupportMessageKind {
     case support
     case problem
 
+    var storageKey: String {
+        switch self {
+        case .support:
+            "support"
+        case .problem:
+            "problem"
+        }
+    }
+
+    var defaultsKey: String {
+        "school.more.support.\(storageKey)"
+    }
+
     var title: String {
         switch self {
         case .support:
@@ -6283,6 +6436,15 @@ private enum SupportMessageKind {
         }
     }
 
+    var shareTitle: String {
+        switch self {
+        case .support:
+            "Обращение в поддержку Школьный класс"
+        case .problem:
+            "Отчет о проблеме Школьный класс"
+        }
+    }
+
     var defaultSubject: String {
         switch self {
         case .support:
@@ -6299,6 +6461,12 @@ private enum SupportMessageKind {
         case .problem:
             "Опишите, где возникла проблема и что нажимали перед этим."
         }
+    }
+}
+
+private extension Date {
+    var supportMessageTimestamp: String {
+        formatted(.dateTime.day().month().hour().minute())
     }
 }
 

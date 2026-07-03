@@ -78,6 +78,8 @@ run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
 run_case "more-security" -qa-tab more -qa-more-security
 run_case "more-privacy" -qa-tab more -qa-more-privacy -qa-more-privacy-consented
+run_case "more-support" -qa-tab more -qa-more-support
+run_case "more-problem" -qa-tab more -qa-more-problem
 run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
 run_case "more-sync" -qa-tab more -qa-more-sync
