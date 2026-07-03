@@ -670,25 +670,23 @@ private struct SyncDryRunResult: Hashable {
     var clientPreview: SyncClientPreview
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
-        let queued = operations.filter { ["В очереди", "Локально", "Offline"].contains($0.status) }.count
-        let blocked = operations.filter { ["Нужен storage", "Конфликт"].contains($0.status) }.count
-        let accepted = max(operations.count - queued - blocked, 0)
         let suffix = UUID().uuidString.prefix(8).uppercased()
         let mutations = operations.enumerated().map { index, operation in
             SyncMutationPreview.make(environment: environment, operation: operation, index: index)
         }
         let requestID = "dry-\(suffix)"
+        let clientProbe = SchoolSyncClient.dryRun(environment: environment, requestID: requestID, mutations: mutations)
 
         return SyncDryRunResult(
             environment: environment,
-            acceptedCount: accepted,
-            queuedCount: queued,
-            blockedCount: blocked,
+            acceptedCount: clientProbe.acceptedCount,
+            queuedCount: clientProbe.queuedCount,
+            blockedCount: clientProbe.blockedCount,
             requestID: requestID,
-            summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API.",
+            summary: "Dry-run: \(clientProbe.acceptedCount) можно отправить, \(clientProbe.queuedCount) ждут сети, \(clientProbe.blockedCount) требуют решения до API.",
             mutations: mutations,
-            requestPreview: SyncRequestPreview.make(environment: environment, requestID: requestID, mutations: mutations),
-            clientPreview: SyncClientPreview.make(environment: environment, mutations: mutations)
+            requestPreview: clientProbe.requestPreview,
+            clientPreview: SyncClientPreview.make(environment: environment, probe: clientProbe)
         )
     }
 }
@@ -754,23 +752,181 @@ private struct SyncRequestPreview: Hashable {
     }
 }
 
+private struct SchoolSyncClient {
+    static func dryRun(environment: BackendEnvironment, requestID: String, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
+        guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
+            return SyncClientProbeResult.failed(environment: environment, requestID: requestID, reason: "Invalid environment URL")
+        }
+
+        let request = MutationBatchRequest(
+            clientId: "ios-local",
+            environment: environment.rawValue,
+            mutations: mutations.map { mutation in
+                MutationRequestItem(
+                    mutationId: mutation.mutationID,
+                    entityType: mutation.entity,
+                    endpoint: mutation.endpoint,
+                    operation: mutation.operation,
+                    baseVersion: mutation.baseVersion,
+                    payloadPreview: mutation.payloadPreview
+                )
+            }
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        do {
+            let requestData = try encoder.encode(request)
+            let responseData = try encoder.encode(mockResponse(requestID: requestID, mutations: mutations))
+            let decodedResponse = try JSONDecoder().decode(MutationBatchResponse.self, from: responseData)
+            let preview = SyncRequestPreview(
+                method: "POST",
+                path: "/sync/mutations",
+                url: url.absoluteString,
+                authState: "Bearer token required",
+                idempotencyKey: requestID,
+                bodyPreview: compactPreview(from: requestData)
+            )
+
+            return SyncClientProbeResult(
+                transportState: "URLSession request ready",
+                requestEncodingState: "\(requestData.count) bytes JSON",
+                responseDecodingState: "Decoded \(decodedResponse.results.count) mutation result(s)",
+                requestPreview: preview,
+                acceptedCount: decodedResponse.results.filter { $0.status == "accepted" }.count,
+                queuedCount: decodedResponse.results.filter { $0.status == "queued" }.count,
+                blockedCount: decodedResponse.results.filter { $0.status == "blocked" }.count,
+                serverVersionPlan: decodedResponse.results.contains { $0.entityVersion != nil } ? "Persist entityVersion before clearing accepted mutations" : "No server versions in dry-run response",
+                retryPlan: decodedResponse.results.contains { $0.status == "queued" } ? "Keep queued mutations with retryAfterSeconds/backoff" : "No retry needed after this response",
+                failureMapping: decodedResponse.results.contains { $0.status == "blocked" } ? "Stop automatic send for blocked mutations until user/backend resolves reason" : "Network failures still map to offline queue"
+            )
+        } catch {
+            return SyncClientProbeResult.failed(environment: environment, requestID: requestID, reason: error.localizedDescription)
+        }
+    }
+
+    private static func mockResponse(requestID: String, mutations: [SyncMutationPreview]) -> MutationBatchResponse {
+        MutationBatchResponse(
+            requestId: requestID,
+            results: mutations.map { mutation in
+                switch mutation.status {
+                case "accepted":
+                    return MutationResultItem(
+                        mutationId: mutation.mutationID,
+                        status: "accepted",
+                        entityVersion: mutation.baseVersion + 1,
+                        retryAfterSeconds: nil,
+                        blockedReason: nil
+                    )
+                case "blocked":
+                    return MutationResultItem(
+                        mutationId: mutation.mutationID,
+                        status: "blocked",
+                        entityVersion: nil,
+                        retryAfterSeconds: nil,
+                        blockedReason: mutation.endpoint.contains("photos") || mutation.endpoint.contains("receipts") ? "storage_required" : "conflict_or_auth_required"
+                    )
+                default:
+                    return MutationResultItem(
+                        mutationId: mutation.mutationID,
+                        status: "queued",
+                        entityVersion: nil,
+                        retryAfterSeconds: 60,
+                        blockedReason: nil
+                    )
+                }
+            }
+        )
+    }
+
+    private static func compactPreview(from data: Data) -> String {
+        guard let text = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+
+        if text.count <= 190 {
+            return text
+        }
+
+        return String(text.prefix(190)) + "...}"
+    }
+}
+
+private struct MutationBatchRequest: Codable, Hashable {
+    var clientId: String
+    var environment: String
+    var mutations: [MutationRequestItem]
+}
+
+private struct MutationRequestItem: Codable, Hashable {
+    var mutationId: String
+    var entityType: String
+    var endpoint: String
+    var operation: String
+    var baseVersion: Int
+    var payloadPreview: String
+}
+
+private struct MutationBatchResponse: Codable, Hashable {
+    var requestId: String
+    var results: [MutationResultItem]
+}
+
+private struct MutationResultItem: Codable, Hashable {
+    var mutationId: String
+    var status: String
+    var entityVersion: Int?
+    var retryAfterSeconds: Int?
+    var blockedReason: String?
+}
+
+private struct SyncClientProbeResult: Hashable {
+    var transportState: String
+    var requestEncodingState: String
+    var responseDecodingState: String
+    var requestPreview: SyncRequestPreview
+    var acceptedCount: Int
+    var queuedCount: Int
+    var blockedCount: Int
+    var serverVersionPlan: String
+    var retryPlan: String
+    var failureMapping: String
+
+    static func failed(environment: BackendEnvironment, requestID: String, reason: String) -> SyncClientProbeResult {
+        SyncClientProbeResult(
+            transportState: "Client probe failed",
+            requestEncodingState: reason,
+            responseDecodingState: "No decoded response",
+            requestPreview: SyncRequestPreview.make(environment: environment, requestID: requestID, mutations: []),
+            acceptedCount: 0,
+            queuedCount: 0,
+            blockedCount: 1,
+            serverVersionPlan: "Keep local mutations until client probe is fixed",
+            retryPlan: "Do not send malformed request",
+            failureMapping: "Map client encoding/decoding failures to QA blocker"
+        )
+    }
+}
+
 private struct SyncClientPreview: Hashable {
     var transport: String
     var resultType: String
+    var requestState: String
+    var responseState: String
     var retryPlan: String
     var serverVersionPlan: String
     var failureMapping: String
 
-    static func make(environment: BackendEnvironment, mutations: [SyncMutationPreview]) -> SyncClientPreview {
-        let queued = mutations.filter { $0.status == "queued" }.count
-        let blocked = mutations.filter { $0.status == "blocked" }.count
-
+    static func make(environment: BackendEnvironment, probe: SyncClientProbeResult) -> SyncClientPreview {
         return SyncClientPreview(
             transport: "URLSession + JSONDecoder, \(environment.title)",
             resultType: "SyncClientResult: accepted / queued / blocked",
-            retryPlan: queued > 0 ? "\(queued) operation(s) stay in local queue with exponential retry" : "No queued operations after dry-run",
-            serverVersionPlan: "accepted responses must persist entityVersion before clearing local mutation",
-            failureMapping: blocked > 0 ? "\(blocked) blocked operation(s): storage/conflict/auth must stop automatic send" : "Network errors map to offline queue"
+            requestState: probe.requestEncodingState,
+            responseState: probe.responseDecodingState,
+            retryPlan: probe.retryPlan,
+            serverVersionPlan: probe.serverVersionPlan,
+            failureMapping: probe.failureMapping
         )
     }
 }
@@ -803,9 +959,9 @@ private struct ApiReadinessItem: Identifiable, Hashable {
         ),
         ApiReadinessItem(
             title: "Swift API client",
-            artifact: "URLSession / generated client",
-            status: "Дальше",
-            detail: "Нужен слой запросов, refresh token, retry, mapping ошибок и сохранение серверных версий.",
+            artifact: "URLSession + Codable dry-run",
+            status: "Частично",
+            detail: "Есть типизированный batch request/response, mapping accepted/queued/blocked и план сохранения server version; настоящая сеть, auth и refresh token еще впереди.",
             iconName: "curlybraces.square.fill",
             colorName: "orange"
         ),
@@ -5729,9 +5885,9 @@ private struct SyncCenterSheet: View {
                             )
                             syncStateRow(
                                 icon: "curlybraces.square.fill",
-                                color: SchoolTheme.warning,
+                                color: SchoolTheme.success,
                                 title: "Swift client",
-                                detail: "Scaffold фиксирует URLSession transport, result mapping, retry-план и сохранение server version без реального network call"
+                                detail: "Dry-run проходит через типизированный Codable-клиент: URLSession request, JSON body, mock response decode и mapping accepted/queued/blocked"
                             )
                             syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
@@ -6179,7 +6335,7 @@ private struct SyncCenterSheet: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(SchoolTheme.graphite)
                 Spacer()
-                StatusBadge(text: "scaffold", color: SchoolTheme.warning)
+                StatusBadge(text: "typed", color: SchoolTheme.success)
             }
 
             Text(client.transport)
@@ -6189,6 +6345,18 @@ private struct SyncCenterSheet: View {
                 .minimumScaleFactor(0.78)
 
             Text(client.resultType)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(client.requestState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(client.responseState)
                 .font(.caption2)
                 .foregroundStyle(SchoolTheme.muted)
                 .lineLimit(1)
@@ -6295,7 +6463,7 @@ private struct SyncCenterSheet: View {
         switch status {
         case "Синхронизировано", "Готово к API", "Готово":
             SchoolTheme.success
-        case "Нужен storage", "Offline", "Дальше":
+        case "Нужен storage", "Offline", "Дальше", "Частично":
             SchoolTheme.warning
         case "Конфликт", "Блокер":
             SchoolTheme.danger

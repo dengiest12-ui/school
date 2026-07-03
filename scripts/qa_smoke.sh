@@ -21,10 +21,20 @@ if [[ -z "$SIMULATOR_ID" ]]; then
 fi
 
 echo "Building $SCHEME for $DESTINATION"
-xcodebuild -project "$PROJECT_PATH" -scheme "$SCHEME" -destination "$DESTINATION" build
+xcodebuild -project "$PROJECT_PATH" -scheme "$SCHEME" -destination "$DESTINATION" clean build
 
 if [[ -z "$APP_PATH" ]]; then
-  DERIVED_APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Index.noindex/*" -prune -o -path "*/Build/Products/Debug-iphonesimulator/$SCHEME.app" -print -quit)"
+  DERIVED_APP_PATH="$(
+    find "$HOME/Library/Developer/Xcode/DerivedData" \
+      -path "*/Index.noindex" -prune -o \
+      -path "*/Build/Products/Debug-iphonesimulator/$SCHEME.app" -print |
+      while IFS= read -r path; do
+        printf '%s\t%s\n' "$(stat -f %m "$path")" "$path"
+      done |
+      sort -rn |
+      head -n 1 |
+      cut -f2-
+  )"
   APP_PATH="$DERIVED_APP_PATH"
 fi
 
