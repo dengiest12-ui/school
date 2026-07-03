@@ -4,6 +4,8 @@ struct MoreView: View {
     @State private var children = SampleData.children
     @State private var familyMembers = SampleData.familyMembers
     @State private var classAccess = SampleData.classAccess
+    @State private var notificationPreferences = SampleData.notificationPreferences
+    @State private var subscriptionPlans = SampleData.subscriptionPlans
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -38,6 +40,14 @@ struct MoreView: View {
                 ClassesAccessSheet(classes: classAccess) { updatedClasses in
                     classAccess = updatedClasses
                 }
+            case .subscription:
+                SubscriptionSheet(plans: subscriptionPlans) { updatedPlans in
+                    subscriptionPlans = updatedPlans
+                }
+            case .notifications:
+                NotificationSettingsSheet(preferences: notificationPreferences) { updatedPreferences in
+                    notificationPreferences = updatedPreferences
+                }
             }
         }
     }
@@ -49,7 +59,7 @@ struct MoreView: View {
                 .foregroundStyle(SchoolTheme.graphite)
             Spacer()
             HeaderIconButton(systemName: "gearshape") {
-                activeSheet = .family
+                activeSheet = .notifications
             }
             .accessibilityLabel("Настройки")
         }
@@ -124,11 +134,23 @@ struct MoreView: View {
 
     private var appItems: [MoreMenuItem] {
         [
-            MoreMenuItem(title: "Подписка", subtitle: "Пробный период и семейный доступ", icon: "creditcard.fill", color: SchoolTheme.warning),
-            MoreMenuItem(title: "Уведомления", subtitle: "Дайджесты, дедлайны, срочное", icon: "bell.fill", color: SchoolTheme.success),
+            MoreMenuItem(title: "Подписка", subtitle: subscriptionSubtitle, icon: "creditcard.fill", color: SchoolTheme.warning, sheet: .subscription),
+            MoreMenuItem(title: "Уведомления", subtitle: "\(enabledNotificationCount) включено: дайджесты, дедлайны, срочное", icon: "bell.fill", color: SchoolTheme.success, sheet: .notifications),
             MoreMenuItem(title: "Память класса", subtitle: "Поиск по объявлениям и файлам", icon: "magnifyingglass", color: SchoolTheme.accent),
             MoreMenuItem(title: "Файлы", subtitle: "Согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal)
         ]
+    }
+
+    private var subscriptionSubtitle: String {
+        guard let currentPlan = subscriptionPlans.first(where: \.isCurrent) else {
+            return "Пробный период и семейный доступ"
+        }
+
+        return "\(currentPlan.title): \(currentPlan.price)"
+    }
+
+    private var enabledNotificationCount: Int {
+        notificationPreferences.filter(\.isEnabled).count
     }
 
     private var helpItems: [MoreMenuItem] {
@@ -152,6 +174,14 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-classes") {
             return .classes
+        }
+
+        if arguments.contains("-qa-more-subscription") {
+            return .subscription
+        }
+
+        if arguments.contains("-qa-more-notifications") {
+            return .notifications
         }
 
         return nil
@@ -569,6 +599,368 @@ private struct ClassesAccessSheet: View {
     }
 }
 
+private struct SubscriptionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([SubscriptionPlanSummary]) -> Void
+
+    @State private var plans: [SubscriptionPlanSummary]
+    @State private var restoreStatus = "Покупки еще не проверялись"
+
+    init(plans: [SubscriptionPlanSummary], onSave: @escaping ([SubscriptionPlanSummary]) -> Void) {
+        self.onSave = onSave
+        _plans = State(initialValue: plans)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "creditcard.fill",
+                        color: SchoolTheme.warning,
+                        title: "Подписка",
+                        subtitle: "Пробный период, семейный доступ и будущие лимиты"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: currentPlan?.badge ?? "Активен", title: "статус", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "14", title: "дней trial", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "2", title: "ребенка", color: SchoolTheme.accent)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Тарифы MVP")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(plans) { plan in
+                                Button {
+                                    select(plan)
+                                } label: {
+                                    subscriptionPlanRow(plan)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Что входит")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(SampleData.subscriptionBenefits) { benefit in
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: benefit.iconName, color: moreColor(for: benefit.colorName), size: 40)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(benefit.title)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text(benefit.detail)
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Покупки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(restoreStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+
+                            Button {
+                                restoreStatus = "Проверено локально: активен \(currentPlan?.title ?? "пробный период")"
+                            } label: {
+                                Label("Восстановить покупки", systemImage: "arrow.clockwise")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.accent)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить подписку", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Подписка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var currentPlan: SubscriptionPlanSummary? {
+        plans.first(where: \.isCurrent)
+    }
+
+    private func subscriptionPlanRow(_ plan: SubscriptionPlanSummary) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(
+                systemName: plan.isCurrent ? "checkmark.seal.fill" : "creditcard.fill",
+                color: plan.isCurrent ? SchoolTheme.success : SchoolTheme.warning,
+                size: 42
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(plan.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: plan.badge, color: plan.isCurrent ? SchoolTheme.success : SchoolTheme.warning)
+                }
+                Text(plan.price)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(plan.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Image(systemName: plan.isCurrent ? "checkmark.circle.fill" : "circle")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(plan.isCurrent ? SchoolTheme.success : SchoolTheme.muted.opacity(0.45))
+        }
+        .padding(12)
+        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(plan.isCurrent ? SchoolTheme.success.opacity(0.35) : SchoolTheme.line, lineWidth: 1)
+        }
+    }
+
+    private func select(_ plan: SubscriptionPlanSummary) {
+        for index in plans.indices {
+            plans[index].isCurrent = plans[index].id == plan.id
+        }
+    }
+
+    private func save() {
+        onSave(plans)
+        dismiss()
+    }
+}
+
+private struct NotificationSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([NotificationPreference]) -> Void
+
+    @State private var preferences: [NotificationPreference]
+    @State private var eveningTime = "20:30"
+    @State private var morningTime = "07:15"
+    @State private var quietHoursEnabled = true
+    @State private var quietStart = "22:00"
+    @State private var quietEnd = "07:00"
+    @State private var testStatus = "Тестовый дайджест не отправлялся"
+
+    init(preferences: [NotificationPreference], onSave: @escaping ([NotificationPreference]) -> Void) {
+        self.onSave = onSave
+        _preferences = State(initialValue: preferences)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "bell.fill",
+                        color: SchoolTheme.success,
+                        title: "Уведомления",
+                        subtitle: "Дайджесты, дедлайны, срочное и тихие часы"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(enabledCount)", title: "включено", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: eveningTime, title: "вечером", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: quietHoursEnabled ? "да" : "нет", title: "тихий режим", color: SchoolTheme.teal)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Что присылать")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach($preferences) { $preference in
+                                NotificationPreferenceRow(preference: $preference)
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Время дайджестов")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            Text("Вечер")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.muted)
+                            Picker("Вечер", selection: $eveningTime) {
+                                Text("19:30").tag("19:30")
+                                Text("20:30").tag("20:30")
+                                Text("21:30").tag("21:30")
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text("Утро")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.muted)
+                            Picker("Утро", selection: $morningTime) {
+                                Text("07:00").tag("07:00")
+                                Text("07:15").tag("07:15")
+                                Text("07:30").tag("07:30")
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            Toggle(isOn: $quietHoursEnabled) {
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: "moon.zzz.fill", color: SchoolTheme.teal, size: 40)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Тихие часы")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text("Срочное остается, обычные напоминания ждут утра")
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                }
+                            }
+                            .tint(SchoolTheme.success)
+
+                            HStack(spacing: 10) {
+                                MoreTextField(title: "Начало", iconName: "moon.fill", color: SchoolTheme.teal, text: $quietStart)
+                                MoreTextField(title: "Конец", iconName: "sunrise.fill", color: SchoolTheme.warning, text: $quietEnd)
+                            }
+                            .disabled(!quietHoursEnabled)
+                            .opacity(quietHoursEnabled ? 1 : 0.45)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Проверка")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(testStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+
+                            Button {
+                                testStatus = "Готово: локальный дайджест собран на \(eveningTime)"
+                            } label: {
+                                Label("Собрать тестовый дайджест", systemImage: "paperplane.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.accent)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить уведомления", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Уведомления")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var enabledCount: Int {
+        preferences.filter(\.isEnabled).count
+    }
+
+    private func save() {
+        onSave(preferences)
+        dismiss()
+    }
+}
+
+private struct NotificationPreferenceRow: View {
+    @Binding var preference: NotificationPreference
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: preference.iconName, color: moreColor(for: preference.colorName), size: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preference.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(preference.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Toggle("", isOn: $preference.isEnabled)
+                .labelsHidden()
+                .tint(SchoolTheme.success)
+        }
+    }
+}
+
 private struct MoreSheetHeader: View {
     let icon: String
     let color: Color
@@ -646,6 +1038,8 @@ private enum MoreSheet: String, Identifiable {
     case children
     case family
     case classes
+    case subscription
+    case notifications
 
     var id: String { rawValue }
 }
@@ -657,6 +1051,21 @@ private struct MoreMenuItem: Identifiable {
     let icon: String
     let color: Color
     var sheet: MoreSheet?
+}
+
+private func moreColor(for colorName: String) -> Color {
+    switch colorName {
+    case "green":
+        SchoolTheme.success
+    case "teal":
+        SchoolTheme.teal
+    case "red":
+        SchoolTheme.danger
+    case "orange":
+        SchoolTheme.warning
+    default:
+        SchoolTheme.accent
+    }
 }
 
 private extension String {

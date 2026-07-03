@@ -41,11 +41,11 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[ ]` | 0 | Нужно отдельно отделить первый релиз от будущих функций. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли и приглашения собираются и проверяются на iPhone 17 Simulator. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator. |
 | Backend / синхронизация | `[ ]` | 0 | Нужно выбрать подход: backend-first или локальная модель + синхронизация. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
-| Уведомления | `[ ]` | 0 | Вечерний и утренний дайджесты, срочные объявления, дедлайны. |
-| Подписка | `[ ]` | 0 | StoreKit 2, пробный период, восстановление покупок. |
+| Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
+| Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP и восстановления покупок проверен в Simulator; StoreKit 2 еще не подключен. |
 | Безопасность и приватность | `[ ]` | 0 | Особенно данные детей, фото и закрытые классы. |
 | Релизная готовность | `[ ]` | 0 | App Store, политика, аналитика, поддержка. |
 
@@ -615,61 +615,61 @@
   - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`
   - Комментарий: в онбординге есть переключатель напоминаний; системный запрос iOS еще не подключен
 
-- [ ] Вечерний дайджест
+- [~] Вечерний дайджест
   - Проверка: вечером пользователь получает "что завтра"
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий: одна из привычек продукта
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notification-settings-final.png`
+  - Комментарий: есть локальный переключатель и выбор времени; реальная доставка Push будет отдельным этапом
 
-- [ ] Утренний дайджест
+- [~] Утренний дайджест
   - Проверка: утром пользователь видит расписание, форму, срочные задачи
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/notification-settings-final.png`
+  - Комментарий: есть локальный переключатель и выбор времени; контент дайджеста пока собирается из локальных экранов, не из backend
 
-- [ ] Срочные объявления
+- [~] Срочные объявления
   - Проверка: важные объявления доставляются отдельно и заметно
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/notification-settings-final.png`
+  - Комментарий: настройка срочных объявлений есть в UI; отдельный канал доставки и приоритет Push еще не подключены
 
-- [ ] Дедлайны оплат
+- [~] Дедлайны оплат
   - Проверка: напоминания приходят до срока и при просрочке
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/notification-settings-final.png`
+  - Комментарий: есть локальная настройка напоминаний по сборам; адресные напоминания не оплатившим требуют backend
 
-- [ ] Настройки уведомлений
+- [~] Настройки уведомлений
   - Проверка: тихие часы, время дайджестов, настройки по ребенку и классу
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/notification-settings-final.png`
+  - Комментарий: реализованы переключатели, вечер/утро, тихие часы и локальная проверка дайджеста; настройки по конкретному ребенку/классу еще не детализированы
 
 ## 17. Подписка и монетизация
 
-- [ ] Модель тарифов
+- [~] Модель тарифов
   - Проверка: базовая цена 149 руб./мес за первого ребенка и 59 руб./мес за дополнительного ребенка подтверждена или изменена
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Models/SampleData.swift`, `.build/screenshots/subscription-settings-final.png`
+  - Комментарий: в UI зафиксированы trial, 149 руб./мес за первого ребенка и +59 руб./мес за дополнительного; финальная коммерческая модель еще требует подтверждения
 
-- [ ] Paywall
+- [~] Paywall
   - Проверка: показывает конкретную ценность: "Что завтра", ДЗ по фото, напоминания, кружки, семейный доступ, AI-разбор
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/subscription-settings-final.png`
+  - Комментарий: реализован локальный экран подписки с ценностью trial и функций; полноценный paywall перед ограниченными действиями еще не внедрен
 
 - [ ] StoreKit 2
   - Проверка: покупка, trial, восстановление покупок, истекшая подписка, ошибка оплаты
   - Уровень: 0
   - Артефакт:
-  - Комментарий:
+  - Комментарий: в текущей итерации есть только локальная имитация восстановления покупок
 
-- [ ] Ограничения без подписки
+- [~] Ограничения без подписки
   - Проверка: базовые данные не исчезают, но AI и расширенные функции ограничиваются понятно и честно
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/subscription-settings-final.png`
+  - Комментарий: на экране подписки видны будущие лимиты и состав функций; реальные ограничения в сценариях еще не включены
 
 ## 18. Безопасность и приватность
 
@@ -794,7 +794,7 @@
 - [~] Проверка на iPhone Simulator
   - Проверка: основные экраны открываются, верстка не ломается, сценарии проходят
   - Уровень: 3
-  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`
+  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`, `.build/screenshots/regression-*-after-settings.png`
   - Комментарий: сборка проходит; пять вкладок запускались в booted Simulator через QA-параметр `-qa-tab`, для вкладки `Класс` используется внутреннее имя `classRoom`
 
 - [ ] Проверка на реальном iPhone
@@ -923,3 +923,5 @@
 | 2026-07-03 | Регрессия основных вкладок после чатов | Пройдено | 3 | `.build/screenshots/regression-today-after-chats.png`, `.build/screenshots/regression-class-after-chats.png`, `.build/screenshots/regression-homework-after-chats.png`, `.build/screenshots/regression-calendar-after-chats.png`, `.build/screenshots/regression-more-after-chats.png` | После изменения модели чатов и ленты проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Семейный доступ, роли и приглашения | Пройдено | 3 | `.build/screenshots/access-more-main-final.png`, `.build/screenshots/access-children-final.png`, `.build/screenshots/access-family-final.png`, `.build/screenshots/access-classes-final.png`, `.build/screenshots/access-class-members-final.png`, `.build/screenshots/access-member-invite-final.png` | Проверены профили детей, семейный доступ, коды классов, роли участников и локальное приглашение в класс |
 | 2026-07-03 | Регрессия основных вкладок после доступа | Пройдено | 3 | `.build/screenshots/regression-today-after-access.png`, `.build/screenshots/regression-class-after-access.png`, `.build/screenshots/regression-homework-after-access.png`, `.build/screenshots/regression-calendar-after-access.png`, `.build/screenshots/regression-more-after-access.png` | После изменения моделей семьи и участников проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Подписка и настройки уведомлений | Пройдено | 3 | `.build/screenshots/subscription-settings-final.png`, `.build/screenshots/notification-settings-final.png` | Проверены локальный экран trial/тарифов, восстановление покупок как UI-сценарий, дайджесты, дедлайны, срочное и тихие часы |
+| 2026-07-03 | Регрессия основных вкладок после подписки и уведомлений | Пройдено | 3 | `.build/screenshots/regression-today-after-settings.png`, `.build/screenshots/regression-class-after-settings.png`, `.build/screenshots/regression-homework-after-settings.png`, `.build/screenshots/regression-calendar-after-settings.png`, `.build/screenshots/regression-more-after-settings.png` | После изменения раздела `Еще` и моделей настроек проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |

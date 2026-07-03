@@ -281,6 +281,50 @@ struct ClassMemberSummary: Identifiable, Hashable {
     }
 }
 
+struct NotificationPreference: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+    var isEnabled: Bool
+
+    init(id: UUID = UUID(), title: String, detail: String, iconName: String, colorName: String, isEnabled: Bool) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.iconName = iconName
+        self.colorName = colorName
+        self.isEnabled = isEnabled
+    }
+}
+
+struct SubscriptionPlanSummary: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var price: String
+    var detail: String
+    var badge: String
+    var isCurrent: Bool
+
+    init(id: UUID = UUID(), title: String, price: String, detail: String, badge: String, isCurrent: Bool = false) {
+        self.id = id
+        self.title = title
+        self.price = price
+        self.detail = detail
+        self.badge = badge
+        self.isCurrent = isCurrent
+    }
+}
+
+struct SubscriptionBenefit: Identifiable, Hashable {
+    let id = UUID()
+    let title: String
+    let detail: String
+    let iconName: String
+    let colorName: String
+}
+
 enum EventResponse: String, CaseIterable, Hashable {
     case undecided = "Жду ответа"
     case going = "Идем"
@@ -412,6 +456,27 @@ enum SampleData {
         ClassMemberSummary(name: "Мария", childName: "Соня", role: "Родкомитет", status: "Подключена", avatarText: "М", canManage: true),
         ClassMemberSummary(name: "Антон", childName: "Дима", role: "Родитель", status: "Подключен", avatarText: "А", canManage: false),
         ClassMemberSummary(name: "Ирина", childName: "Миша", role: "Семья", status: "Ожидает вход", avatarText: "И", canManage: false)
+    ]
+
+    static let notificationPreferences = [
+        NotificationPreference(title: "Вечерний дайджест", detail: "Что завтра: уроки, форма, ДЗ и что принести", iconName: "moon.stars.fill", colorName: "blue", isEnabled: true),
+        NotificationPreference(title: "Утренний дайджест", detail: "Расписание, срочные дела и кружки перед школой", iconName: "sun.max.fill", colorName: "orange", isEnabled: true),
+        NotificationPreference(title: "Срочные объявления", detail: "От учителя и администратора класса отдельно от чатов", iconName: "exclamationmark.triangle.fill", colorName: "red", isEnabled: true),
+        NotificationPreference(title: "Дедлайны оплат", detail: "Мягкие напоминания по сборам родкомитета", iconName: "rublesign.circle.fill", colorName: "green", isEnabled: true),
+        NotificationPreference(title: "Семейные задачи", detail: "Только исполнителю: забрать, принести, подписать", iconName: "person.2.fill", colorName: "teal", isEnabled: false)
+    ]
+
+    static let subscriptionPlans = [
+        SubscriptionPlanSummary(title: "Пробный период", price: "0 руб.", detail: "14 дней: ДЗ по фото, дайджесты и семейный доступ", badge: "Активен", isCurrent: true),
+        SubscriptionPlanSummary(title: "1 ребенок", price: "149 руб./мес", detail: "Все ключевые функции для одного школьника", badge: "MVP"),
+        SubscriptionPlanSummary(title: "Семья+", price: "+59 руб./мес", detail: "Дополнительный ребенок и общие семейные напоминания", badge: "Доп. ребенок")
+    ]
+
+    static let subscriptionBenefits = [
+        SubscriptionBenefit(title: "Что завтра", detail: "Единый вечерний план для ребенка и родителя", iconName: "checklist", colorName: "green"),
+        SubscriptionBenefit(title: "ДЗ по фото", detail: "Разбор доски, дневника или сообщения в структуру", iconName: "camera.viewfinder", colorName: "blue"),
+        SubscriptionBenefit(title: "Семейный доступ", detail: "Второй родитель, бабушка или няня видят нужное", iconName: "person.2.fill", colorName: "teal"),
+        SubscriptionBenefit(title: "Тихий чат", detail: "Важное из сообщений без необходимости читать весь поток", iconName: "sparkles", colorName: "orange")
     ]
 
     static let homework = [
