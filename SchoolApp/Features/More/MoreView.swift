@@ -283,6 +283,79 @@ private struct MvpMetricSummary: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct AIQualityLogEntry: Identifiable, Hashable, Codable {
+    let id: UUID
+    var source: String
+    var inputSummary: String
+    var issue: String
+    var confidence: Int
+    var status: String
+    var promptVersion: String
+    var attempts: Int
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        source: String,
+        inputSummary: String,
+        issue: String,
+        confidence: Int,
+        status: String,
+        promptVersion: String,
+        attempts: Int,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.source = source
+        self.inputSummary = inputSummary
+        self.issue = issue
+        self.confidence = confidence
+        self.status = status
+        self.promptVersion = promptVersion
+        self.attempts = attempts
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        AIQualityLogEntry(
+            source: "Фото доски",
+            inputSummary: "Математика N 47, 48; русский упр. 12",
+            issue: "Нужно проверить предмет и срок",
+            confidence: 82,
+            status: "Проверить",
+            promptVersion: "homework-v1",
+            attempts: 1,
+            iconName: "camera.viewfinder",
+            colorName: "orange"
+        ),
+        AIQualityLogEntry(
+            source: "Скрин чата",
+            inputSummary: "Завтра принести картон и подписать согласие",
+            issue: "Задачи выделены корректно",
+            confidence: 94,
+            status: "Принято",
+            promptVersion: "global-parse-v1",
+            attempts: 1,
+            iconName: "sparkles",
+            colorName: "green"
+        ),
+        AIQualityLogEntry(
+            source: "Файл PDF",
+            inputSummary: "Расписание на неделю с заменой физкультуры",
+            issue: "Низкая уверенность в датах",
+            confidence: 61,
+            status: "Повторить",
+            promptVersion: "schedule-v1",
+            attempts: 2,
+            iconName: "doc.text.fill",
+            colorName: "red"
+        )
+    ]
+}
+
 private struct QaStateScenario: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
@@ -341,6 +414,7 @@ private struct MoreStoreSnapshot: Codable {
     var privacySettings: PrivacySettingsState
     var analyticsEvents: [AnalyticsEventSummary]
     var mvpMetrics: [MvpMetricSummary]
+    var aiQualityLogs: [AIQualityLogEntry]
     var qaScenarios: [QaStateScenario]
 
     init(
@@ -359,6 +433,7 @@ private struct MoreStoreSnapshot: Codable {
         privacySettings: PrivacySettingsState = .sample,
         analyticsEvents: [AnalyticsEventSummary] = AnalyticsEventSummary.sample,
         mvpMetrics: [MvpMetricSummary] = MvpMetricSummary.sample,
+        aiQualityLogs: [AIQualityLogEntry] = AIQualityLogEntry.sample,
         qaScenarios: [QaStateScenario] = QaStateScenario.sample
     ) {
         self.profile = profile
@@ -376,6 +451,7 @@ private struct MoreStoreSnapshot: Codable {
         self.privacySettings = privacySettings
         self.analyticsEvents = analyticsEvents
         self.mvpMetrics = mvpMetrics
+        self.aiQualityLogs = aiQualityLogs
         self.qaScenarios = qaScenarios
     }
 
@@ -396,6 +472,7 @@ private struct MoreStoreSnapshot: Codable {
         privacySettings = try container.decodeIfPresent(PrivacySettingsState.self, forKey: .privacySettings) ?? .sample
         analyticsEvents = try container.decodeIfPresent([AnalyticsEventSummary].self, forKey: .analyticsEvents) ?? AnalyticsEventSummary.sample
         mvpMetrics = try container.decodeIfPresent([MvpMetricSummary].self, forKey: .mvpMetrics) ?? MvpMetricSummary.sample
+        aiQualityLogs = try container.decodeIfPresent([AIQualityLogEntry].self, forKey: .aiQualityLogs) ?? AIQualityLogEntry.sample
         qaScenarios = try container.decodeIfPresent([QaStateScenario].self, forKey: .qaScenarios) ?? QaStateScenario.sample
     }
 
@@ -415,6 +492,7 @@ private struct MoreStoreSnapshot: Codable {
         privacySettings: .sample,
         analyticsEvents: AnalyticsEventSummary.sample,
         mvpMetrics: MvpMetricSummary.sample,
+        aiQualityLogs: AIQualityLogEntry.sample,
         qaScenarios: QaStateScenario.sample
     )
 }
@@ -543,6 +621,14 @@ private enum MoreLocalStore {
         }
     }
 
+    static var aiQualityLogs: [AIQualityLogEntry] {
+        get { snapshot.aiQualityLogs }
+        set {
+            snapshot.aiQualityLogs = newValue
+            save()
+        }
+    }
+
     static var qaScenarios: [QaStateScenario] {
         get { snapshot.qaScenarios }
         set {
@@ -601,6 +687,7 @@ struct MoreView: View {
     @State private var privacySettings: PrivacySettingsState
     @State private var analyticsEvents: [AnalyticsEventSummary]
     @State private var mvpMetrics: [MvpMetricSummary]
+    @State private var aiQualityLogs: [AIQualityLogEntry]
     @State private var qaScenarios: [QaStateScenario]
     @State private var activeSheet: MoreSheet?
 
@@ -621,6 +708,7 @@ struct MoreView: View {
         _privacySettings = State(initialValue: MoreLocalStore.privacySettings)
         _analyticsEvents = State(initialValue: MoreLocalStore.analyticsEvents)
         _mvpMetrics = State(initialValue: MoreLocalStore.mvpMetrics)
+        _aiQualityLogs = State(initialValue: MoreLocalStore.aiQualityLogs)
         _qaScenarios = State(initialValue: MoreLocalStore.qaScenarios)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
@@ -803,6 +891,19 @@ struct MoreView: View {
                         colorName: "blue"
                     )
                 }
+            case .aiQuality:
+                AIQualitySheet(logs: aiQualityLogs) { updatedLogs in
+                    aiQualityLogs = updatedLogs
+                    MoreLocalStore.aiQualityLogs = updatedLogs
+                    recordAudit(
+                        title: "AI-качество обновлено",
+                        detail: "Записей: \(updatedLogs.count), на проверке: \(updatedLogs.filter { $0.status != "Принято" }.count)",
+                        target: "AI-разбор",
+                        category: "AI",
+                        iconName: "sparkles",
+                        colorName: "orange"
+                    )
+                }
             case .qaStates:
                 QaStatesSheet(scenarios: qaScenarios) { updatedScenarios in
                     qaScenarios = updatedScenarios
@@ -914,7 +1015,8 @@ struct MoreView: View {
             MoreMenuItem(title: "Память класса", subtitle: "\(classMemory.count) находки: объявления, файлы, события", icon: "magnifyingglass", color: SchoolTheme.accent, sheet: .memory),
             MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files),
             MoreMenuItem(title: "Журнал действий", subtitle: "\(auditEntries.count) записей: роли, доступы, файлы", icon: "list.bullet.rectangle.portrait.fill", color: SchoolTheme.graphite, sheet: .audit),
-            MoreMenuItem(title: "MVP-метрики", subtitle: "\(eventsTotal) событий: активация, ДЗ, сборы, trial", icon: "chart.bar.xaxis", color: SchoolTheme.accent, sheet: .metrics)
+            MoreMenuItem(title: "MVP-метрики", subtitle: "\(eventsTotal) событий: активация, ДЗ, сборы, trial", icon: "chart.bar.xaxis", color: SchoolTheme.accent, sheet: .metrics),
+            MoreMenuItem(title: "Качество AI", subtitle: "\(aiReviewCount) требуют проверки: повторы, промпты, ошибки", icon: "sparkles", color: SchoolTheme.warning, sheet: .aiQuality)
         ]
     }
 
@@ -936,6 +1038,10 @@ struct MoreView: View {
 
     private var eventsTotal: Int {
         analyticsEvents.map(\.count).reduce(0, +)
+    }
+
+    private var aiReviewCount: Int {
+        aiQualityLogs.filter { $0.status != "Принято" }.count
     }
 
     private var helpItems: [MoreMenuItem] {
@@ -1024,6 +1130,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-metrics") {
             return .metrics
+        }
+
+        if arguments.contains("-qa-more-ai-quality") {
+            return .aiQuality
         }
 
         if arguments.contains("-qa-more-states") {
@@ -3637,6 +3747,216 @@ private struct MvpMetricsSheet: View {
     }
 }
 
+private struct AIQualitySheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([AIQualityLogEntry]) -> Void
+
+    @State private var logs: [AIQualityLogEntry]
+
+    init(logs: [AIQualityLogEntry], onSave: @escaping ([AIQualityLogEntry]) -> Void) {
+        self.onSave = onSave
+        _logs = State(initialValue: logs)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "sparkles",
+                        color: SchoolTheme.warning,
+                        title: "Качество AI",
+                        subtitle: "Ошибки, повторы, уверенность и версии промптов"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(acceptedCount)", title: "принято", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(reviewCount)", title: "проверить", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(averageConfidence)%", title: "уверенность", color: confidenceColor)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Журнал разборов")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                Button {
+                                    addRetryLog()
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(SchoolTheme.warning)
+                                        .frame(width: 34, height: 34)
+                                        .background(SchoolTheme.warning.opacity(0.12), in: Circle())
+                                }
+                                .accessibilityLabel("Добавить AI-лог")
+                            }
+
+                            ForEach(logs) { log in
+                                aiLogRow(log)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Что должно уйти в backend", systemImage: "server.rack")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Для релиза каждый AI-разбор должен хранить источник, версию промпта, уверенность, правки пользователя, повторные попытки и итог: принято, отклонено или отправлено на улучшение.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("AI")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var acceptedCount: Int {
+        logs.filter { $0.status == "Принято" }.count
+    }
+
+    private var reviewCount: Int {
+        logs.filter { $0.status != "Принято" }.count
+    }
+
+    private var averageConfidence: Int {
+        guard !logs.isEmpty else {
+            return 0
+        }
+
+        return logs.map(\.confidence).reduce(0, +) / logs.count
+    }
+
+    private var confidenceColor: Color {
+        averageConfidence >= 85 ? SchoolTheme.success : SchoolTheme.warning
+    }
+
+    private func aiLogRow(_ log: AIQualityLogEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: log.iconName, color: moreColor(for: log.colorName), size: 42)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(log.source)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        StatusBadge(text: log.status, color: moreColor(for: log.colorName))
+                    }
+                    Text(log.inputSummary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(log.issue)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(log.promptVersion) - \(log.confidence)% - попыток: \(log.attempts)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                aiActionButton("Принять", icon: "checkmark", color: SchoolTheme.success) {
+                    update(log) { entry in
+                        entry.status = "Принято"
+                        entry.colorName = "green"
+                        entry.confidence = max(entry.confidence, 90)
+                    }
+                }
+
+                aiActionButton("Повторить", icon: "arrow.clockwise", color: SchoolTheme.accent) {
+                    update(log) { entry in
+                        entry.status = "Повторить"
+                        entry.colorName = "blue"
+                        entry.attempts += 1
+                        entry.confidence = min(entry.confidence + 8, 96)
+                    }
+                }
+
+                aiActionButton("Промпт", icon: "slider.horizontal.3", color: SchoolTheme.warning) {
+                    update(log) { entry in
+                        entry.status = "Улучшить"
+                        entry.colorName = "orange"
+                        entry.promptVersion = "\(entry.promptVersion)+fix"
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func aiActionButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(color.opacity(0.11), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func update(_ log: AIQualityLogEntry, mutate: (inout AIQualityLogEntry) -> Void) {
+        guard let index = logs.firstIndex(where: { $0.id == log.id }) else {
+            return
+        }
+
+        mutate(&logs[index])
+    }
+
+    private func addRetryLog() {
+        logs.insert(
+            AIQualityLogEntry(
+                source: "Голос",
+                inputSummary: "Надиктовано: купить папку и принести форму",
+                issue: "Нужно сравнить с исходной расшифровкой",
+                confidence: 73,
+                status: "Проверить",
+                promptVersion: "voice-v1",
+                attempts: 1,
+                iconName: "mic.fill",
+                colorName: "orange"
+            ),
+            at: 0
+        )
+    }
+
+    private func save() {
+        onSave(logs)
+        dismiss()
+    }
+}
+
 private struct QaStatesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -4185,6 +4505,7 @@ private enum MoreSheet: String, Identifiable {
     case security
     case privacy
     case metrics
+    case aiQuality
     case qaStates
     case support
     case problem

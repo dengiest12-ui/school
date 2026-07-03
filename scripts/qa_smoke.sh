@@ -53,6 +53,7 @@ run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoo
 run_case "homework-add" -qa-tab homework -qa-homework-add
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
 run_case "more-security" -qa-tab more -qa-more-security
+run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
 
 echo "QA smoke completed. Screenshots: $SCREENSHOT_DIR"
