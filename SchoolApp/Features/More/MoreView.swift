@@ -343,79 +343,6 @@ private struct MvpMetricSummary: Identifiable, Hashable, Codable {
     ]
 }
 
-private struct AIQualityLogEntry: Identifiable, Hashable, Codable {
-    let id: UUID
-    var source: String
-    var inputSummary: String
-    var issue: String
-    var confidence: Int
-    var status: String
-    var promptVersion: String
-    var attempts: Int
-    var iconName: String
-    var colorName: String
-
-    init(
-        id: UUID = UUID(),
-        source: String,
-        inputSummary: String,
-        issue: String,
-        confidence: Int,
-        status: String,
-        promptVersion: String,
-        attempts: Int,
-        iconName: String,
-        colorName: String
-    ) {
-        self.id = id
-        self.source = source
-        self.inputSummary = inputSummary
-        self.issue = issue
-        self.confidence = confidence
-        self.status = status
-        self.promptVersion = promptVersion
-        self.attempts = attempts
-        self.iconName = iconName
-        self.colorName = colorName
-    }
-
-    static let sample = [
-        AIQualityLogEntry(
-            source: "Фото доски",
-            inputSummary: "Математика N 47, 48; русский упр. 12",
-            issue: "Нужно проверить предмет и срок",
-            confidence: 82,
-            status: "Проверить",
-            promptVersion: "homework-v1",
-            attempts: 1,
-            iconName: "camera.viewfinder",
-            colorName: "orange"
-        ),
-        AIQualityLogEntry(
-            source: "Скрин чата",
-            inputSummary: "Завтра принести картон и подписать согласие",
-            issue: "Задачи выделены корректно",
-            confidence: 94,
-            status: "Принято",
-            promptVersion: "global-parse-v1",
-            attempts: 1,
-            iconName: "sparkles",
-            colorName: "green"
-        ),
-        AIQualityLogEntry(
-            source: "Файл PDF",
-            inputSummary: "Расписание на неделю с заменой физкультуры",
-            issue: "Низкая уверенность в датах",
-            confidence: 61,
-            status: "Повторить",
-            promptVersion: "schedule-v1",
-            attempts: 2,
-            iconName: "doc.text.fill",
-            colorName: "red"
-        )
-    ]
-}
-
 private struct QaStateScenario: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
@@ -1016,9 +943,10 @@ private enum MoreLocalStore {
     }
 
     static var aiQualityLogs: [AIQualityLogEntry] {
-        get { snapshot.aiQualityLogs }
+        get { AppAIQualityLogStore.logs }
         set {
             snapshot.aiQualityLogs = newValue
+            AppAIQualityLogStore.logs = newValue
             save()
         }
     }

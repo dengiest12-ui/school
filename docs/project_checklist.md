@@ -380,8 +380,8 @@
 - [~] Ошибки AI-распознавания
   - Проверка: пользователь может исправить результат и сообщить об ошибке
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`
-  - Комментарий: пользователь может исправить распознанный текст и поля результата; отправка ошибки в качество AI еще не реализована
+  - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/homework-ai-report.png`, `.build/screenshots/more-ai-quality-after-report.png`, `.build/screenshots/qa-smoke/homework-ai-report.png`, `.build/screenshots/qa-smoke/more-ai-quality.png`
+  - Комментарий: пользователь может исправить распознанный текст и поля результата, а также отправить ошибку в локальный журнал качества AI; backend-датасет ошибок и обучение модели еще не подключены
 
 ## 9. Чат и объявления
 
@@ -628,8 +628,8 @@
 - [~] Логи и качество AI
   - Проверка: есть способ оценивать ошибки, повторять запрос и улучшать промпты/модель
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/more-ai-quality.png`, `scripts/qa_smoke.sh`
-  - Комментарий: добавлен локальный экран качества AI с источником разбора, уверенностью, статусом, версией промпта, количеством попыток и действиями принять/повторить/улучшить промпт; реальные backend-логи, датасет ошибок и обучение модели еще не подключены
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/more-ai-quality.png`, `.build/screenshots/more-ai-quality-after-report.png`, `scripts/qa_smoke.sh`
+  - Комментарий: добавлен общий локальный журнал качества AI с источником разбора, уверенностью, статусом, версией промпта, количеством попыток, действиями принять/повторить/улучшить промпт и записями ошибок из ДЗ; реальные backend-логи, датасет ошибок и обучение модели еще не подключены
 
 ## 16. Уведомления
 
@@ -1001,3 +1001,4 @@
 | 2026-07-03 | Отчет по сбору | Пройдено | 3 | `.build/screenshots/class-collection-report.png`, `.build/screenshots/qa-smoke/class-collection-report.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Детальный экран сбора получил финансовую сводку, список расходов и системную отправку текстового отчета; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Локальная очередь уведомлений | Пройдено | 3 | `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Настройки уведомлений планируют вечерний/утренний дайджест, срочное объявление и дедлайн оплаты в iOS Notification Center; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Поддержка и отчеты о проблеме | Пройдено | 3 | `.build/screenshots/more-support-history.png`, `.build/screenshots/more-problem-history.png`, `.build/screenshots/qa-smoke/more-support.png`, `.build/screenshots/qa-smoke/more-problem.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Формы поддержки сохраняют историю обращений локально и готовят текст для системной отправки через iOS Share Sheet; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | Ошибки AI из ДЗ | Пройдено | 3 | `.build/screenshots/homework-ai-report.png`, `.build/screenshots/more-ai-quality-after-report.png`, `.build/screenshots/qa-smoke/homework-ai-report.png`, `.build/screenshots/qa-smoke/more-ai-quality.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Результат ДЗ по фото может отправить ошибку в общий локальный журнал качества AI, а экран `Качество AI` показывает эту запись; `xcodebuild` и полный smoke-прогон проходят |

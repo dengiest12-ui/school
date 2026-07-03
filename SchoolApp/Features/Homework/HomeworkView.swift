@@ -793,6 +793,8 @@ private struct ParseHomeworkSheet: View {
     @State private var isImagePickerVisible = false
     @State private var isFileImporterVisible = false
     @State private var imagePickerSource: UIImagePickerController.SourceType = .photoLibrary
+    @State private var aiReportStatus = "Если AI ошибся, отправьте результат в журнал качества"
+    @State private var didRunAIReportQA = false
 
     init(inputKind: HomeworkInputKind, onSave: @escaping ([HomeworkItem]) -> Void) {
         self.inputKind = inputKind
@@ -818,6 +820,7 @@ private struct ParseHomeworkSheet: View {
 
                     recognizedTextCard
                     parsedResultCard
+                    aiFeedbackCard
                     saveButton
                 }
                 .padding(20)
@@ -998,6 +1001,37 @@ private struct ParseHomeworkSheet: View {
         }
     }
 
+    private var aiFeedbackCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "exclamationmark.bubble.fill", color: SchoolTheme.warning, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Ошибка распознавания")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(aiReportStatus)
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+
+                Button {
+                    reportAIError()
+                } label: {
+                    Label("Сообщить об ошибке AI", systemImage: "flag.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.warning)
+                .id("homework-ai-report")
+            }
+        }
+    }
+
     private var saveButton: some View {
         Button {
             let items = drafts
@@ -1064,7 +1098,33 @@ private struct ParseHomeworkSheet: View {
             if arguments.contains("-qa-homework-file-importer") {
                 isFileImporterVisible = true
             }
+
+            if arguments.contains("-qa-homework-ai-report"), !didRunAIReportQA {
+                didRunAIReportQA = true
+                reportAIError()
+            }
         }
+    }
+
+    private func reportAIError() {
+        let summary = drafts
+            .map { "\($0.subject): \($0.title)" }
+            .joined(separator: "; ")
+
+        AppAIQualityLogStore.prepend(
+            AIQualityLogEntry(
+                source: inputKind.sourceName,
+                inputSummary: summary.isEmpty ? recognizedText.trimmed : summary,
+                issue: "Пользователь сообщил об ошибке распознавания ДЗ",
+                confidence: 58,
+                status: "Проверить",
+                promptVersion: "homework-v1+user-report",
+                attempts: 1,
+                iconName: inputKind.iconName,
+                colorName: "orange"
+            )
+        )
+        aiReportStatus = "Отправлено в журнал качества AI. Запись появится в разделе Еще -> Качество AI"
     }
 }
 

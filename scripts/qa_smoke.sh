@@ -66,6 +66,7 @@ run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-me
 run_case "class-photo-album-create" -qa-role parentCommittee -qa-tab classRoom -qa-photo-album-create
 run_case "class-photo-viewer" -qa-role parentCommittee -qa-tab classRoom -qa-photo-viewer
 run_case "homework-add" -qa-tab homework -qa-homework-add
+run_case "homework-ai-report" -qa-tab homework -qa-homework-parse -qa-homework-ai-report
 run_case "homework-paywall" -qa-tab homework -qa-no-subscription -qa-homework-paywall
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
