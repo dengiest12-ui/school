@@ -5622,7 +5622,7 @@ private struct SyncCenterSheet: View {
                                 icon: "server.rack",
                                 color: SchoolTheme.accent,
                                 title: "API-контракты",
-                                detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md; экран уже использует типизированный каталог endpoint-ов"
+                                detail: "Сущности, роли, offline-мутации и конфликты описаны в docs/backend_contracts.md; первый OpenAPI draft лежит в docs/openapi_mvp.yaml"
                             )
                             syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",

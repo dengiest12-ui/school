@@ -1,0 +1,466 @@
+openapi: 3.1.0
+info:
+  title: School Class MVP API
+  version: 0.1.0
+  summary: Backend contracts for the first iOS MVP.
+  description: >
+    Draft API surface for the School Class iOS MVP. The current app still runs
+    locally, but the sync center already prepares mutation previews that match
+    these endpoints.
+servers:
+  - url: https://dev-api.school-class.local
+    description: Dev sandbox
+  - url: https://staging-api.school-class.app
+    description: Staging and TestFlight
+  - url: https://api.school-class.app
+    description: Production
+security:
+  - bearerAuth: []
+tags:
+  - name: Classes
+  - name: Homework
+  - name: Announcements
+  - name: Collections
+  - name: Invites
+  - name: Files
+  - name: Sync
+paths:
+  /sync/mutations:
+    post:
+      tags: [Sync]
+      summary: Submit offline mutations as an idempotent batch.
+      operationId: submitMutations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MutationBatchRequest'
+      responses:
+        '200':
+          description: Mutation results in the same logical batch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutationBatchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /classes:
+    post:
+      tags: [Classes]
+      summary: Create a class room and make the actor a class admin.
+      operationId: createClassRoom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassRoomRequest'
+      responses:
+        '201':
+          description: Created class room.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassRoom'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /homework:
+    post:
+      tags: [Homework]
+      summary: Publish homework for a class or selected children.
+      operationId: createHomework
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHomeworkRequest'
+      responses:
+        '201':
+          description: Created homework.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Homework'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /announcements/{announcementId}/reads/me:
+    put:
+      tags: [Announcements]
+      summary: Mark the current user's announcement receipt as read.
+      operationId: acknowledgeAnnouncementRead
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeReadRequest'
+      responses:
+        '200':
+          description: Current receipt state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadReceipt'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /collections/{collectionId}/receipts:
+    post:
+      tags: [Collections]
+      summary: Attach an expense receipt to a collection.
+      operationId: createCollectionReceipt
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReceiptRequest'
+      responses:
+        '201':
+          description: Created expense receipt.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /classes/{classId}/invites:
+    post:
+      tags: [Invites]
+      summary: Create or reuse an active class invitation token.
+      operationId: createClassInvite
+      parameters:
+        - $ref: '#/components/parameters/ClassId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassInviteRequest'
+      responses:
+        '201':
+          description: Invite token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassInvite'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /classes/{classId}/albums/{albumId}/photos:
+    post:
+      tags: [Files]
+      summary: Attach an uploaded photo file to a class album.
+      operationId: createAlbumPhoto
+      parameters:
+        - $ref: '#/components/parameters/ClassId'
+        - $ref: '#/components/parameters/AlbumId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlbumPhotoRequest'
+      responses:
+        '201':
+          description: Created photo entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumPhoto'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ClassId:
+      name: classId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AlbumId:
+      name: albumId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AnnouncementId:
+      name: announcementId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CollectionId:
+      name: collectionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Missing or invalid user session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: The actor does not have the role required for this action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Entity was not found or is hidden from the actor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Client baseVersion is stale and server state must be merged.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConflictError'
+  schemas:
+    MutationBatchRequest:
+      type: object
+      required: [clientId, actorUserId, mutations]
+      properties:
+        clientId:
+          type: string
+        actorUserId:
+          type: string
+          format: uuid
+        mutations:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Mutation'
+    MutationBatchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MutationResult'
+    Mutation:
+      type: object
+      required: [mutationId, entityType, entityId, operation, baseVersion, payload, createdAt]
+      properties:
+        mutationId:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum: [create, update, delete, acknowledge]
+        baseVersion:
+          type: integer
+          minimum: 0
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    MutationResult:
+      type: object
+      required: [mutationId, status]
+      properties:
+        mutationId:
+          type: string
+        status:
+          type: string
+          enum: [accepted, rejected, conflict]
+        entityVersion:
+          type: integer
+        serverState:
+          type: object
+          additionalProperties: true
+        errorCode:
+          type: string
+          nullable: true
+    CreateClassRoomRequest:
+      type: object
+      required: [title, schoolName, grade]
+      properties:
+        title:
+          type: string
+        schoolName:
+          type: string
+        grade:
+          type: string
+    ClassRoom:
+      allOf:
+        - $ref: '#/components/schemas/VersionedEntity'
+        - type: object
+          required: [title, schoolName, grade, inviteCode]
+          properties:
+            title:
+              type: string
+            schoolName:
+              type: string
+            grade:
+              type: string
+            inviteCode:
+              type: string
+    CreateHomeworkRequest:
+      type: object
+      required: [classId, subject, text, dueAt, assignees]
+      properties:
+        classId:
+          type: string
+          format: uuid
+        subject:
+          type: string
+        text:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        assignees:
+          type: array
+          items:
+            type: string
+            format: uuid
+        source:
+          type: string
+          enum: [manual, photoAI, chatAI, teacher]
+    Homework:
+      allOf:
+        - $ref: '#/components/schemas/VersionedEntity'
+        - $ref: '#/components/schemas/CreateHomeworkRequest'
+    AcknowledgeReadRequest:
+      type: object
+      required: [readAt]
+      properties:
+        readAt:
+          type: string
+          format: date-time
+    ReadReceipt:
+      type: object
+      required: [announcementId, userId, readAt]
+      properties:
+        announcementId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        readAt:
+          type: string
+          format: date-time
+    CreateReceiptRequest:
+      type: object
+      required: [collectionId, amount, fileId]
+      properties:
+        collectionId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        note:
+          type: string
+        fileId:
+          type: string
+          format: uuid
+    CollectionReceipt:
+      allOf:
+        - $ref: '#/components/schemas/VersionedEntity'
+        - $ref: '#/components/schemas/CreateReceiptRequest'
+    CreateClassInviteRequest:
+      type: object
+      required: [scope, expiresInDays]
+      properties:
+        scope:
+          type: string
+          enum: [class, family]
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+    ClassInvite:
+      type: object
+      required: [inviteId, classId, token, deeplink, expiresAt]
+      properties:
+        inviteId:
+          type: string
+          format: uuid
+        classId:
+          type: string
+          format: uuid
+        token:
+          type: string
+        deeplink:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    CreateAlbumPhotoRequest:
+      type: object
+      required: [fileId, caption]
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        caption:
+          type: string
+    AlbumPhoto:
+      allOf:
+        - $ref: '#/components/schemas/VersionedEntity'
+        - $ref: '#/components/schemas/CreateAlbumPhotoRequest'
+    VersionedEntity:
+      type: object
+      required: [id, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    ConflictError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          required: [serverState]
+          properties:
+            serverState:
+              type: object
+              additionalProperties: true
