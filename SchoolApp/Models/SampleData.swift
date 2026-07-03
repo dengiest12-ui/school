@@ -53,12 +53,20 @@ enum AppUserRole: String, CaseIterable, Identifiable {
     }
 }
 
-struct ChildSummary: Identifiable, Hashable {
-    let id = UUID()
+struct ChildSummary: Identifiable, Hashable, Codable {
+    let id: UUID
     let name: String
     let className: String
     let school: String
     let avatarText: String
+
+    init(id: UUID = UUID(), name: String, className: String, school: String, avatarText: String) {
+        self.id = id
+        self.name = name
+        self.className = className
+        self.school = school
+        self.avatarText = avatarText
+    }
 }
 
 struct HomeworkItem: Identifiable, Hashable, Codable {
@@ -278,7 +286,7 @@ struct ParentTask: Identifiable, Hashable {
     let kind: Kind
 }
 
-struct FamilyAccessMember: Identifiable, Hashable {
+struct FamilyAccessMember: Identifiable, Hashable, Codable {
     let id: UUID
     var name: String
     var role: String
@@ -296,7 +304,7 @@ struct FamilyAccessMember: Identifiable, Hashable {
     }
 }
 
-struct ClassAccessSummary: Identifiable, Hashable {
+struct ClassAccessSummary: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var school: String
@@ -334,7 +342,7 @@ struct ClassMemberSummary: Identifiable, Hashable, Codable {
     }
 }
 
-struct NotificationPreference: Identifiable, Hashable {
+struct NotificationPreference: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var detail: String
@@ -352,7 +360,7 @@ struct NotificationPreference: Identifiable, Hashable {
     }
 }
 
-struct SubscriptionPlanSummary: Identifiable, Hashable {
+struct SubscriptionPlanSummary: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var price: String

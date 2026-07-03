@@ -41,8 +41,8 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[ ]` | 0 | Нужно отдельно отделить первый релиз от будущих функций. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные раздела "Класс" сохраняются локально между перезапусками. |
-| Backend / синхронизация | `[ ]` | 0 | Для MVP добавлено локальное хранение данных класса; полноценный backend и синхронизацию еще нужно спроектировать. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
+| Backend / синхронизация | `[ ]` | 0 | Для MVP добавлено локальное хранение ключевых данных; полноценный backend и синхронизацию еще нужно спроектировать. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
 | Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP и восстановления покупок проверен в Simulator; StoreKit 2 еще не подключен. |
@@ -196,9 +196,9 @@
   - Комментарий: для MVP раздел "Класс" сохраняется локально JSON-снимком в `UserDefaults`; финальная архитектура backend/синхронизации еще не выбрана
 
 - [~] Локальное хранение MVP
-  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты, участники класса, ДЗ и события календаря не сбрасываются при перезапуске приложения
+  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты, участники класса, ДЗ, события календаря, дети, семья, классы, подписка и настройки уведомлений не сбрасываются при перезапуске приложения
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`
   - Комментарий: временное хранение подходит для проверки UX, но не заменяет аккаунт, серверную синхронизацию, аудит прав и хранение файлов
 
 - [ ] Описать основные сущности
@@ -256,8 +256,8 @@
 - [~] Добавление ребенка
   - Проверка: имя, класс, школа, смена; можно добавить нескольких детей
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`
-  - Комментарий: в онбординге вводится имя ребенка, в разделе "Еще" есть локальное добавление нескольких профилей; смена и постоянное хранение еще не реализованы
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-children-final.png`, `.build/screenshots/more-persistence-children.png`
+  - Комментарий: в онбординге вводится имя ребенка, в разделе "Еще" есть локальное добавление нескольких профилей; профили сохраняются локально, смена еще не реализована
 
 - [~] Создание класса
   - Проверка: название класса, школа, город, учебный год, тип организации
@@ -286,8 +286,8 @@
 - [~] Семейный доступ
   - Проверка: второй родитель, бабушка, няня получают только нужные задачи и напоминания
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`
-  - Комментарий: есть роли семьи, статусы доступа и форма приглашения; адресные уведомления и реальные ограничения данных еще не подключены
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/access-family-final.png`, `.build/screenshots/more-persistence-family.png`
+  - Комментарий: есть роли семьи, статусы доступа и форма приглашения; состояние сохраняется локально, адресные уведомления и реальные ограничения данных еще не подключены
 
 ## 7. Главный экран "Сегодня / Что завтра"
 
@@ -648,8 +648,8 @@
 - [~] Настройки уведомлений
   - Проверка: тихие часы, время дайджестов, настройки по ребенку и классу
   - Уровень: 3
-  - Артефакт: `.build/screenshots/notification-settings-final.png`
-  - Комментарий: реализованы переключатели, вечер/утро, тихие часы и локальная проверка дайджеста; настройки по конкретному ребенку/классу еще не детализированы
+  - Артефакт: `.build/screenshots/notification-settings-final.png`, `.build/screenshots/more-persistence-notifications-final.png`
+  - Комментарий: реализованы и локально сохраняются переключатели, вечер/утро, тихие часы и локальная проверка дайджеста; настройки по конкретному ребенку/классу еще не детализированы
 
 ## 17. Подписка и монетизация
 
@@ -662,8 +662,8 @@
 - [~] Paywall
   - Проверка: показывает конкретную ценность: "Что завтра", ДЗ по фото, напоминания, кружки, семейный доступ, AI-разбор
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/subscription-settings-final.png`
-  - Комментарий: реализован локальный экран подписки с ценностью trial и функций; полноценный paywall перед ограниченными действиями еще не внедрен
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/subscription-settings-final.png`, `.build/screenshots/more-persistence-subscription.png`
+  - Комментарий: реализован локальный экран подписки с ценностью trial и функций; выбранный тариф сохраняется локально, полноценный paywall перед ограниченными действиями еще не внедрен
 
 - [ ] StoreKit 2
   - Проверка: покупка, trial, восстановление покупок, истекшая подписка, ошибка оплаты
@@ -938,3 +938,4 @@
 | 2026-07-03 | Локальное хранение ДЗ и календаря | Пройдено | 3 | `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-persistence-add.png`, `.build/screenshots/homework-persistence-parse.png`, `.build/screenshots/calendar-persistence-main.png`, `.build/screenshots/calendar-persistence-add.png`, `.build/screenshots/calendar-persistence-detail.png` | Добавлено сохранение ДЗ, AI-результатов, отметок выполнения, событий и ответов семьи в `UserDefaults`; сборка `xcodebuild` проходит |
 | 2026-07-03 | Регрессия основных вкладок после хранения ДЗ и календаря | Пройдено | 3 | `.build/screenshots/regression-today-after-homework-calendar-persistence.png`, `.build/screenshots/regression-class-after-homework-calendar-persistence.png`, `.build/screenshots/regression-homework-after-homework-calendar-persistence.png`, `.build/screenshots/regression-calendar-after-homework-calendar-persistence.png`, `.build/screenshots/regression-more-after-homework-calendar-persistence.png` | После изменения `HomeworkView`, `CalendarView` и моделей проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Системные фото и файлы для разбора ДЗ | Пройдено | 3 | `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png` | Добавлены image picker и document picker для исходников ДЗ; на Simulator камера недоступна, на iPhone будет вариант съемки |
+| 2026-07-03 | Локальное хранение раздела Еще | Пройдено | 3 | `.build/screenshots/more-persistence-main.png`, `.build/screenshots/more-persistence-children.png`, `.build/screenshots/more-persistence-family.png`, `.build/screenshots/more-persistence-classes.png`, `.build/screenshots/more-persistence-subscription.png`, `.build/screenshots/more-persistence-notifications-final.png` | Добавлено сохранение детей, семейного доступа, классов, выбранного тарифа, переключателей уведомлений, времени дайджестов и тихих часов в `UserDefaults`; сборка `xcodebuild` проходит |

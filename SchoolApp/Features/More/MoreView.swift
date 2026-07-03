@@ -1,14 +1,163 @@
 import SwiftUI
 
+private struct NotificationSettingsState: Codable, Hashable {
+    var eveningTime: String
+    var morningTime: String
+    var quietHoursEnabled: Bool
+    var quietStart: String
+    var quietEnd: String
+
+    static let sample = NotificationSettingsState(
+        eveningTime: "20:30",
+        morningTime: "07:15",
+        quietHoursEnabled: true,
+        quietStart: "22:00",
+        quietEnd: "07:00"
+    )
+}
+
+private struct MoreStoreSnapshot: Codable {
+    var children: [ChildSummary]
+    var familyMembers: [FamilyAccessMember]
+    var classAccess: [ClassAccessSummary]
+    var notificationPreferences: [NotificationPreference]
+    var notificationSettings: NotificationSettingsState
+    var subscriptionPlans: [SubscriptionPlanSummary]
+
+    init(
+        children: [ChildSummary],
+        familyMembers: [FamilyAccessMember],
+        classAccess: [ClassAccessSummary],
+        notificationPreferences: [NotificationPreference],
+        notificationSettings: NotificationSettingsState = .sample,
+        subscriptionPlans: [SubscriptionPlanSummary]
+    ) {
+        self.children = children
+        self.familyMembers = familyMembers
+        self.classAccess = classAccess
+        self.notificationPreferences = notificationPreferences
+        self.notificationSettings = notificationSettings
+        self.subscriptionPlans = subscriptionPlans
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        children = try container.decode([ChildSummary].self, forKey: .children)
+        familyMembers = try container.decode([FamilyAccessMember].self, forKey: .familyMembers)
+        classAccess = try container.decode([ClassAccessSummary].self, forKey: .classAccess)
+        notificationPreferences = try container.decode([NotificationPreference].self, forKey: .notificationPreferences)
+        notificationSettings = try container.decodeIfPresent(NotificationSettingsState.self, forKey: .notificationSettings) ?? .sample
+        subscriptionPlans = try container.decode([SubscriptionPlanSummary].self, forKey: .subscriptionPlans)
+    }
+
+    static let sample = MoreStoreSnapshot(
+        children: SampleData.children,
+        familyMembers: SampleData.familyMembers,
+        classAccess: SampleData.classAccess,
+        notificationPreferences: SampleData.notificationPreferences,
+        notificationSettings: .sample,
+        subscriptionPlans: SampleData.subscriptionPlans
+    )
+}
+
+private enum MoreLocalStore {
+    private static let defaultsKey = "school.more.store.v1"
+    private static var snapshot: MoreStoreSnapshot = load()
+
+    static var children: [ChildSummary] {
+        get { snapshot.children }
+        set {
+            snapshot.children = newValue
+            save()
+        }
+    }
+
+    static var familyMembers: [FamilyAccessMember] {
+        get { snapshot.familyMembers }
+        set {
+            snapshot.familyMembers = newValue
+            save()
+        }
+    }
+
+    static var classAccess: [ClassAccessSummary] {
+        get { snapshot.classAccess }
+        set {
+            snapshot.classAccess = newValue
+            save()
+        }
+    }
+
+    static var notificationPreferences: [NotificationPreference] {
+        get { snapshot.notificationPreferences }
+        set {
+            snapshot.notificationPreferences = newValue
+            save()
+        }
+    }
+
+    static var notificationSettings: NotificationSettingsState {
+        get { snapshot.notificationSettings }
+        set {
+            snapshot.notificationSettings = newValue
+            save()
+        }
+    }
+
+    static var subscriptionPlans: [SubscriptionPlanSummary] {
+        get { snapshot.subscriptionPlans }
+        set {
+            snapshot.subscriptionPlans = newValue
+            save()
+        }
+    }
+
+    static func resetIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-reset-more-store") else {
+            return
+        }
+
+        snapshot = .sample
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    private static func load() -> MoreStoreSnapshot {
+        guard
+            let data = UserDefaults.standard.data(forKey: defaultsKey),
+            let decoded = try? JSONDecoder().decode(MoreStoreSnapshot.self, from: data)
+        else {
+            return .sample
+        }
+
+        return decoded
+    }
+
+    private static func save() {
+        guard let data = try? JSONEncoder().encode(snapshot) else {
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
+}
+
 struct MoreView: View {
-    @State private var children = SampleData.children
-    @State private var familyMembers = SampleData.familyMembers
-    @State private var classAccess = SampleData.classAccess
-    @State private var notificationPreferences = SampleData.notificationPreferences
-    @State private var subscriptionPlans = SampleData.subscriptionPlans
+    @State private var children: [ChildSummary]
+    @State private var familyMembers: [FamilyAccessMember]
+    @State private var classAccess: [ClassAccessSummary]
+    @State private var notificationPreferences: [NotificationPreference]
+    @State private var notificationSettings: NotificationSettingsState
+    @State private var subscriptionPlans: [SubscriptionPlanSummary]
     @State private var activeSheet: MoreSheet?
 
     init() {
+        MoreLocalStore.resetIfRequested()
+        _children = State(initialValue: MoreLocalStore.children)
+        _familyMembers = State(initialValue: MoreLocalStore.familyMembers)
+        _classAccess = State(initialValue: MoreLocalStore.classAccess)
+        _notificationPreferences = State(initialValue: MoreLocalStore.notificationPreferences)
+        _notificationSettings = State(initialValue: MoreLocalStore.notificationSettings)
+        _subscriptionPlans = State(initialValue: MoreLocalStore.subscriptionPlans)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -31,22 +180,29 @@ struct MoreView: View {
             case .children:
                 ChildrenAccessSheet(children: children) { updatedChildren in
                     children = updatedChildren
+                    MoreLocalStore.children = updatedChildren
                 }
             case .family:
                 FamilyAccessSheet(members: familyMembers) { updatedMembers in
                     familyMembers = updatedMembers
+                    MoreLocalStore.familyMembers = updatedMembers
                 }
             case .classes:
                 ClassesAccessSheet(classes: classAccess) { updatedClasses in
                     classAccess = updatedClasses
+                    MoreLocalStore.classAccess = updatedClasses
                 }
             case .subscription:
                 SubscriptionSheet(plans: subscriptionPlans) { updatedPlans in
                     subscriptionPlans = updatedPlans
+                    MoreLocalStore.subscriptionPlans = updatedPlans
                 }
             case .notifications:
-                NotificationSettingsSheet(preferences: notificationPreferences) { updatedPreferences in
+                NotificationSettingsSheet(preferences: notificationPreferences, settings: notificationSettings) { updatedPreferences, updatedSettings in
                     notificationPreferences = updatedPreferences
+                    notificationSettings = updatedSettings
+                    MoreLocalStore.notificationPreferences = updatedPreferences
+                    MoreLocalStore.notificationSettings = updatedSettings
                 }
             }
         }
@@ -777,19 +933,20 @@ private struct SubscriptionSheet: View {
 private struct NotificationSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    let onSave: ([NotificationPreference]) -> Void
+    let onSave: ([NotificationPreference], NotificationSettingsState) -> Void
 
     @State private var preferences: [NotificationPreference]
-    @State private var eveningTime = "20:30"
-    @State private var morningTime = "07:15"
-    @State private var quietHoursEnabled = true
-    @State private var quietStart = "22:00"
-    @State private var quietEnd = "07:00"
+    @State private var settings: NotificationSettingsState
     @State private var testStatus = "Тестовый дайджест не отправлялся"
 
-    init(preferences: [NotificationPreference], onSave: @escaping ([NotificationPreference]) -> Void) {
+    init(
+        preferences: [NotificationPreference],
+        settings: NotificationSettingsState,
+        onSave: @escaping ([NotificationPreference], NotificationSettingsState) -> Void
+    ) {
         self.onSave = onSave
         _preferences = State(initialValue: preferences)
+        _settings = State(initialValue: settings)
     }
 
     var body: some View {
@@ -807,9 +964,9 @@ private struct NotificationSettingsSheet: View {
                         HStack(spacing: 12) {
                             MoreMetric(value: "\(enabledCount)", title: "включено", color: SchoolTheme.success)
                             Divider()
-                            MoreMetric(value: eveningTime, title: "вечером", color: SchoolTheme.accent)
+                            MoreMetric(value: settings.eveningTime, title: "вечером", color: SchoolTheme.accent)
                             Divider()
-                            MoreMetric(value: quietHoursEnabled ? "да" : "нет", title: "тихий режим", color: SchoolTheme.teal)
+                            MoreMetric(value: settings.quietHoursEnabled ? "да" : "нет", title: "тихий режим", color: SchoolTheme.teal)
                         }
                         .frame(height: 62)
                     }
@@ -835,7 +992,7 @@ private struct NotificationSettingsSheet: View {
                             Text("Вечер")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(SchoolTheme.muted)
-                            Picker("Вечер", selection: $eveningTime) {
+                            Picker("Вечер", selection: $settings.eveningTime) {
                                 Text("19:30").tag("19:30")
                                 Text("20:30").tag("20:30")
                                 Text("21:30").tag("21:30")
@@ -845,7 +1002,7 @@ private struct NotificationSettingsSheet: View {
                             Text("Утро")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(SchoolTheme.muted)
-                            Picker("Утро", selection: $morningTime) {
+                            Picker("Утро", selection: $settings.morningTime) {
                                 Text("07:00").tag("07:00")
                                 Text("07:15").tag("07:15")
                                 Text("07:30").tag("07:30")
@@ -856,7 +1013,7 @@ private struct NotificationSettingsSheet: View {
 
                     DashboardCard {
                         VStack(spacing: 12) {
-                            Toggle(isOn: $quietHoursEnabled) {
+                            Toggle(isOn: $settings.quietHoursEnabled) {
                                 HStack(spacing: 12) {
                                     IconBadge(systemName: "moon.zzz.fill", color: SchoolTheme.teal, size: 40)
                                     VStack(alignment: .leading, spacing: 2) {
@@ -872,11 +1029,11 @@ private struct NotificationSettingsSheet: View {
                             .tint(SchoolTheme.success)
 
                             HStack(spacing: 10) {
-                                MoreTextField(title: "Начало", iconName: "moon.fill", color: SchoolTheme.teal, text: $quietStart)
-                                MoreTextField(title: "Конец", iconName: "sunrise.fill", color: SchoolTheme.warning, text: $quietEnd)
+                                MoreTextField(title: "Начало", iconName: "moon.fill", color: SchoolTheme.teal, text: $settings.quietStart)
+                                MoreTextField(title: "Конец", iconName: "sunrise.fill", color: SchoolTheme.warning, text: $settings.quietEnd)
                             }
-                            .disabled(!quietHoursEnabled)
-                            .opacity(quietHoursEnabled ? 1 : 0.45)
+                            .disabled(!settings.quietHoursEnabled)
+                            .opacity(settings.quietHoursEnabled ? 1 : 0.45)
                         }
                     }
 
@@ -890,7 +1047,7 @@ private struct NotificationSettingsSheet: View {
                                 .foregroundStyle(SchoolTheme.muted)
 
                             Button {
-                                testStatus = "Готово: локальный дайджест собран на \(eveningTime)"
+                                testStatus = "Готово: локальный дайджест собран на \(settings.eveningTime)"
                             } label: {
                                 Label("Собрать тестовый дайджест", systemImage: "paperplane.fill")
                                     .font(.subheadline.weight(.semibold))
@@ -933,7 +1090,7 @@ private struct NotificationSettingsSheet: View {
     }
 
     private func save() {
-        onSave(preferences)
+        onSave(preferences, settings)
         dismiss()
     }
 }
