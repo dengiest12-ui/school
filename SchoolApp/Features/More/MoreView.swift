@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private struct NotificationSettingsState: Codable, Hashable {
     var eveningTime: String
@@ -23,6 +24,8 @@ private struct MoreStoreSnapshot: Codable {
     var notificationPreferences: [NotificationPreference]
     var notificationSettings: NotificationSettingsState
     var subscriptionPlans: [SubscriptionPlanSummary]
+    var classMemory: [ClassMemoryEntry]
+    var classFiles: [ClassFileSummary]
 
     init(
         children: [ChildSummary],
@@ -30,7 +33,9 @@ private struct MoreStoreSnapshot: Codable {
         classAccess: [ClassAccessSummary],
         notificationPreferences: [NotificationPreference],
         notificationSettings: NotificationSettingsState = .sample,
-        subscriptionPlans: [SubscriptionPlanSummary]
+        subscriptionPlans: [SubscriptionPlanSummary],
+        classMemory: [ClassMemoryEntry],
+        classFiles: [ClassFileSummary]
     ) {
         self.children = children
         self.familyMembers = familyMembers
@@ -38,6 +43,8 @@ private struct MoreStoreSnapshot: Codable {
         self.notificationPreferences = notificationPreferences
         self.notificationSettings = notificationSettings
         self.subscriptionPlans = subscriptionPlans
+        self.classMemory = classMemory
+        self.classFiles = classFiles
     }
 
     init(from decoder: Decoder) throws {
@@ -48,6 +55,8 @@ private struct MoreStoreSnapshot: Codable {
         notificationPreferences = try container.decode([NotificationPreference].self, forKey: .notificationPreferences)
         notificationSettings = try container.decodeIfPresent(NotificationSettingsState.self, forKey: .notificationSettings) ?? .sample
         subscriptionPlans = try container.decode([SubscriptionPlanSummary].self, forKey: .subscriptionPlans)
+        classMemory = try container.decodeIfPresent([ClassMemoryEntry].self, forKey: .classMemory) ?? SampleData.classMemory
+        classFiles = try container.decodeIfPresent([ClassFileSummary].self, forKey: .classFiles) ?? SampleData.classFiles
     }
 
     static let sample = MoreStoreSnapshot(
@@ -56,7 +65,9 @@ private struct MoreStoreSnapshot: Codable {
         classAccess: SampleData.classAccess,
         notificationPreferences: SampleData.notificationPreferences,
         notificationSettings: .sample,
-        subscriptionPlans: SampleData.subscriptionPlans
+        subscriptionPlans: SampleData.subscriptionPlans,
+        classMemory: SampleData.classMemory,
+        classFiles: SampleData.classFiles
     )
 }
 
@@ -112,6 +123,22 @@ private enum MoreLocalStore {
         }
     }
 
+    static var classMemory: [ClassMemoryEntry] {
+        get { snapshot.classMemory }
+        set {
+            snapshot.classMemory = newValue
+            save()
+        }
+    }
+
+    static var classFiles: [ClassFileSummary] {
+        get { snapshot.classFiles }
+        set {
+            snapshot.classFiles = newValue
+            save()
+        }
+    }
+
     static func resetIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-qa-reset-more-store") else {
             return
@@ -148,6 +175,8 @@ struct MoreView: View {
     @State private var notificationPreferences: [NotificationPreference]
     @State private var notificationSettings: NotificationSettingsState
     @State private var subscriptionPlans: [SubscriptionPlanSummary]
+    @State private var classMemory: [ClassMemoryEntry]
+    @State private var classFiles: [ClassFileSummary]
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -158,6 +187,8 @@ struct MoreView: View {
         _notificationPreferences = State(initialValue: MoreLocalStore.notificationPreferences)
         _notificationSettings = State(initialValue: MoreLocalStore.notificationSettings)
         _subscriptionPlans = State(initialValue: MoreLocalStore.subscriptionPlans)
+        _classMemory = State(initialValue: MoreLocalStore.classMemory)
+        _classFiles = State(initialValue: MoreLocalStore.classFiles)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -203,6 +234,16 @@ struct MoreView: View {
                     notificationSettings = updatedSettings
                     MoreLocalStore.notificationPreferences = updatedPreferences
                     MoreLocalStore.notificationSettings = updatedSettings
+                }
+            case .memory:
+                ClassMemorySheet(entries: classMemory) { updatedEntries in
+                    classMemory = updatedEntries
+                    MoreLocalStore.classMemory = updatedEntries
+                }
+            case .files:
+                ClassFilesSheet(files: classFiles) { updatedFiles in
+                    classFiles = updatedFiles
+                    MoreLocalStore.classFiles = updatedFiles
                 }
             }
         }
@@ -292,8 +333,8 @@ struct MoreView: View {
         [
             MoreMenuItem(title: "Подписка", subtitle: subscriptionSubtitle, icon: "creditcard.fill", color: SchoolTheme.warning, sheet: .subscription),
             MoreMenuItem(title: "Уведомления", subtitle: "\(enabledNotificationCount) включено: дайджесты, дедлайны, срочное", icon: "bell.fill", color: SchoolTheme.success, sheet: .notifications),
-            MoreMenuItem(title: "Память класса", subtitle: "Поиск по объявлениям и файлам", icon: "magnifyingglass", color: SchoolTheme.accent),
-            MoreMenuItem(title: "Файлы", subtitle: "Согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal)
+            MoreMenuItem(title: "Память класса", subtitle: "\(classMemory.count) находки: объявления, файлы, события", icon: "magnifyingglass", color: SchoolTheme.accent, sheet: .memory),
+            MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files)
         ]
     }
 
@@ -338,6 +379,14 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-notifications") {
             return .notifications
+        }
+
+        if arguments.contains("-qa-more-memory") {
+            return .memory
+        }
+
+        if arguments.contains("-qa-more-files") || arguments.contains("-qa-more-files-importer") {
+            return .files
         }
 
         return nil
@@ -1095,6 +1144,513 @@ private struct NotificationSettingsSheet: View {
     }
 }
 
+private struct ClassMemorySheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([ClassMemoryEntry]) -> Void
+
+    @State private var entries: [ClassMemoryEntry]
+    @State private var searchText = ""
+    @State private var newTitle = "Фото с экскурсии"
+    @State private var newDetail = "Добавить в память класса и связать с событием"
+    @State private var newTag = "Фото"
+
+    private let tags = ["Фото", "Событие", "Объявление", "Файл"]
+
+    init(entries: [ClassMemoryEntry], onSave: @escaping ([ClassMemoryEntry]) -> Void) {
+        self.onSave = onSave
+        _entries = State(initialValue: entries)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "magnifyingglass",
+                        color: SchoolTheme.accent,
+                        title: "Память класса",
+                        subtitle: "Поиск по объявлениям, событиям, файлам и важным решениям"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(entries.count)", title: "записей", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(Set(entries.map(\.tag)).count)", title: "типов", color: SchoolTheme.teal)
+                            Divider()
+                            MoreMetric(value: "\(filteredEntries.count)", title: "найдено", color: SchoolTheme.success)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Поиск", iconName: "magnifyingglass", color: SchoolTheme.accent, text: $searchText)
+
+                            if filteredEntries.isEmpty {
+                                MoreEmptyState(
+                                    icon: "tray.fill",
+                                    title: "Ничего не найдено",
+                                    detail: "Попробуй другое слово: событие, чек, согласие или объявление"
+                                )
+                            } else {
+                                ForEach(filteredEntries) { entry in
+                                    memoryRow(entry)
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            Text("Добавить в память")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            MoreTextField(title: "Название", iconName: "text.badge.plus", color: SchoolTheme.success, text: $newTitle)
+                            MoreTextField(title: "Описание", iconName: "note.text", color: SchoolTheme.accent, text: $newDetail)
+
+                            Picker("Тип", selection: $newTag) {
+                                ForEach(tags, id: \.self) { tag in
+                                    Text(tag).tag(tag)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Button {
+                                addEntry()
+                            } label: {
+                                Label("Добавить запись", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(SchoolTheme.success)
+                            .disabled(newTitle.trimmed.isEmpty || newDetail.trimmed.isEmpty)
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить память", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Память класса")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var filteredEntries: [ClassMemoryEntry] {
+        let query = searchText.trimmed.lowercased()
+        guard !query.isEmpty else {
+            return entries
+        }
+
+        return entries.filter { entry in
+            [entry.title, entry.detail, entry.source, entry.dateLabel, entry.tag]
+                .joined(separator: " ")
+                .lowercased()
+                .contains(query)
+        }
+    }
+
+    private func memoryRow(_ entry: ClassMemoryEntry) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: entry.iconName, color: moreColor(for: entry.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Text(entry.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: entry.tag, color: moreColor(for: entry.colorName))
+                }
+                Text(entry.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(entry.source) - \(entry.dateLabel)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func addEntry() {
+        entries.insert(
+            ClassMemoryEntry(
+                title: newTitle.trimmed,
+                detail: newDetail.trimmed,
+                source: "Добавлено вручную",
+                dateLabel: "сегодня",
+                tag: newTag,
+                iconName: iconName(for: newTag),
+                colorName: colorName(for: newTag)
+            ),
+            at: 0
+        )
+        newTitle = ""
+        newDetail = ""
+    }
+
+    private func iconName(for tag: String) -> String {
+        switch tag {
+        case "Фото":
+            "photo.fill"
+        case "Событие":
+            "calendar.badge.clock"
+        case "Объявление":
+            "megaphone.fill"
+        default:
+            "doc.text.fill"
+        }
+    }
+
+    private func colorName(for tag: String) -> String {
+        switch tag {
+        case "Фото", "Файл":
+            "teal"
+        case "Объявление":
+            "orange"
+        default:
+            "blue"
+        }
+    }
+
+    private func save() {
+        onSave(entries)
+        dismiss()
+    }
+}
+
+private struct ClassFilesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([ClassFileSummary]) -> Void
+
+    @State private var files: [ClassFileSummary]
+    @State private var searchText = ""
+    @State private var selectedFilter = "Все"
+    @State private var newTitle = "Согласие на экскурсию.pdf"
+    @State private var newDetail = "Документ для родителей 3Б"
+    @State private var newCategory = "Согласия"
+    @State private var importStatus = "Файл пока не выбран"
+    @State private var isFileImporterVisible = ProcessInfo.processInfo.arguments.contains("-qa-more-files-importer")
+
+    private let filters = ["Все", "Согласия", "Чеки", "Материалы"]
+    private let categories = ["Согласия", "Чеки", "Материалы"]
+
+    init(files: [ClassFileSummary], onSave: @escaping ([ClassFileSummary]) -> Void) {
+        self.onSave = onSave
+        _files = State(initialValue: files)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "folder.fill",
+                        color: SchoolTheme.teal,
+                        title: "Файлы",
+                        subtitle: "Согласия, чеки, материалы и документы класса"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(files.count)", title: "файлов", color: SchoolTheme.teal)
+                            Divider()
+                            MoreMetric(value: "\(Set(files.map(\.category)).count)", title: "папки", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(actionNeededCount)", title: "дела", color: SchoolTheme.warning)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            MoreTextField(title: "Поиск файла", iconName: "magnifyingglass", color: SchoolTheme.accent, text: $searchText)
+
+                            Picker("Папка", selection: $selectedFilter) {
+                                ForEach(filters, id: \.self) { filter in
+                                    Text(filter).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Документы")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            if filteredFiles.isEmpty {
+                                MoreEmptyState(
+                                    icon: "folder.badge.questionmark",
+                                    title: "Файлов нет",
+                                    detail: "В этой папке пока ничего не найдено"
+                                )
+                            } else {
+                                ForEach(filteredFiles) { file in
+                                    fileRow(file)
+                                }
+                            }
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            Text("Добавить файл")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            MoreTextField(title: "Название", iconName: "doc.badge.plus", color: SchoolTheme.success, text: $newTitle)
+                            MoreTextField(title: "Описание", iconName: "note.text", color: SchoolTheme.accent, text: $newDetail)
+
+                            Picker("Категория", selection: $newCategory) {
+                                ForEach(categories, id: \.self) { category in
+                                    Text(category).tag(category)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(importStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    isFileImporterVisible = true
+                                } label: {
+                                    Label("Выбрать", systemImage: "paperclip")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.accent)
+
+                                Button {
+                                    addManualFile()
+                                } label: {
+                                    Label("Добавить", systemImage: "plus")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.success)
+                                .disabled(newTitle.trimmed.isEmpty || newDetail.trimmed.isEmpty)
+                            }
+                        }
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить файлы", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Файлы")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: true
+            ) { result in
+                handleFileImport(result)
+            }
+        }
+    }
+
+    private var filteredFiles: [ClassFileSummary] {
+        let query = searchText.trimmed.lowercased()
+        return files.filter { file in
+            let matchesFilter = selectedFilter == "Все" || file.category == selectedFilter
+            let searchableText = [file.title, file.detail, file.category, file.owner, file.status]
+                .joined(separator: " ")
+                .lowercased()
+            let matchesSearch = query.isEmpty || searchableText.contains(query)
+            return matchesFilter && matchesSearch
+        }
+    }
+
+    private var actionNeededCount: Int {
+        files.filter { file in
+            file.status.contains("Нужно") || file.status.contains("Ожидает")
+        }.count
+    }
+
+    private func fileRow(_ file: ClassFileSummary) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: file.iconName, color: moreColor(for: file.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Text(file.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: file.category, color: moreColor(for: file.colorName))
+                }
+                Text(file.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(file.owner) - \(file.updatedLabel)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                Text(file.status)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(statusColor(for: file.status))
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func addManualFile() {
+        files.insert(
+            ClassFileSummary(
+                title: newTitle.trimmed,
+                detail: newDetail.trimmed,
+                category: newCategory,
+                owner: "Владимир",
+                updatedLabel: "сегодня",
+                status: "Локально",
+                iconName: iconName(for: newCategory),
+                colorName: colorName(for: newCategory)
+            ),
+            at: 0
+        )
+        importStatus = "Добавлена запись: \(newTitle.trimmed)"
+        newTitle = ""
+        newDetail = ""
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard !urls.isEmpty else {
+                importStatus = "Файл не выбран"
+                return
+            }
+
+            for url in urls {
+                files.insert(
+                    ClassFileSummary(
+                        title: url.lastPathComponent,
+                        detail: "Добавлен через системный выбор файла",
+                        category: newCategory,
+                        owner: "Владимир",
+                        updatedLabel: "сегодня",
+                        status: "Локально",
+                        iconName: iconName(for: newCategory),
+                        colorName: colorName(for: newCategory)
+                    ),
+                    at: 0
+                )
+            }
+
+            importStatus = "Добавлено файлов: \(urls.count)"
+        case .failure:
+            importStatus = "Не удалось добавить файл"
+        }
+    }
+
+    private func iconName(for category: String) -> String {
+        switch category {
+        case "Чеки":
+            "receipt.fill"
+        case "Материалы":
+            "photo.on.rectangle.angled"
+        default:
+            "doc.text.fill"
+        }
+    }
+
+    private func colorName(for category: String) -> String {
+        switch category {
+        case "Чеки":
+            "green"
+        case "Материалы":
+            "teal"
+        default:
+            "blue"
+        }
+    }
+
+    private func statusColor(for status: String) -> Color {
+        if status.contains("Нужно") || status.contains("Ожидает") {
+            return SchoolTheme.warning
+        }
+
+        if status.contains("Проверено") || status.contains("Локально") {
+            return SchoolTheme.success
+        }
+
+        return SchoolTheme.muted
+    }
+
+    private func save() {
+        onSave(files)
+        dismiss()
+    }
+}
+
+private struct MoreEmptyState: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            IconBadge(systemName: icon, color: SchoolTheme.muted, size: 44)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+}
+
 private struct NotificationPreferenceRow: View {
     @Binding var preference: NotificationPreference
 
@@ -1197,6 +1753,8 @@ private enum MoreSheet: String, Identifiable {
     case classes
     case subscription
     case notifications
+    case memory
+    case files
 
     var id: String { rawValue }
 }

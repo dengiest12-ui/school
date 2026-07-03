@@ -196,7 +196,7 @@
   - Комментарий: для MVP раздел "Класс" сохраняется локально JSON-снимком в `UserDefaults`; финальная архитектура backend/синхронизации еще не выбрана
 
 - [~] Локальное хранение MVP
-  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты, участники класса, ДЗ, события календаря, дети, семья, классы, подписка и настройки уведомлений не сбрасываются при перезапуске приложения
+  - Проверка: объявления, подтверждения прочтения, сборы, статусы, расходы, дайджесты, участники класса, ДЗ, события календаря, дети, семья, классы, подписка, настройки уведомлений, память класса и файлы не сбрасываются при перезапуске приложения
   - Уровень: 3
   - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`
   - Комментарий: временное хранение подходит для проверки UX, но не заменяет аккаунт, серверную синхронизацию, аудит прав и хранение файлов
@@ -518,6 +518,18 @@
   - Комментарий: реализован локальный UX распознанного текста и подтверждения добавляемых уроков; настоящие камера, OCR и AI/backend еще не подключены
 
 ## 13. Фотоальбом
+
+- [~] Память класса
+  - Проверка: поиск по важным объявлениям, событиям, файлам и ручным заметкам класса
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/more-memory-screen.png`
+  - Комментарий: реализован локальный экран памяти класса с поиском, типами записей и добавлением заметки; настоящий поиск по backend, фото и сообщениям еще не подключен
+
+- [~] Файлы класса
+  - Проверка: согласия, чеки и материалы видны по категориям, можно открыть системный выбор файла
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/more-files-screen.png`, `.build/screenshots/more-files-importer.png`
+  - Комментарий: реализован локальный каталог файлов с фильтрами, поиском, ручным добавлением и document picker; бинарное хранение файлов, права доступа и синхронизация еще не подключены
 
 - [ ] Альбомы класса
   - Проверка: можно создать альбом события и загрузить фото
@@ -939,3 +951,4 @@
 | 2026-07-03 | Регрессия основных вкладок после хранения ДЗ и календаря | Пройдено | 3 | `.build/screenshots/regression-today-after-homework-calendar-persistence.png`, `.build/screenshots/regression-class-after-homework-calendar-persistence.png`, `.build/screenshots/regression-homework-after-homework-calendar-persistence.png`, `.build/screenshots/regression-calendar-after-homework-calendar-persistence.png`, `.build/screenshots/regression-more-after-homework-calendar-persistence.png` | После изменения `HomeworkView`, `CalendarView` и моделей проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Системные фото и файлы для разбора ДЗ | Пройдено | 3 | `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png` | Добавлены image picker и document picker для исходников ДЗ; на Simulator камера недоступна, на iPhone будет вариант съемки |
 | 2026-07-03 | Локальное хранение раздела Еще | Пройдено | 3 | `.build/screenshots/more-persistence-main.png`, `.build/screenshots/more-persistence-children.png`, `.build/screenshots/more-persistence-family.png`, `.build/screenshots/more-persistence-classes.png`, `.build/screenshots/more-persistence-subscription.png`, `.build/screenshots/more-persistence-notifications-final.png` | Добавлено сохранение детей, семейного доступа, классов, выбранного тарифа, переключателей уведомлений, времени дайджестов и тихих часов в `UserDefaults`; сборка `xcodebuild` проходит |
+| 2026-07-03 | Память класса и файлы | Пройдено | 3 | `.build/screenshots/more-main-after-memory-files.png`, `.build/screenshots/more-memory-screen.png`, `.build/screenshots/more-files-screen.png`, `.build/screenshots/more-files-importer.png` | Добавлены локальные экраны памяти класса и файлов с поиском, категориями, добавлением записей и системным document picker; на Simulator Files может показывать недоступный контент, но системный выбор открывается |

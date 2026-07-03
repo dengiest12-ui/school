@@ -378,6 +378,71 @@ struct SubscriptionPlanSummary: Identifiable, Hashable, Codable {
     }
 }
 
+struct ClassMemoryEntry: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var source: String
+    var dateLabel: String
+    var tag: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String,
+        source: String,
+        dateLabel: String,
+        tag: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.source = source
+        self.dateLabel = dateLabel
+        self.tag = tag
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+}
+
+struct ClassFileSummary: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var category: String
+    var owner: String
+    var updatedLabel: String
+    var status: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String,
+        category: String,
+        owner: String,
+        updatedLabel: String,
+        status: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.category = category
+        self.owner = owner
+        self.updatedLabel = updatedLabel
+        self.status = status
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+}
+
 struct SubscriptionBenefit: Identifiable, Hashable {
     let id = UUID()
     let title: String
@@ -545,6 +610,69 @@ enum SampleData {
         SubscriptionPlanSummary(title: "Пробный период", price: "0 руб.", detail: "14 дней: ДЗ по фото, дайджесты и семейный доступ", badge: "Активен", isCurrent: true),
         SubscriptionPlanSummary(title: "1 ребенок", price: "149 руб./мес", detail: "Все ключевые функции для одного школьника", badge: "MVP"),
         SubscriptionPlanSummary(title: "Семья+", price: "+59 руб./мес", detail: "Дополнительный ребенок и общие семейные напоминания", badge: "Доп. ребенок")
+    ]
+
+    static let classMemory = [
+        ClassMemoryEntry(
+            title: "Экскурсия в планетарий",
+            detail: "Дата, список детей, чек автобуса и фото из объявления собраны в одном месте",
+            source: "Календарь + файлы",
+            dateLabel: "12 мая",
+            tag: "Событие",
+            iconName: "sparkles",
+            colorName: "blue"
+        ),
+        ClassMemoryEntry(
+            title: "Список на ярмарку",
+            detail: "Кто что приносит, ответственные родители и финальный отчет по сбору",
+            source: "Объявления",
+            dateLabel: "апрель",
+            tag: "Объявление",
+            iconName: "megaphone.fill",
+            colorName: "orange"
+        ),
+        ClassMemoryEntry(
+            title: "Согласия на поездку",
+            detail: "Шаблон согласия, подписанные сканы и напоминание тем, кто еще не отправил",
+            source: "Файлы",
+            dateLabel: "март",
+            tag: "Файл",
+            iconName: "doc.text.fill",
+            colorName: "green"
+        )
+    ]
+
+    static let classFiles = [
+        ClassFileSummary(
+            title: "Согласие на экскурсию.pdf",
+            detail: "Шаблон для родителей 3Б",
+            category: "Согласия",
+            owner: "Елена Сергеевна",
+            updatedLabel: "обновлено вчера",
+            status: "Нужно подписать",
+            iconName: "doc.text.fill",
+            colorName: "blue"
+        ),
+        ClassFileSummary(
+            title: "Чек автобус.pdf",
+            detail: "Расход по сбору на планетарий",
+            category: "Чеки",
+            owner: "Родкомитет",
+            updatedLabel: "12 мая",
+            status: "Проверено",
+            iconName: "receipt.fill",
+            colorName: "green"
+        ),
+        ClassFileSummary(
+            title: "Памятка по форме.png",
+            detail: "Что надеть на физкультуру и праздник",
+            category: "Материалы",
+            owner: "Владимир",
+            updatedLabel: "1 мая",
+            status: "В классе",
+            iconName: "photo.fill",
+            colorName: "teal"
+        )
     ]
 
     static let subscriptionBenefits = [
