@@ -31,6 +31,20 @@ private struct SecuritySettingsState: Codable, Hashable {
     )
 }
 
+private struct PrivacySettingsState: Codable, Hashable {
+    var minimalChildData: Bool
+    var childDataConsent: Bool
+    var privacyPolicyAccepted: Bool
+    var consentStatus: String
+
+    static let sample = PrivacySettingsState(
+        minimalChildData: true,
+        childDataConsent: false,
+        privacyPolicyAccepted: false,
+        consentStatus: "Согласие еще не подтверждено"
+    )
+}
+
 private struct ParentProfileState: Codable, Hashable {
     var name: String
     var contact: String
@@ -162,6 +176,7 @@ private struct MoreStoreSnapshot: Codable {
     var classFiles: [ClassFileSummary]
     var securitySettings: SecuritySettingsState
     var auditEntries: [AuditLogEntry]
+    var privacySettings: PrivacySettingsState
 
     init(
         profile: ParentProfileState = .sample,
@@ -175,7 +190,8 @@ private struct MoreStoreSnapshot: Codable {
         classMemory: [ClassMemoryEntry],
         classFiles: [ClassFileSummary],
         securitySettings: SecuritySettingsState = .sample,
-        auditEntries: [AuditLogEntry] = AuditLogEntry.sample
+        auditEntries: [AuditLogEntry] = AuditLogEntry.sample,
+        privacySettings: PrivacySettingsState = .sample
     ) {
         self.profile = profile
         self.children = children
@@ -189,6 +205,7 @@ private struct MoreStoreSnapshot: Codable {
         self.classFiles = classFiles
         self.securitySettings = securitySettings
         self.auditEntries = auditEntries
+        self.privacySettings = privacySettings
     }
 
     init(from decoder: Decoder) throws {
@@ -205,6 +222,7 @@ private struct MoreStoreSnapshot: Codable {
         classFiles = try container.decodeIfPresent([ClassFileSummary].self, forKey: .classFiles) ?? SampleData.classFiles
         securitySettings = try container.decodeIfPresent(SecuritySettingsState.self, forKey: .securitySettings) ?? .sample
         auditEntries = try container.decodeIfPresent([AuditLogEntry].self, forKey: .auditEntries) ?? AuditLogEntry.sample
+        privacySettings = try container.decodeIfPresent(PrivacySettingsState.self, forKey: .privacySettings) ?? .sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -219,7 +237,8 @@ private struct MoreStoreSnapshot: Codable {
         classMemory: SampleData.classMemory,
         classFiles: SampleData.classFiles,
         securitySettings: .sample,
-        auditEntries: AuditLogEntry.sample
+        auditEntries: AuditLogEntry.sample,
+        privacySettings: .sample
     )
 }
 
@@ -323,6 +342,14 @@ private enum MoreLocalStore {
         }
     }
 
+    static var privacySettings: PrivacySettingsState {
+        get { snapshot.privacySettings }
+        set {
+            snapshot.privacySettings = newValue
+            save()
+        }
+    }
+
     static func recordAudit(_ entry: AuditLogEntry) {
         snapshot.auditEntries.insert(entry, at: 0)
         save()
@@ -370,6 +397,7 @@ struct MoreView: View {
     @State private var classFiles: [ClassFileSummary]
     @State private var securitySettings: SecuritySettingsState
     @State private var auditEntries: [AuditLogEntry]
+    @State private var privacySettings: PrivacySettingsState
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -386,6 +414,7 @@ struct MoreView: View {
         _classFiles = State(initialValue: MoreLocalStore.classFiles)
         _securitySettings = State(initialValue: MoreLocalStore.securitySettings)
         _auditEntries = State(initialValue: MoreLocalStore.auditEntries)
+        _privacySettings = State(initialValue: MoreLocalStore.privacySettings)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -539,6 +568,19 @@ struct MoreView: View {
                     auditEntries = updatedEntries
                     MoreLocalStore.auditEntries = updatedEntries
                 }
+            case .privacy:
+                PrivacySettingsSheet(settings: privacySettings) { updatedSettings in
+                    privacySettings = updatedSettings
+                    MoreLocalStore.privacySettings = updatedSettings
+                    recordAudit(
+                        title: "Приватность сохранена",
+                        detail: updatedSettings.consentStatus,
+                        target: "Данные ребенка",
+                        category: "Безопасность",
+                        iconName: "hand.raised.fill",
+                        colorName: "green"
+                    )
+                }
             case .support:
                 SupportMessageSheet(kind: .support)
             case .problem:
@@ -659,6 +701,7 @@ struct MoreView: View {
     private var helpItems: [MoreMenuItem] {
         [
             MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
+            MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
             MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger, sheet: .problem),
             MoreMenuItem(title: "Выйти", subtitle: "Локальный выход и перенос данных", icon: "rectangle.portrait.and.arrow.right", color: SchoolTheme.warning, sheet: .logout)
@@ -673,6 +716,14 @@ struct MoreView: View {
         ].filter { $0 }.count
 
         return "\(enabledCount) защиты: данные детей и доступы"
+    }
+
+    private var privacySubtitle: String {
+        if privacySettings.childDataConsent && privacySettings.privacyPolicyAccepted {
+            return "Согласие и политика подтверждены"
+        }
+
+        return "Нужно подтвердить согласие родителя"
     }
 
     private static func launchSheet() -> MoreSheet? {
@@ -720,6 +771,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-security") {
             return .security
+        }
+
+        if arguments.contains("-qa-more-privacy") {
+            return .privacy
         }
 
         if arguments.contains("-qa-more-support") {
@@ -2829,6 +2884,182 @@ private struct AuditLogSheet: View {
     }
 }
 
+private struct PrivacySettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: (PrivacySettingsState) -> Void
+
+    @State private var settings: PrivacySettingsState
+
+    init(settings: PrivacySettingsState, onSave: @escaping (PrivacySettingsState) -> Void) {
+        self.onSave = onSave
+        _settings = State(initialValue: settings)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "hand.raised.fill",
+                        color: SchoolTheme.teal,
+                        title: "Приватность",
+                        subtitle: "Минимум данных ребенка, согласие родителя и правила хранения"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: settings.minimalChildData ? "да" : "нет", title: "минимум", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: settings.childDataConsent ? "да" : "нет", title: "согласие", color: settings.childDataConsent ? SchoolTheme.success : SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: settings.privacyPolicyAccepted ? "да" : "нет", title: "политика", color: settings.privacyPolicyAccepted ? SchoolTheme.success : SchoolTheme.warning)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(spacing: 14) {
+                            privacyToggle(
+                                title: "Собирать минимум данных",
+                                detail: "Имя ребенка, класс и школьные связи без лишних персональных полей",
+                                icon: "person.text.rectangle.fill",
+                                color: SchoolTheme.success,
+                                isOn: $settings.minimalChildData
+                            )
+
+                            Divider()
+
+                            privacyToggle(
+                                title: "Согласие родителя",
+                                detail: "Для работы класса и семьи",
+                                icon: "checkmark.seal.fill",
+                                color: SchoolTheme.accent,
+                                isOn: $settings.childDataConsent
+                            )
+
+                            Divider()
+
+                            privacyToggle(
+                                title: "Политика конфиденциальности",
+                                detail: "Какие данные нужны и зачем",
+                                icon: "doc.text.fill",
+                                color: SchoolTheme.teal,
+                                isOn: $settings.privacyPolicyAccepted
+                            )
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Кратко о данных")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            privacyRule("Профиль ребенка", "имя, класс, школа и связи с семьей")
+                            privacyRule("Учебные данные", "домашние задания, события, файлы и отметки семьи")
+                            privacyRule("Финансы класса", "сборы и чеки видны по ролям, без банковских данных")
+                            privacyRule("Удаление", "запрос удаления готовится в безопасности аккаунта")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Статус", systemImage: "checkmark.shield.fill")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text(settings.consentStatus)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Сохранить приватность", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                    .disabled(!settings.minimalChildData)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Приватность")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private func privacyToggle(
+        title: String,
+        detail: String,
+        icon: String,
+        color: Color,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
+                IconBadge(systemName: icon, color: color, size: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .tint(SchoolTheme.success)
+    }
+
+    private func privacyRule(_ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(SchoolTheme.success)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func save() {
+        if settings.childDataConsent && settings.privacyPolicyAccepted {
+            settings.consentStatus = "Согласие и политика подтверждены локально"
+        } else if settings.childDataConsent {
+            settings.consentStatus = "Согласие есть, но политика еще не подтверждена"
+        } else {
+            settings.consentStatus = "Согласие еще не подтверждено"
+        }
+
+        onSave(settings)
+        dismiss()
+    }
+}
+
 private struct SupportMessageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -3204,6 +3435,7 @@ private enum MoreSheet: String, Identifiable {
     case files
     case audit
     case security
+    case privacy
     case support
     case problem
     case logout
