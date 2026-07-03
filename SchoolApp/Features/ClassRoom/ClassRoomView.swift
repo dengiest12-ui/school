@@ -1,12 +1,94 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 
+private struct ClassRoomStoreSnapshot: Codable {
+    var feedItems: [FeedItem]
+    var collections: [CollectionSummary]
+    var chatThreads: [ChatThread]
+    var digestItems: [ChatDigestItem]
+    var members: [ClassMemberSummary]
+
+    static let sample = ClassRoomStoreSnapshot(
+        feedItems: SampleData.feed,
+        collections: SampleData.collections,
+        chatThreads: SampleData.chatThreads,
+        digestItems: SampleData.chatDigestItems,
+        members: SampleData.classMembers
+    )
+}
+
 private enum ClassRoomLocalStore {
-    static var feedItems = SampleData.feed
-    static var collections = SampleData.collections
-    static var chatThreads = SampleData.chatThreads
-    static var digestItems = SampleData.chatDigestItems
-    static var members = SampleData.classMembers
+    private static let defaultsKey = "school.classRoom.store.v1"
+    private static var snapshot: ClassRoomStoreSnapshot = load()
+
+    static var feedItems: [FeedItem] {
+        get { snapshot.feedItems }
+        set {
+            snapshot.feedItems = newValue
+            save()
+        }
+    }
+
+    static var collections: [CollectionSummary] {
+        get { snapshot.collections }
+        set {
+            snapshot.collections = newValue
+            save()
+        }
+    }
+
+    static var chatThreads: [ChatThread] {
+        get { snapshot.chatThreads }
+        set {
+            snapshot.chatThreads = newValue
+            save()
+        }
+    }
+
+    static var digestItems: [ChatDigestItem] {
+        get { snapshot.digestItems }
+        set {
+            snapshot.digestItems = newValue
+            save()
+        }
+    }
+
+    static var members: [ClassMemberSummary] {
+        get { snapshot.members }
+        set {
+            snapshot.members = newValue
+            save()
+        }
+    }
+
+    static func resetIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-reset-class-store") else {
+            return
+        }
+
+        snapshot = .sample
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    private static func load() -> ClassRoomStoreSnapshot {
+        guard
+            let data = UserDefaults.standard.data(forKey: defaultsKey),
+            let decoded = try? JSONDecoder().decode(ClassRoomStoreSnapshot.self, from: data)
+        else {
+            return .sample
+        }
+
+        return decoded
+    }
+
+    private static func save() {
+        guard let data = try? JSONEncoder().encode(snapshot) else {
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
 }
 
 struct ClassRoomView: View {
@@ -22,6 +104,7 @@ struct ClassRoomView: View {
 
     init(userRole: AppUserRole = .parent) {
         self.userRole = userRole
+        ClassRoomLocalStore.resetIfRequested()
         let launchSheet = ClassRoomView.launchSheet()
         _selectedSection = State(initialValue: launchSheet?.preferredSection ?? ClassRoomView.launchSection())
         _feedItems = State(initialValue: ClassRoomLocalStore.feedItems)
@@ -911,6 +994,11 @@ private struct CollectionDetailSheet: View {
     @State private var expenseAmount = "2 500 руб."
     @State private var expenseNote = "Добавлено в отчет"
     @State private var expenseAttachment: String?
+    @State private var attachmentStatus: String?
+    @State private var isPhotoSourceDialogVisible = false
+    @State private var isPhotoPickerVisible = false
+    @State private var isFileImporterVisible = false
+    @State private var photoPickerSource: UIImagePickerController.SourceType = .photoLibrary
 
     init(collection: CollectionSummary, userRole: AppUserRole, onSave: @escaping (CollectionSummary) -> Void) {
         self.collection = collection
@@ -924,54 +1012,88 @@ private struct CollectionDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 14) {
-                    CollectionSheetHeader(
-                        icon: "rublesign.circle.fill",
-                        color: collectionStatusColor(status),
-                        title: collection.title,
-                        subtitle: "\(collection.amount) - \(collection.deadline)"
-                    )
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 14) {
+                        CollectionSheetHeader(
+                            icon: "rublesign.circle.fill",
+                            color: collectionStatusColor(status),
+                            title: collection.title,
+                            subtitle: "\(collection.amount) - \(collection.deadline)"
+                        )
 
-                    DashboardCard {
-                        VStack(alignment: .leading, spacing: 14) {
-                            collectionInfo("Кому сдавать", collection.recipient, "person.badge.shield.checkmark", SchoolTheme.teal)
-                            collectionInfo("Описание", collection.detail, "text.alignleft", SchoolTheme.success)
-                            collectionInfo("Статус", status.rawValue, "checkmark.seal.fill", collectionStatusColor(status))
+                        DashboardCard {
+                            VStack(alignment: .leading, spacing: 14) {
+                                collectionInfo("Кому сдавать", collection.recipient, "person.badge.shield.checkmark", SchoolTheme.teal)
+                                collectionInfo("Описание", collection.detail, "text.alignleft", SchoolTheme.success)
+                                collectionInfo("Статус", status.rawValue, "checkmark.seal.fill", collectionStatusColor(status))
+                            }
+                        }
+
+                        paymentCard
+                        reportCard
+
+                        Button {
+                            save()
+                        } label: {
+                            Label(userRole.canManageCollections ? "Сохранить сбор" : "Сохранить мою оплату", systemImage: "checkmark")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SchoolTheme.success)
+                        .id("collection-save-button")
+                    }
+                    .padding(20)
+                    .padding(.bottom, 20)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .background(SchoolTheme.page.ignoresSafeArea())
+                .navigationTitle("Сбор")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Закрыть") {
+                            save()
+                        }
+                    }
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Готово") {
+                            dismissKeyboard()
+                        }
+                    }
+                }
+                .confirmationDialog("Добавить фото чека", isPresented: $isPhotoSourceDialogVisible, titleVisibility: .visible) {
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        Button("Сделать фото") {
+                            showPhotoPicker(.camera)
                         }
                     }
 
-                    paymentCard
-                    reportCard
+                    Button("Выбрать из галереи") {
+                        showPhotoPicker(.photoLibrary)
+                    }
 
-                    Button {
-                        save()
-                    } label: {
-                        Label(userRole.canManageCollections ? "Сохранить сбор" : "Сохранить мою оплату", systemImage: "checkmark")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SchoolTheme.success)
+                    Button("Отмена", role: .cancel) {}
+                } message: {
+                    Text("Фото будет прикреплено к новому расходу.")
                 }
-                .padding(20)
-                .padding(.bottom, 20)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .background(SchoolTheme.page.ignoresSafeArea())
-            .navigationTitle("Сбор")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть") {
-                        save()
+                .sheet(isPresented: $isPhotoPickerVisible) {
+                    ReceiptPhotoPicker(sourceType: photoPickerSource) { displayName in
+                        expenseAttachment = "Фото: \(displayName)"
+                        attachmentStatus = "Фото прикреплено"
                     }
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Готово") {
-                        dismissKeyboard()
-                    }
+                .fileImporter(
+                    isPresented: $isFileImporterVisible,
+                    allowedContentTypes: [.pdf, .image, .item],
+                    allowsMultipleSelection: false
+                ) { result in
+                    handleReceiptFileImport(result)
+                }
+                .onAppear {
+                    runQACollectionDetailChecks(proxy)
                 }
             }
         }
@@ -1093,7 +1215,7 @@ private struct CollectionDetailSheet: View {
                             Button {
                                 addReceiptPhoto()
                             } label: {
-                                Label("Фото чека", systemImage: "camera.fill")
+                                Label(expenseAttachment?.contains("Фото") == true ? "Фото выбрано" : "Фото чека", systemImage: "camera.fill")
                                     .font(.caption.weight(.semibold))
                                     .frame(maxWidth: .infinity, minHeight: 42)
                             }
@@ -1101,16 +1223,24 @@ private struct CollectionDetailSheet: View {
                             .tint(expenseAttachment?.contains("Фото") == true ? SchoolTheme.success : SchoolTheme.accent)
 
                             Button {
-                                attachReceiptFile()
+                                isFileImporterVisible = true
                             } label: {
-                                Label("Файл", systemImage: "paperclip")
+                                Label(expenseAttachment?.contains("Файл") == true ? "Файл выбран" : "Файл", systemImage: "paperclip")
                                     .font(.caption.weight(.semibold))
                                     .frame(maxWidth: .infinity, minHeight: 42)
                             }
                             .buttonStyle(.bordered)
                             .tint(expenseAttachment?.contains("Файл") == true ? SchoolTheme.success : SchoolTheme.accent)
                         }
+
+                        if let attachmentStatus {
+                            Label(attachmentStatus, systemImage: "checkmark.circle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.success)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
+                    .id("expense-form")
 
                     Button {
                         addExpense()
@@ -1122,6 +1252,7 @@ private struct CollectionDetailSheet: View {
                     .buttonStyle(.bordered)
                     .tint(SchoolTheme.success)
                     .disabled(expenseTitle.trimmed.isEmpty || expenseAmount.trimmed.isEmpty)
+                    .id("expense-actions")
                 } else {
                     HStack(spacing: 12) {
                         IconBadge(systemName: "eye.fill", color: SchoolTheme.accent, size: 40)
@@ -1136,6 +1267,33 @@ private struct CollectionDetailSheet: View {
                         Spacer()
                     }
                 }
+            }
+        }
+    }
+
+    private func runQACollectionDetailChecks(_ proxy: ScrollViewProxy) {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard
+            arguments.contains("-qa-scroll-expenses")
+                || arguments.contains("-qa-receipt-photo-dialog")
+                || arguments.contains("-qa-receipt-file-importer")
+        else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo("expense-actions", anchor: .bottom)
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            if arguments.contains("-qa-receipt-photo-dialog") {
+                isPhotoSourceDialogVisible = true
+            }
+
+            if arguments.contains("-qa-receipt-file-importer") {
+                isFileImporterVisible = true
             }
         }
     }
@@ -1179,15 +1337,40 @@ private struct CollectionDetailSheet: View {
         expenseAmount = ""
         expenseNote = ""
         expenseAttachment = nil
+        attachmentStatus = nil
         onSave(updatedCollectionSnapshot())
     }
 
     private func addReceiptPhoto() {
-        expenseAttachment = "Фото чека"
+        isPhotoSourceDialogVisible = true
     }
 
-    private func attachReceiptFile() {
-        expenseAttachment = "Файл отчета"
+    private func showPhotoPicker(_ sourceType: UIImagePickerController.SourceType) {
+        photoPickerSource = sourceType
+        isPhotoPickerVisible = true
+    }
+
+    private func handleReceiptFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                attachmentStatus = "Файл не выбран"
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileName = url.lastPathComponent.isEmpty ? "документ" : url.lastPathComponent
+            expenseAttachment = "Файл: \(fileName)"
+            attachmentStatus = "Файл прикреплен"
+        case .failure:
+            attachmentStatus = "Не удалось прикрепить файл"
+        }
     }
 
     private func save() {
@@ -1224,6 +1407,58 @@ private struct CollectionDetailSheet: View {
         case .closed:
             SchoolTheme.accent
         }
+    }
+}
+
+private struct ReceiptPhotoPicker: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+
+    let sourceType: UIImagePickerController.SourceType
+    let onPick: (String) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ReceiptPhotoPicker
+
+        init(parent: ReceiptPhotoPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let pickedURL = info[.imageURL] as? URL
+            let defaultName = parent.sourceType == .camera ? "снимок \(Date().receiptAttachmentTimestamp)" : "фото чека"
+            parent.onPick(pickedURL?.lastPathComponent ?? defaultName)
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
+}
+
+private extension Date {
+    var receiptAttachmentTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM HH:mm"
+        return formatter.string(from: self)
     }
 }
 

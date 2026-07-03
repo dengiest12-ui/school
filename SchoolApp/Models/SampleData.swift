@@ -167,7 +167,7 @@ struct ChatPreviewItem: Identifiable, Hashable {
     let hasUnread: Bool
 }
 
-struct ClassChatMessage: Identifiable, Hashable {
+struct ClassChatMessage: Identifiable, Hashable, Codable {
     let id: UUID
     var author: String
     var text: String
@@ -195,7 +195,7 @@ struct ClassChatMessage: Identifiable, Hashable {
     }
 }
 
-struct ChatThread: Identifiable, Hashable {
+struct ChatThread: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var subtitle: String
@@ -226,7 +226,7 @@ struct ChatThread: Identifiable, Hashable {
     }
 }
 
-struct ChatDigestItem: Identifiable, Hashable {
+struct ChatDigestItem: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var detail: String
@@ -314,7 +314,7 @@ struct ClassAccessSummary: Identifiable, Hashable {
     }
 }
 
-struct ClassMemberSummary: Identifiable, Hashable {
+struct ClassMemberSummary: Identifiable, Hashable, Codable {
     let id: UUID
     var name: String
     var childName: String
@@ -422,13 +422,13 @@ struct ClassEvent: Identifiable, Hashable {
     }
 }
 
-enum CollectionStatus: String, CaseIterable, Hashable {
+enum CollectionStatus: String, CaseIterable, Hashable, Codable {
     case active = "Идет сбор"
     case dueSoon = "Срок близко"
     case closed = "Закрыт"
 }
 
-struct CollectionExpense: Identifiable, Hashable {
+struct CollectionExpense: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var amount: String
@@ -444,7 +444,7 @@ struct CollectionExpense: Identifiable, Hashable {
     }
 }
 
-struct CollectionSummary: Identifiable, Hashable {
+struct CollectionSummary: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var amount: String
@@ -484,7 +484,7 @@ struct CollectionSummary: Identifiable, Hashable {
     }
 }
 
-struct FeedItem: Identifiable, Hashable {
+struct FeedItem: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var subtitle: String
