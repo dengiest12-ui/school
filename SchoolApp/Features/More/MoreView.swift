@@ -248,6 +248,48 @@ private struct MvpMetricSummary: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct QaStateScenario: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var state: String
+    var expectedResult: String
+    var status: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String,
+        state: String,
+        expectedResult: String,
+        status: String = "Проверить",
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.state = state
+        self.expectedResult = expectedResult
+        self.status = status
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        QaStateScenario(title: "Без учителя", detail: "Родитель или родкомитет запускает класс самостоятельно", state: "Нет учителя", expectedResult: "Доступны ДЗ, события, сборы, семья и приглашения", status: "Пройдено", iconName: "person.2.badge.gearshape.fill", colorName: "green"),
+        QaStateScenario(title: "Нет класса", detail: "Пользователь еще не создал и не присоединился к комнате", state: "Пустой класс", expectedResult: "Показать вход по коду и создание комнаты без потери данных", iconName: "building.2.crop.circle", colorName: "blue"),
+        QaStateScenario(title: "Нет ребенка", detail: "У родителя нет профиля ребенка", state: "Пустая семья", expectedResult: "Предложить добавить ребенка, не блокируя изучение приложения", iconName: "person.crop.square.fill", colorName: "teal"),
+        QaStateScenario(title: "Нет ДЗ", detail: "Домашних заданий пока не добавили", state: "Пустой список", expectedResult: "Показать мягкое пустое состояние и кнопку добавления/разбора", status: "Пройдено", iconName: "tray.fill", colorName: "green"),
+        QaStateScenario(title: "Нет прав", detail: "Обычный родитель открывает действия родкомитета", state: "Ограничение роли", expectedResult: "Показать объяснение и не дать менять оплаты, чеки и объявления", status: "Пройдено", iconName: "lock.shield.fill", colorName: "green"),
+        QaStateScenario(title: "Нет подписки", detail: "AI и расширенные функции требуют тарифа", state: "Paywall", expectedResult: "Базовые данные остаются доступны, ограничения честно объяснены", iconName: "creditcard.trianglebadge.exclamationmark", colorName: "orange"),
+        QaStateScenario(title: "Ошибка сети", detail: "Backend или файлы временно недоступны", state: "Offline", expectedResult: "Сохранить локальный черновик и показать, что синхронизация повторится", iconName: "wifi.exclamationmark", colorName: "orange"),
+        QaStateScenario(title: "Отмена действия", detail: "Пользователь закрыл форму или системный picker", state: "Cancel", expectedResult: "Не создавать мусорные записи и оставить понятный статус", status: "Пройдено", iconName: "xmark.circle.fill", colorName: "green")
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -264,6 +306,7 @@ private struct MoreStoreSnapshot: Codable {
     var privacySettings: PrivacySettingsState
     var analyticsEvents: [AnalyticsEventSummary]
     var mvpMetrics: [MvpMetricSummary]
+    var qaScenarios: [QaStateScenario]
 
     init(
         profile: ParentProfileState = .sample,
@@ -280,7 +323,8 @@ private struct MoreStoreSnapshot: Codable {
         auditEntries: [AuditLogEntry] = AuditLogEntry.sample,
         privacySettings: PrivacySettingsState = .sample,
         analyticsEvents: [AnalyticsEventSummary] = AnalyticsEventSummary.sample,
-        mvpMetrics: [MvpMetricSummary] = MvpMetricSummary.sample
+        mvpMetrics: [MvpMetricSummary] = MvpMetricSummary.sample,
+        qaScenarios: [QaStateScenario] = QaStateScenario.sample
     ) {
         self.profile = profile
         self.children = children
@@ -297,6 +341,7 @@ private struct MoreStoreSnapshot: Codable {
         self.privacySettings = privacySettings
         self.analyticsEvents = analyticsEvents
         self.mvpMetrics = mvpMetrics
+        self.qaScenarios = qaScenarios
     }
 
     init(from decoder: Decoder) throws {
@@ -316,6 +361,7 @@ private struct MoreStoreSnapshot: Codable {
         privacySettings = try container.decodeIfPresent(PrivacySettingsState.self, forKey: .privacySettings) ?? .sample
         analyticsEvents = try container.decodeIfPresent([AnalyticsEventSummary].self, forKey: .analyticsEvents) ?? AnalyticsEventSummary.sample
         mvpMetrics = try container.decodeIfPresent([MvpMetricSummary].self, forKey: .mvpMetrics) ?? MvpMetricSummary.sample
+        qaScenarios = try container.decodeIfPresent([QaStateScenario].self, forKey: .qaScenarios) ?? QaStateScenario.sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -333,7 +379,8 @@ private struct MoreStoreSnapshot: Codable {
         auditEntries: AuditLogEntry.sample,
         privacySettings: .sample,
         analyticsEvents: AnalyticsEventSummary.sample,
-        mvpMetrics: MvpMetricSummary.sample
+        mvpMetrics: MvpMetricSummary.sample,
+        qaScenarios: QaStateScenario.sample
     )
 }
 
@@ -461,6 +508,14 @@ private enum MoreLocalStore {
         }
     }
 
+    static var qaScenarios: [QaStateScenario] {
+        get { snapshot.qaScenarios }
+        set {
+            snapshot.qaScenarios = newValue
+            save()
+        }
+    }
+
     static func recordAudit(_ entry: AuditLogEntry) {
         snapshot.auditEntries.insert(entry, at: 0)
         save()
@@ -511,6 +566,7 @@ struct MoreView: View {
     @State private var privacySettings: PrivacySettingsState
     @State private var analyticsEvents: [AnalyticsEventSummary]
     @State private var mvpMetrics: [MvpMetricSummary]
+    @State private var qaScenarios: [QaStateScenario]
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -530,6 +586,7 @@ struct MoreView: View {
         _privacySettings = State(initialValue: MoreLocalStore.privacySettings)
         _analyticsEvents = State(initialValue: MoreLocalStore.analyticsEvents)
         _mvpMetrics = State(initialValue: MoreLocalStore.mvpMetrics)
+        _qaScenarios = State(initialValue: MoreLocalStore.qaScenarios)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -711,6 +768,19 @@ struct MoreView: View {
                         colorName: "blue"
                     )
                 }
+            case .qaStates:
+                QaStatesSheet(scenarios: qaScenarios) { updatedScenarios in
+                    qaScenarios = updatedScenarios
+                    MoreLocalStore.qaScenarios = updatedScenarios
+                    recordAudit(
+                        title: "QA-состояния обновлены",
+                        detail: "Пройдено: \(updatedScenarios.filter { $0.status == "Пройдено" }.count) из \(updatedScenarios.count)",
+                        target: "Приемка MVP",
+                        category: "QA",
+                        iconName: "checkmark.seal.fill",
+                        colorName: "green"
+                    )
+                }
             case .support:
                 SupportMessageSheet(kind: .support)
             case .problem:
@@ -837,6 +907,7 @@ struct MoreView: View {
         [
             MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
             MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
+            MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
             MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger, sheet: .problem),
             MoreMenuItem(title: "Выйти", subtitle: "Локальный выход и перенос данных", icon: "rectangle.portrait.and.arrow.right", color: SchoolTheme.warning, sheet: .logout)
@@ -859,6 +930,10 @@ struct MoreView: View {
         }
 
         return "Нужно подтвердить согласие родителя"
+    }
+
+    private var qaPassedCount: Int {
+        qaScenarios.filter { $0.status == "Пройдено" }.count
     }
 
     private static func launchSheet() -> MoreSheet? {
@@ -914,6 +989,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-metrics") {
             return .metrics
+        }
+
+        if arguments.contains("-qa-more-states") {
+            return .qaStates
         }
 
         if arguments.contains("-qa-more-support") {
@@ -3420,6 +3499,177 @@ private struct MvpMetricsSheet: View {
     }
 }
 
+private struct QaStatesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([QaStateScenario]) -> Void
+
+    @State private var scenarios: [QaStateScenario]
+    @State private var selectedFilter = "Все"
+
+    init(scenarios: [QaStateScenario], onSave: @escaping ([QaStateScenario]) -> Void) {
+        self.onSave = onSave
+        _scenarios = State(initialValue: scenarios)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "checkmark.seal.fill",
+                        color: SchoolTheme.success,
+                        title: "QA-состояния",
+                        subtitle: "Без учителя, пустые экраны, нет прав и ошибка сети"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(passedCount)", title: "пройдено", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(todoCount)", title: "проверить", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(scenarios.count)", title: "всего", color: SchoolTheme.accent)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Фильтр")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            HStack(spacing: 8) {
+                                ForEach(["Все", "Пройдено", "Проверить"], id: \.self) { filter in
+                                    Button {
+                                        selectedFilter = filter
+                                    } label: {
+                                        Text(filter)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(selectedFilter == filter ? .white : SchoolTheme.graphite)
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                selectedFilter == filter ? SchoolTheme.success : SchoolTheme.page,
+                                                in: Capsule()
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Сценарии приемки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(filteredScenarios) { scenario in
+                                scenarioRow(scenario)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Что это закрывает", systemImage: "list.clipboard.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Экран нужен для ручной приемки MVP в Simulator: быстро видно, какие состояния уже покрыты интерфейсом, а какие требуют backend, синхронизации, подписки или настоящих push-уведомлений.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("QA")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var filteredScenarios: [QaStateScenario] {
+        scenarios.filter { scenario in
+            selectedFilter == "Все" || scenario.status == selectedFilter
+        }
+    }
+
+    private var passedCount: Int {
+        scenarios.filter { $0.status == "Пройдено" }.count
+    }
+
+    private var todoCount: Int {
+        scenarios.filter { $0.status != "Пройдено" }.count
+    }
+
+    private func scenarioRow(_ scenario: QaStateScenario) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: scenario.iconName, color: moreColor(for: scenario.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(scenario.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: scenario.status, color: scenario.status == "Пройдено" ? SchoolTheme.success : SchoolTheme.warning)
+                }
+
+                Text(scenario.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\(scenario.state): \(scenario.expectedResult)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    toggleScenario(scenario)
+                } label: {
+                    Label(scenario.status == "Пройдено" ? "Вернуть в проверку" : "Отметить пройдено", systemImage: scenario.status == "Пройдено" ? "arrow.uturn.left" : "checkmark")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .tint(scenario.status == "Пройдено" ? SchoolTheme.muted : SchoolTheme.success)
+                .controlSize(.small)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func toggleScenario(_ scenario: QaStateScenario) {
+        guard let index = scenarios.firstIndex(where: { $0.id == scenario.id }) else {
+            return
+        }
+
+        scenarios[index].status = scenarios[index].status == "Пройдено" ? "Проверить" : "Пройдено"
+    }
+
+    private func save() {
+        onSave(scenarios)
+        dismiss()
+    }
+}
+
 private struct SupportMessageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -3797,6 +4047,7 @@ private enum MoreSheet: String, Identifiable {
     case security
     case privacy
     case metrics
+    case qaStates
     case support
     case problem
     case logout
