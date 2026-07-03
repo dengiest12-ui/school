@@ -341,6 +341,20 @@ struct ClassRoomView: View {
                 PhotoAlbumSheet(album: album, userRole: activeUserRole) { updatedAlbum in
                     updatePhotoAlbum(updatedAlbum)
                 }
+            case .newPhotoAlbum:
+                if canManagePhotoAlbums {
+                    NewPhotoAlbumSheet { album in
+                        photoAlbums.insert(album, at: 0)
+                        ClassRoomLocalStore.photoAlbums = photoAlbums
+                        selectedSection = .photos
+                    }
+                } else {
+                    BlockedClassActionSheet(
+                        icon: "photo.on.rectangle.angled",
+                        title: "Создание альбомов закрыто",
+                        detail: "Альбомы класса создает учитель или родкомитет. Родитель может смотреть фото, скачивать и жаловаться на спорные материалы."
+                    )
+                }
             }
         }
     }
@@ -683,6 +697,25 @@ struct ClassRoomView: View {
                 color: SchoolTheme.teal
             )
 
+            if canManagePhotoAlbums {
+                Button {
+                    activeSheet = .newPhotoAlbum
+                } label: {
+                    Label("Создать альбом", systemImage: "plus")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(SchoolTheme.accent)
+            } else {
+                roleRestrictionCard(
+                    title: "Альбомы ведет класс",
+                    detail: "Обычный родитель может смотреть, скачивать и отправлять жалобы. Создание альбомов доступно учителю и родкомитету.",
+                    iconName: "photo.badge.plus",
+                    color: SchoolTheme.accent
+                )
+            }
+
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(photoAlbums) { album in
                     Button {
@@ -994,7 +1027,11 @@ struct ClassRoomView: View {
             if activeUserRole.canPublishAnnouncements {
                 activeSheet = .newAnnouncement
             }
-        case .photos, .members:
+        case .photos:
+            if canManagePhotoAlbums {
+                activeSheet = .newPhotoAlbum
+            }
+        case .members:
             if activeUserRole.canInviteMembers {
                 activeSheet = .inviteMembers
             }
@@ -1010,7 +1047,7 @@ struct ClassRoomView: View {
         case .members:
             activeUserRole.canInviteMembers
         case .photos:
-            false
+            canManagePhotoAlbums
         }
     }
 
@@ -1024,6 +1061,10 @@ struct ClassRoomView: View {
         }
 
         return userRole
+    }
+
+    private var canManagePhotoAlbums: Bool {
+        activeUserRole == .parentCommittee || activeUserRole == .teacher
     }
 
     private func badgeColor(for tag: String) -> Color {
@@ -1112,6 +1153,10 @@ struct ClassRoomView: View {
 
         if arguments.contains("-qa-member-invite") {
             return .inviteMembers
+        }
+
+        if arguments.contains("-qa-photo-album-create") {
+            return .newPhotoAlbum
         }
 
         if arguments.contains("-qa-photo-album")
@@ -1588,6 +1633,194 @@ private struct PhotoAlbumSheet: View {
             if arguments.contains("-qa-photo-viewer") {
                 selectedPhoto = album.photos.first
             }
+        }
+    }
+}
+
+private struct NewPhotoAlbumSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: (PhotoAlbumSummary) -> Void
+
+    @State private var title = "Новый альбом"
+    @State private var subtitle = "Фото события, урока или документов класса"
+    @State private var selectedTemplate = PhotoAlbumTemplate.event
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    CollectionSheetHeader(
+                        icon: selectedTemplate.iconName,
+                        color: selectedTemplate.color,
+                        title: "Новый альбом",
+                        subtitle: "Закрыт для участников класса"
+                    )
+
+                    DashboardCard {
+                        VStack(spacing: 12) {
+                            CollectionTextField(title: "Название", iconName: "text.badge.plus", color: selectedTemplate.color, text: $title)
+                            CollectionTextField(title: "Описание", iconName: "text.alignleft", color: SchoolTheme.teal, text: $subtitle)
+                        }
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Тип альбома")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                ForEach(PhotoAlbumTemplate.allCases) { template in
+                                    Button {
+                                        selectedTemplate = template
+                                    } label: {
+                                        HStack(spacing: 10) {
+                                            IconBadge(systemName: template.iconName, color: template.color, size: 34)
+                                            Text(template.title)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(SchoolTheme.graphite)
+                                                .lineLimit(1)
+                                            Spacer(minLength: 0)
+                                            if selectedTemplate == template {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(template.color)
+                                            }
+                                        }
+                                        .padding(10)
+                                        .background(template.color.opacity(selectedTemplate == template ? 0.16 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .stroke(selectedTemplate == template ? template.color.opacity(0.45) : SchoolTheme.line, lineWidth: 1)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    roleHint
+
+                    Button {
+                        save()
+                    } label: {
+                        Label("Создать альбом", systemImage: "checkmark")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(selectedTemplate.color)
+                    .disabled(title.trimmed.isEmpty || subtitle.trimmed.isEmpty)
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Альбом")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+                KeyboardDoneToolbar()
+            }
+        }
+    }
+
+    private var roleHint: some View {
+        DashboardCard {
+            HStack(spacing: 12) {
+                IconBadge(systemName: "lock.shield.fill", color: SchoolTheme.teal, size: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Доступ закрыт")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text("После создания альбом видят только участники класса. Фото можно добавить внутри альбома.")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    private func save() {
+        onSave(
+            PhotoAlbumSummary(
+                title: title.trimmed,
+                subtitle: subtitle.trimmed,
+                iconName: selectedTemplate.iconName,
+                colorName: selectedTemplate.colorName,
+                photos: []
+            )
+        )
+        dismiss()
+    }
+}
+
+private enum PhotoAlbumTemplate: String, CaseIterable, Identifiable {
+    case event
+    case holiday
+    case classroom
+    case documents
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .event:
+            "Событие"
+        case .holiday:
+            "Праздник"
+        case .classroom:
+            "Будни"
+        case .documents:
+            "Документы"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .event:
+            "photo.on.rectangle"
+        case .holiday:
+            "party.popper"
+        case .classroom:
+            "camera"
+        case .documents:
+            "doc.text"
+        }
+    }
+
+    var colorName: String {
+        switch self {
+        case .event:
+            "blue"
+        case .holiday:
+            "orange"
+        case .classroom:
+            "teal"
+        case .documents:
+            "green"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .event:
+            SchoolTheme.accent
+        case .holiday:
+            SchoolTheme.warning
+        case .classroom:
+            SchoolTheme.teal
+        case .documents:
+            SchoolTheme.success
         }
     }
 }
@@ -3521,6 +3754,7 @@ private enum ClassRoomSheet: Identifiable, Hashable {
     case newAnnouncement
     case inviteMembers
     case photoAlbum(PhotoAlbumSummary)
+    case newPhotoAlbum
 
     var id: String {
         switch self {
@@ -3540,6 +3774,8 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             "invite-members"
         case .photoAlbum(let album):
             "photo-album-\(album.id.uuidString)"
+        case .newPhotoAlbum:
+            "new-photo-album"
         }
     }
 
@@ -3553,7 +3789,7 @@ private enum ClassRoomSheet: Identifiable, Hashable {
             .feed
         case .inviteMembers:
             .members
-        case .photoAlbum:
+        case .photoAlbum, .newPhotoAlbum:
             .photos
         }
     }
