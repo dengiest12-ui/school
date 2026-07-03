@@ -61,19 +61,22 @@ struct HomeworkView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 14) {
-                header
-                scopePicker
-                parseCard
-                summaryCard
-                filtersCard
-                homeworkList
+        GeometryReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 14) {
+                    header
+                    scopePicker
+                    parseCard
+                    summaryCard
+                    filtersCard
+                    homeworkList
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 22)
+                .padding(.bottom, SchoolTheme.bottomScrollPadding)
+                .frame(width: proxy.size.width, alignment: .top)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 20)
-            .padding(.top, 22)
-            .padding(.bottom, SchoolTheme.bottomScrollPadding)
+            .scrollClipDisabled(false)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
         .onAppear {
@@ -358,15 +361,21 @@ struct HomeworkView: View {
                     StatusBadge(text: item.status.rawValue, color: badgeColor(for: item.status))
                 }
 
-                HStack(spacing: 10) {
-                    Label(item.childName, systemImage: "figure.child")
-                    Label(item.dueLabel, systemImage: "clock")
-                    Label(item.source, systemImage: "person.crop.circle")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        metadataLabel(item.childName, icon: "figure.child")
+                        metadataLabel(item.dueLabel, icon: "clock")
+                        metadataLabel(item.source, icon: "person.crop.circle")
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        metadataLabel(item.childName, icon: "figure.child")
+                        metadataLabel(item.dueLabel, icon: "clock")
+                        metadataLabel(item.source, icon: "person.crop.circle")
+                    }
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(SchoolTheme.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.86)
 
                 if let bring = item.bring, !bring.isEmpty {
                     Label("Принести: \(bring)", systemImage: "shippingbox")
@@ -382,26 +391,45 @@ struct HomeworkView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack {
-                    Button {
-                        toggleDone(item)
-                    } label: {
-                        Label(item.status == .done ? "Вернуть" : "Готово", systemImage: item.status == .done ? "arrow.uturn.left" : "checkmark.circle")
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        homeworkDoneButton(item)
+                        homeworkAIButton
+                        Spacer()
                     }
-                    .buttonStyle(.bordered)
 
-                    Button {
-                        openParse(.text)
-                    } label: {
-                        Label("Исправить через AI", systemImage: "sparkles")
+                    VStack(alignment: .leading, spacing: 8) {
+                        homeworkDoneButton(item)
+                        homeworkAIButton
                     }
-                    .buttonStyle(.borderless)
-
-                    Spacer()
                 }
                 .font(.subheadline.weight(.semibold))
             }
         }
+    }
+
+    private func metadataLabel(_ text: String, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+    }
+
+    private func homeworkDoneButton(_ item: HomeworkItem) -> some View {
+        Button {
+            toggleDone(item)
+        } label: {
+            Label(item.status == .done ? "Вернуть" : "Готово", systemImage: item.status == .done ? "arrow.uturn.left" : "checkmark.circle")
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private var homeworkAIButton: some View {
+        Button {
+            openParse(.text)
+        } label: {
+            Label("Исправить через AI", systemImage: "sparkles")
+        }
+        .buttonStyle(.borderless)
     }
 
     private func parseAction(_ kind: HomeworkInputKind, _ color: Color) -> some View {
