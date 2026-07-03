@@ -721,6 +721,59 @@ private struct SyncMutationPreview: Identifiable, Hashable {
     }
 }
 
+private struct ApiReadinessItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var artifact: String
+    var status: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+
+    static let sample = [
+        ApiReadinessItem(
+            title: "OpenAPI MVP",
+            artifact: "docs/openapi_mvp.yaml",
+            status: "Готово",
+            detail: "Описаны batch-мутации и первые endpoint-ы класса, ДЗ, объявлений, чеков, приглашений и фото.",
+            iconName: "doc.text.fill",
+            colorName: "green"
+        ),
+        ApiReadinessItem(
+            title: "Mutation dry-run",
+            artifact: "iOS Sync Center",
+            status: "Готово",
+            detail: "Приложение уже собирает mutationId, operation, baseVersion, payloadPreview и статус отправки.",
+            iconName: "play.rectangle.fill",
+            colorName: "green"
+        ),
+        ApiReadinessItem(
+            title: "Swift API client",
+            artifact: "URLSession / generated client",
+            status: "Дальше",
+            detail: "Нужен слой запросов, refresh token, retry, mapping ошибок и сохранение серверных версий.",
+            iconName: "curlybraces.square.fill",
+            colorName: "orange"
+        ),
+        ApiReadinessItem(
+            title: "Auth + server roles",
+            artifact: "Backend policy",
+            status: "Блокер",
+            detail: "Сервер должен проверять роль в конкретном классе для объявлений, сборов, чеков, фото и приглашений.",
+            iconName: "lock.shield.fill",
+            colorName: "red"
+        ),
+        ApiReadinessItem(
+            title: "File storage",
+            artifact: "Private uploads",
+            status: "Блокер",
+            detail: "Фото, документы и чеки должны загружаться в приватное хранилище до отправки метаданных.",
+            iconName: "externaldrive.badge.icloud.fill",
+            colorName: "red"
+        )
+    ]
+}
+
 private struct BackendPermissionRule: Identifiable, Hashable {
     enum Decision: String {
         case allow = "Разрешить"
@@ -5588,16 +5641,6 @@ private struct SyncCenterSheet: View {
                         .frame(height: 62)
                     }
 
-                    if let dryRunResult {
-                        DashboardCard {
-                            dryRunCard(dryRunResult)
-                        }
-                    }
-
-                    DashboardCard {
-                        backendPermissionSummary
-                    }
-
                     DashboardCard {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Состояние backend MVP")
@@ -5638,6 +5681,20 @@ private struct SyncCenterSheet: View {
                             )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        apiReadinessSummary
+                    }
+
+                    if let dryRunResult {
+                        DashboardCard {
+                            dryRunCard(dryRunResult)
+                        }
+                    }
+
+                    DashboardCard {
+                        backendPermissionSummary
                     }
 
                     DashboardCard {
@@ -5780,6 +5837,14 @@ private struct SyncCenterSheet: View {
         }
     }
 
+    private var apiReadyCount: Int {
+        ApiReadinessItem.sample.filter { $0.status == "Готово" }.count
+    }
+
+    private var apiBlockerCount: Int {
+        ApiReadinessItem.sample.filter { $0.status == "Блокер" }.count
+    }
+
     private var backendPermissionSummary: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -5806,6 +5871,32 @@ private struct SyncCenterSheet: View {
         }
     }
 
+    private var apiReadinessSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Готовность API", systemImage: "checklist.checked")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: "\(apiReadyCount)/\(ApiReadinessItem.sample.count)", color: apiBlockerCount == 0 ? SchoolTheme.success : SchoolTheme.warning)
+            }
+
+            HStack(spacing: 10) {
+                MoreMetric(value: "\(apiReadyCount)", title: "готово", color: SchoolTheme.success)
+                Divider()
+                MoreMetric(value: "\(ApiReadinessItem.sample.count - apiReadyCount - apiBlockerCount)", title: "дальше", color: SchoolTheme.warning)
+                Divider()
+                MoreMetric(value: "\(apiBlockerCount)", title: "блокер", color: SchoolTheme.danger)
+            }
+            .frame(height: 54)
+
+            ForEach(ApiReadinessItem.sample) { item in
+                apiReadinessRow(item)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func syncStateRow(icon: String, color: Color, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             IconBadge(systemName: icon, color: color, size: 40)
@@ -5820,6 +5911,34 @@ private struct SyncCenterSheet: View {
             }
             Spacer()
         }
+    }
+
+    private func apiReadinessRow(_ item: ApiReadinessItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: item.iconName, color: moreColor(for: item.colorName), size: 38)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: item.status, color: statusColor(item.status))
+                }
+
+                Text(item.artifact)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 
     private func operationRow(_ operation: SyncOperationSummary) -> some View {
@@ -6027,11 +6146,11 @@ private struct SyncCenterSheet: View {
 
     private func statusColor(_ status: String) -> Color {
         switch status {
-        case "Синхронизировано", "Готово к API":
+        case "Синхронизировано", "Готово к API", "Готово":
             SchoolTheme.success
-        case "Нужен storage", "Offline":
+        case "Нужен storage", "Offline", "Дальше":
             SchoolTheme.warning
-        case "Конфликт":
+        case "Конфликт", "Блокер":
             SchoolTheme.danger
         default:
             SchoolTheme.accent
