@@ -148,8 +148,8 @@
 - [~] Экран "ДЗ по фото"
   - Проверка: есть съемка, предпросмотр, распознанный текст, правка, сохранение
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`, `.build/screenshots/homework-ai-parse-final.png`
-  - Комментарий: показан поток фото/скрина/голоса/файла с локальным распознанным текстом; настоящая камера и AI будут отдельным этапом
+  - Артефакт: `SchoolApp/Features/Homework/HomeworkView.swift`, `.build/screenshots/homework-ai-parse-final.png`, `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png`
+  - Комментарий: показан поток фото/скрина/голоса/файла с системным выбором фото/галереи/файла и локальным распознанным текстом; настоящий OCR/AI/backend будет отдельным этапом
 
 - [~] Экран результата AI-распознавания
   - Проверка: результат разбит по предметам, дедлайнам и задачам; пользователь может исправить
@@ -355,9 +355,9 @@
 
 - [ ] Вложения и фото
   - Проверка: можно прикрепить фото доски, дневника, тетради или файл
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png`
+  - Комментарий: в разборе ДЗ есть системный выбор фото/галереи и файла; хранение бинарных вложений и OCR еще не подключены
 
 - [ ] История ДЗ
   - Проверка: старые задания доступны и не теряются после срока
@@ -937,3 +937,4 @@
 | 2026-07-03 | Фото и файлы чеков в расходах сбора | Пройдено | 3 | `.build/screenshots/receipt-attachments-form-final.png`, `.build/screenshots/receipt-photo-dialog.png`, `.build/screenshots/receipt-file-importer.png` | Проверены форма расхода, системное меню фото/галереи и системный выбор файла; на Simulator камера недоступна, на iPhone появится вариант съемки |
 | 2026-07-03 | Локальное хранение ДЗ и календаря | Пройдено | 3 | `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-persistence-add.png`, `.build/screenshots/homework-persistence-parse.png`, `.build/screenshots/calendar-persistence-main.png`, `.build/screenshots/calendar-persistence-add.png`, `.build/screenshots/calendar-persistence-detail.png` | Добавлено сохранение ДЗ, AI-результатов, отметок выполнения, событий и ответов семьи в `UserDefaults`; сборка `xcodebuild` проходит |
 | 2026-07-03 | Регрессия основных вкладок после хранения ДЗ и календаря | Пройдено | 3 | `.build/screenshots/regression-today-after-homework-calendar-persistence.png`, `.build/screenshots/regression-class-after-homework-calendar-persistence.png`, `.build/screenshots/regression-homework-after-homework-calendar-persistence.png`, `.build/screenshots/regression-calendar-after-homework-calendar-persistence.png`, `.build/screenshots/regression-more-after-homework-calendar-persistence.png` | После изменения `HomeworkView`, `CalendarView` и моделей проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Системные фото и файлы для разбора ДЗ | Пройдено | 3 | `.build/screenshots/homework-attachments-parse.png`, `.build/screenshots/homework-photo-dialog.png`, `.build/screenshots/homework-file-importer.png` | Добавлены image picker и document picker для исходников ДЗ; на Simulator камера недоступна, на iPhone будет вариант съемки |

@@ -1,4 +1,6 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
 
 private enum HomeworkLocalStore {
     private static let defaultsKey = "school.homework.items.v1"
@@ -327,7 +329,11 @@ struct HomeworkView: View {
             return .add
         }
 
-        if arguments.contains("-qa-homework-parse") {
+        if arguments.contains("-qa-homework-file-importer") {
+            return .parse(.upload)
+        }
+
+        if arguments.contains("-qa-homework-parse") || arguments.contains("-qa-homework-photo-dialog") {
             return .parse(.photo)
         }
 
@@ -415,6 +421,11 @@ private struct ParseHomeworkSheet: View {
 
     @State private var recognizedText: String
     @State private var drafts: [ParsedHomeworkDraft]
+    @State private var attachmentStatus: String?
+    @State private var isImageSourceDialogVisible = false
+    @State private var isImagePickerVisible = false
+    @State private var isFileImporterVisible = false
+    @State private var imagePickerSource: UIImagePickerController.SourceType = .photoLibrary
 
     init(inputKind: HomeworkInputKind, onSave: @escaping ([HomeworkItem]) -> Void) {
         self.inputKind = inputKind
@@ -455,6 +466,36 @@ private struct ParseHomeworkSheet: View {
                     }
                 }
             }
+            .confirmationDialog("Добавить исходник ДЗ", isPresented: $isImageSourceDialogVisible, titleVisibility: .visible) {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Сделать фото") {
+                        showImagePicker(.camera)
+                    }
+                }
+
+                Button("Выбрать из галереи") {
+                    showImagePicker(.photoLibrary)
+                }
+
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Фото или скрин будет привязан к распознанному тексту.")
+            }
+            .sheet(isPresented: $isImagePickerVisible) {
+                HomeworkImagePicker(sourceType: imagePickerSource) { displayName in
+                    attachmentStatus = "Фото прикреплено: \(displayName)"
+                }
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.pdf, .image, .plainText, .item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
+            }
+            .onAppear {
+                runQAImporterChecks()
+            }
         }
     }
 
@@ -487,7 +528,54 @@ private struct ParseHomeworkSheet: View {
                     .padding(18)
                 }
                 .frame(height: 154)
+
+                attachmentActions
             }
+        }
+    }
+
+    private var attachmentActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Button {
+                    isImageSourceDialogVisible = true
+                } label: {
+                    Label(imageActionTitle, systemImage: "camera.fill")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.success)
+
+                Button {
+                    isFileImporterVisible = true
+                } label: {
+                    Label("Файл", systemImage: "paperclip")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+            }
+
+            if let attachmentStatus {
+                Label(attachmentStatus, systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+            }
+        }
+    }
+
+    private var imageActionTitle: String {
+        switch inputKind {
+        case .photo:
+            "Фото"
+        case .screenshot:
+            "Скрин"
+        default:
+            "Изображение"
         }
     }
 
@@ -566,6 +654,99 @@ private struct ParseHomeworkSheet: View {
         .buttonStyle(.borderedProminent)
         .tint(SchoolTheme.success)
         .disabled(drafts.allSatisfy { $0.subject.trimmed.isEmpty || $0.title.trimmed.isEmpty })
+    }
+
+    private func showImagePicker(_ sourceType: UIImagePickerController.SourceType) {
+        imagePickerSource = sourceType
+        isImagePickerVisible = true
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                attachmentStatus = "Файл не выбран"
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileName = url.lastPathComponent.isEmpty ? "документ" : url.lastPathComponent
+            attachmentStatus = "Файл прикреплен: \(fileName)"
+        case .failure:
+            attachmentStatus = "Не удалось прикрепить файл"
+        }
+    }
+
+    private func runQAImporterChecks() {
+        let arguments = ProcessInfo.processInfo.arguments
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            if arguments.contains("-qa-homework-photo-dialog") {
+                isImageSourceDialogVisible = true
+            }
+
+            if arguments.contains("-qa-homework-file-importer") {
+                isFileImporterVisible = true
+            }
+        }
+    }
+}
+
+private struct HomeworkImagePicker: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+
+    let sourceType: UIImagePickerController.SourceType
+    let onPick: (String) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: HomeworkImagePicker
+
+        init(parent: HomeworkImagePicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let pickedURL = info[.imageURL] as? URL
+            let defaultName = parent.sourceType == .camera ? "снимок \(Date().homeworkAttachmentTimestamp)" : "изображение ДЗ"
+            parent.onPick(pickedURL?.lastPathComponent ?? defaultName)
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
+}
+
+private extension Date {
+    var homeworkAttachmentTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM HH:mm"
+        return formatter.string(from: self)
     }
 }
 
