@@ -667,6 +667,7 @@ private struct SyncDryRunResult: Hashable {
     var summary: String
     var mutations: [SyncMutationPreview]
     var requestPreview: SyncRequestPreview
+    var clientPreview: SyncClientPreview
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let queued = operations.filter { ["В очереди", "Локально", "Offline"].contains($0.status) }.count
@@ -686,7 +687,8 @@ private struct SyncDryRunResult: Hashable {
             requestID: requestID,
             summary: "Dry-run: \(accepted) можно отправить, \(queued) ждут сети, \(blocked) требуют решения до API.",
             mutations: mutations,
-            requestPreview: SyncRequestPreview.make(environment: environment, requestID: requestID, mutations: mutations)
+            requestPreview: SyncRequestPreview.make(environment: environment, requestID: requestID, mutations: mutations),
+            clientPreview: SyncClientPreview.make(environment: environment, mutations: mutations)
         )
     }
 }
@@ -748,6 +750,27 @@ private struct SyncRequestPreview: Hashable {
             authState: "Bearer token required",
             idempotencyKey: requestID,
             bodyPreview: #"{"clientId":"ios-local","mutations":[\#(payload)]\#(suffix)}"#
+        )
+    }
+}
+
+private struct SyncClientPreview: Hashable {
+    var transport: String
+    var resultType: String
+    var retryPlan: String
+    var serverVersionPlan: String
+    var failureMapping: String
+
+    static func make(environment: BackendEnvironment, mutations: [SyncMutationPreview]) -> SyncClientPreview {
+        let queued = mutations.filter { $0.status == "queued" }.count
+        let blocked = mutations.filter { $0.status == "blocked" }.count
+
+        return SyncClientPreview(
+            transport: "URLSession + JSONDecoder, \(environment.title)",
+            resultType: "SyncClientResult: accepted / queued / blocked",
+            retryPlan: queued > 0 ? "\(queued) operation(s) stay in local queue with exponential retry" : "No queued operations after dry-run",
+            serverVersionPlan: "accepted responses must persist entityVersion before clearing local mutation",
+            failureMapping: blocked > 0 ? "\(blocked) blocked operation(s): storage/conflict/auth must stop automatic send" : "Network errors map to offline queue"
         )
     }
 }
@@ -5705,6 +5728,12 @@ private struct SyncCenterSheet: View {
                                 detail: "Dry-run готовит POST /sync/mutations: base URL окружения, auth-заглушка, idempotency key и compact JSON body"
                             )
                             syncStateRow(
+                                icon: "curlybraces.square.fill",
+                                color: SchoolTheme.warning,
+                                title: "Swift client",
+                                detail: "Scaffold фиксирует URLSession transport, result mapping, retry-план и сохранение server version без реального network call"
+                            )
+                            syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
                                 color: SchoolTheme.warning,
                                 title: "Локальное хранилище",
@@ -6122,6 +6151,7 @@ private struct SyncCenterSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             syncRequestPreviewCard(result.requestPreview)
+            syncClientPreviewCard(result.clientPreview)
 
             HStack(spacing: 10) {
                 MoreMetric(value: "\(result.acceptedCount)", title: "можно", color: SchoolTheme.success)
@@ -6140,6 +6170,50 @@ private struct SyncCenterSheet: View {
         }
         .padding(12)
         .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Swift client", systemImage: "curlybraces.square.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: "scaffold", color: SchoolTheme.warning)
+            }
+
+            Text(client.transport)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(client.resultType)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(client.retryPlan)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(client.serverVersionPlan)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(client.failureMapping)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+        }
+        .padding(10)
+        .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncRequestPreviewCard(_ request: SyncRequestPreview) -> some View {
