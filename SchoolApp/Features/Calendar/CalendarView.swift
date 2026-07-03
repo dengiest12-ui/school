@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum CalendarLocalStore {
     private static let defaultsKey = "school.calendar.events.v1"
@@ -186,6 +187,9 @@ struct CalendarView: View {
                         if let linkedCollection = event.linkedCollection {
                             StatusBadge(text: "Сбор: \(linkedCollection.amount)", color: SchoolTheme.warning)
                         }
+                        if !event.documents.isEmpty {
+                            StatusBadge(text: "\(event.documents.count) файл", color: SchoolTheme.accent)
+                        }
                     }
 
                     Text(event.title)
@@ -194,6 +198,11 @@ struct CalendarView: View {
                     Text(event.dateLabel)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(SchoolTheme.success)
+                    Text(event.participants.isEmpty ? "Участники: весь класс" : "Участники: \(event.participants.joined(separator: ", "))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.accent)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.86)
                     Text(event.detail)
                         .font(.caption)
                         .foregroundStyle(SchoolTheme.muted)
@@ -329,6 +338,9 @@ private struct AddEventSheet: View {
     @State private var place = "Музей космонавтики"
     @State private var detail = "Сбор у школы, нужна вода и согласие"
     @State private var responsible = "Родкомитет"
+    @State private var participantsText = "Миша, Соня, 3Б"
+    @State private var documents: [String] = ["Согласие на экскурсию.pdf"]
+    @State private var isFileImporterVisible = false
     @State private var reminderEnabled = true
     @State private var hasLinkedCollection = true
     @State private var collectionTitle = "Сбор на экскурсию"
@@ -353,9 +365,11 @@ private struct AddEventSheet: View {
                             CalendarTextField(title: "Место", iconName: "mappin.and.ellipse", color: SchoolTheme.teal, text: $place)
                             CalendarTextField(title: "Описание", iconName: "text.alignleft", color: SchoolTheme.accent, text: $detail)
                             CalendarTextField(title: "Ответственный", iconName: "person.badge.shield.checkmark", color: SchoolTheme.success, text: $responsible)
+                            CalendarTextField(title: "Участники", iconName: "person.3.fill", color: SchoolTheme.teal, text: $participantsText)
                         }
                     }
 
+                    documentsCard
                     reminderCard
                     linkedCollectionCard
 
@@ -389,6 +403,13 @@ private struct AddEventSheet: View {
                     }
                 }
                 KeyboardDoneToolbar()
+            }
+            .fileImporter(
+                isPresented: $isFileImporterVisible,
+                allowedContentTypes: [.pdf, .image, .plainText, .item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
             }
         }
     }
@@ -447,6 +468,37 @@ private struct AddEventSheet: View {
         }
     }
 
+    private var documentsCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "doc.fill", color: SchoolTheme.accent, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Документы")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(documents.isEmpty ? "Согласие, памятка, билет или список" : documents.joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundStyle(documents.isEmpty ? SchoolTheme.muted : SchoolTheme.success)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.82)
+                    }
+                    Spacer()
+                }
+
+                Button {
+                    isFileImporterVisible = true
+                } label: {
+                    Label("Прикрепить файл", systemImage: "paperclip")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                }
+                .buttonStyle(.bordered)
+                .tint(SchoolTheme.accent)
+            }
+        }
+    }
+
     private var linkedCollectionCard: some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -494,11 +546,45 @@ private struct AddEventSheet: View {
             type: type,
             place: place.trimmed,
             response: .undecided,
-            linkedCollection: linkedCollection
+            linkedCollection: linkedCollection,
+            participants: participants,
+            documents: documents
         )
 
         onSave(event)
         dismiss()
+    }
+
+    private var participants: [String] {
+        participantsText
+            .split(separator: ",")
+            .map { String($0).trimmed }
+            .filter { !$0.isEmpty }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else {
+                return
+            }
+
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let fileName = url.lastPathComponent.isEmpty ? "документ события" : url.lastPathComponent
+            if !documents.contains(fileName) {
+                documents.append(fileName)
+            }
+        case .failure:
+            if documents.isEmpty {
+                documents = ["Файл не прикреплен"]
+            }
+        }
     }
 }
 
@@ -531,8 +617,13 @@ private struct EventDetailSheet: View {
                         VStack(alignment: .leading, spacing: 14) {
                             eventInfo("Тип", event.type, "tag.fill", SchoolTheme.accent)
                             eventInfo("Место", event.place.isEmpty ? "Будет уточнено" : event.place, "mappin.and.ellipse", SchoolTheme.teal)
+                            eventInfo("Участники", event.participants.isEmpty ? "Весь класс" : event.participants.joined(separator: ", "), "person.3.fill", SchoolTheme.warning)
                             eventInfo("Детали", event.detail, "text.alignleft", SchoolTheme.success)
                         }
+                    }
+
+                    if !event.documents.isEmpty {
+                        documentsCard
                     }
 
                     if let linkedCollection = event.linkedCollection {
@@ -609,6 +700,38 @@ private struct EventDetailSheet: View {
                     }
                 }
                 Spacer()
+            }
+        }
+    }
+
+    private var documentsCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "doc.fill", color: SchoolTheme.accent, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Документы")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text("Файлы события доступны участникам")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                }
+
+                ForEach(event.documents, id: \.self) { document in
+                    Label(document, systemImage: "paperclip")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .stroke(SchoolTheme.line, lineWidth: 1)
+                        }
+                }
             }
         }
     }

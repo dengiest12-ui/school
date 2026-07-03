@@ -530,6 +530,8 @@ struct ClassEvent: Identifiable, Hashable, Codable {
     var place: String
     var response: EventResponse
     var linkedCollection: EventLinkedCollection?
+    var participants: [String]
+    var documents: [String]
 
     init(
         id: UUID = UUID(),
@@ -539,7 +541,9 @@ struct ClassEvent: Identifiable, Hashable, Codable {
         type: String = "Событие",
         place: String = "",
         response: EventResponse = .undecided,
-        linkedCollection: EventLinkedCollection? = nil
+        linkedCollection: EventLinkedCollection? = nil,
+        participants: [String] = ["Миша"],
+        documents: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -549,6 +553,36 @@ struct ClassEvent: Identifiable, Hashable, Codable {
         self.place = place
         self.response = response
         self.linkedCollection = linkedCollection
+        self.participants = participants
+        self.documents = documents
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case dateLabel
+        case detail
+        case type
+        case place
+        case response
+        case linkedCollection
+        case participants
+        case documents
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        dateLabel = try container.decode(String.self, forKey: .dateLabel)
+        detail = try container.decode(String.self, forKey: .detail)
+        type = try container.decode(String.self, forKey: .type)
+        place = try container.decode(String.self, forKey: .place)
+        response = try container.decode(EventResponse.self, forKey: .response)
+        linkedCollection = try container.decodeIfPresent(EventLinkedCollection.self, forKey: .linkedCollection)
+        participants = try container.decodeIfPresent([String].self, forKey: .participants) ?? ["Миша"]
+        documents = try container.decodeIfPresent([String].self, forKey: .documents) ?? []
     }
 }
 
@@ -853,14 +887,17 @@ enum SampleData {
             detail: "Сбор у школы в 09:10",
             type: "Экскурсия",
             place: "Музей космонавтики",
-            linkedCollection: EventLinkedCollection(title: "Сбор на экскурсию", amount: "500 руб.", status: .dueSoon)
+            linkedCollection: EventLinkedCollection(title: "Сбор на экскурсию", amount: "500 руб.", status: .dueSoon),
+            participants: ["Миша", "Соня", "3Б"],
+            documents: ["Согласие на экскурсию.pdf"]
         ),
         ClassEvent(
             title: "Контрольная по математике",
             dateLabel: "Пт, 10 июля",
             detail: "Повторить таблицу умножения",
             type: "Контрольная",
-            place: "Каб. 21"
+            place: "Каб. 21",
+            participants: ["3Б"]
         ),
         ClassEvent(
             title: "День рождения Сони",

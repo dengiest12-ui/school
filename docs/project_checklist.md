@@ -432,8 +432,8 @@
 - [~] Создание события
   - Проверка: название, дата, место, описание, участники, ответственные, документы, напоминания
   - Уровень: 3
-  - Артефакт: `.build/screenshots/calendar-add-event-final.png`
-  - Комментарий: локально создается событие с названием, датой, типом, местом, описанием, ответственным и настройкой напоминания; участники, документы и системные уведомления еще не подключены
+  - Артефакт: `.build/screenshots/calendar-add-event-final.png`, `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-add.png`, `.build/screenshots/qa-smoke/calendar-detail.png`
+  - Комментарий: локально создается событие с названием, датой, типом, местом, описанием, ответственным, участниками, документами, связкой со сбором и настройкой напоминания; системные уведомления и серверная доставка участникам еще не подключены
 
 - [~] Типы событий
   - Проверка: контрольная, экскурсия, собрание, праздник, дедлайн оплаты, проект, медосмотр, кружок, репетитор, личное дело
@@ -444,8 +444,8 @@
 - [~] Подтверждение участия
   - Проверка: участник может подтвердить, отказаться или задать вопрос
   - Уровень: 3
-  - Артефакт: `.build/screenshots/calendar-event-detail-final.png`, `.build/screenshots/calendar-persistence-detail.png`
-  - Комментарий: ответ семьи меняется между "Жду ответа", "Идем", "Не сможем" и "Есть вопрос" и сохраняется локально; серверное сохранение и уведомление организатора еще не реализованы
+  - Артефакт: `.build/screenshots/calendar-event-detail-final.png`, `.build/screenshots/calendar-persistence-detail.png`, `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-detail.png`
+  - Комментарий: ответ семьи меняется между "Жду ответа", "Идем", "Не сможем" и "Есть вопрос" и сохраняется локально; в деталях видны участники, документы и связанный сбор; серверное сохранение и уведомление организатора еще не реализованы
 
 - [~] Связь события со сбором
   - Проверка: экскурсия или праздник могут иметь связанный сбор
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -981,3 +981,4 @@
 | 2026-07-03 | Управление участниками класса | Пройдено | 3 | `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Добавлено локальное меню участника: смена роли, отключение/возврат доступа, удаление и передача админа с защитой последнего администратора; сценарий добавлен в smoke-проверку, backend-аудит и серверные права остаются следующим этапом |
 | 2026-07-03 | Детский режим MVP | Пройдено | 3 | `.build/screenshots/child-mode-today.png`, `.build/screenshots/qa-smoke/child-mode.png`, `SchoolApp/App/AppView.swift`, `SchoolApp/App/AppTab.swift`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `scripts/qa_smoke.sh` | Добавлена роль "Ребенок": видит только `Сегодня`, `ДЗ`, `Календарь`; онбординг использует детскую форму имени; на главном экране показаны ДЗ, расписание, прогресс и рюкзак, а сборы/класс/родительские чаты и создание новых сущностей скрыты; серверные ограничения остаются следующим этапом |
 | 2026-07-03 | Фильтры списка ДЗ | Пройдено | 3 | `.build/screenshots/homework-filters.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | В список ДЗ добавлены фильтры по ребенку, предмету, статусу и источнику, счетчик результатов и сброс фильтров; модель ДЗ получила совместимое поле ребенка; сценарий добавлен в smoke-проверку |
+| 2026-07-03 | Участники и документы событий | Пройдено | 3 | `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-detail.png`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | События календаря получили локальные участников и документы: форма создания сохраняет список участников и файл, карточка/детали показывают участников, документы и связанный сбор; сценарий деталей события добавлен в smoke-проверку |

@@ -58,6 +58,7 @@ run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-me
 run_case "homework-add" -qa-tab homework -qa-homework-add
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
+run_case "calendar-detail" -qa-tab calendar -qa-calendar-detail
 run_case "more-family" -qa-tab more -qa-more-family
 run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
