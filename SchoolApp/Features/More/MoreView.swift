@@ -115,10 +115,20 @@ private struct PrivacySettingsState: Codable, Hashable {
 
     static let sample = PrivacySettingsState(
         minimalChildData: true,
-        childDataConsent: false,
-        privacyPolicyAccepted: false,
-        consentStatus: "Согласие еще не подтверждено"
+        childDataConsent: AppPrivacyConsentStore.childDataConsent,
+        privacyPolicyAccepted: AppPrivacyConsentStore.policyAccepted,
+        consentStatus: AppPrivacyConsentStore.statusText
     )
+
+    func mergingStoredConsent() -> PrivacySettingsState {
+        var merged = self
+        if AppPrivacyConsentStore.childDataConsent || AppPrivacyConsentStore.policyAccepted {
+            merged.childDataConsent = AppPrivacyConsentStore.childDataConsent
+            merged.privacyPolicyAccepted = AppPrivacyConsentStore.policyAccepted
+            merged.consentStatus = AppPrivacyConsentStore.statusText
+        }
+        return merged
+    }
 }
 
 private struct ParentProfileState: Codable, Hashable {
@@ -768,6 +778,52 @@ private enum MoreLocalStore {
         }
     }
 
+    static func localExportSummary() -> String {
+        let homeworkCount = storedArrayCount(forKey: "school.homework.items.v1")
+        let eventsCount = storedArrayCount(forKey: "school.calendar.events.v1")
+        let timestamp = Date.now.formatted(date: .numeric, time: .shortened)
+
+        return "Экспорт подготовлен локально \(timestamp): дети \(snapshot.children.count), семья \(snapshot.familyMembers.count), классы \(snapshot.classAccess.count), файлы \(snapshot.classFiles.count), ДЗ \(homeworkCount), события \(eventsCount)."
+    }
+
+    static func performLocalDeletion(scope: String) -> String {
+        let timestamp = Date.now.formatted(date: .numeric, time: .shortened)
+
+        switch scope {
+        case "Профиль ребенка":
+            snapshot.children = []
+            snapshot.privacySettings.childDataConsent = false
+            snapshot.privacySettings.privacyPolicyAccepted = false
+            snapshot.privacySettings.consentStatus = "Данные ребенка очищены локально \(timestamp)"
+            AppPrivacyConsentStore.clear()
+            save()
+        case "Семейные доступы":
+            snapshot.familyMembers = []
+            snapshot.familyTasks = []
+            save()
+        case "Локальные файлы и чеки":
+            snapshot.classFiles = []
+            UserDefaults.standard.removeObject(forKey: "school.classRoom.store.v1")
+            save()
+        case "Все локальные данные":
+            removeAllLocalDataKeys()
+            snapshot = .sample
+        default:
+            snapshot.profile = .sample
+            snapshot.children = []
+            snapshot.familyMembers = []
+            snapshot.familyTasks = []
+            snapshot.classAccess = []
+            snapshot.privacySettings.childDataConsent = false
+            snapshot.privacySettings.privacyPolicyAccepted = false
+            snapshot.privacySettings.consentStatus = "Аккаунт и личные данные очищены локально \(timestamp)"
+            AppPrivacyConsentStore.clear()
+            save()
+        }
+
+        return "Локально удалено \(timestamp): \(scope). После backend этот шаг должен отправлять серверный запрос, требовать повторный вход и давать период отмены."
+    }
+
     static func recordAudit(_ entry: AuditLogEntry) {
         snapshot.auditEntries.insert(entry, at: 0)
         save()
@@ -800,6 +856,35 @@ private enum MoreLocalStore {
 
         UserDefaults.standard.set(data, forKey: defaultsKey)
     }
+
+    private static func storedArrayCount(forKey key: String) -> Int {
+        guard
+            let data = UserDefaults.standard.data(forKey: key),
+            let array = try? JSONSerialization.jsonObject(with: data) as? [Any]
+        else {
+            return 0
+        }
+
+        return array.count
+    }
+
+    private static func removeAllLocalDataKeys() {
+        [
+            defaultsKey,
+            "school.homework.items.v1",
+            "school.calendar.events.v1",
+            "todayStoreSnapshot.v1",
+            "school.classRoom.store.v1",
+            "hasCompletedOnboarding",
+            "onboardingVersion",
+            "currentUserRole",
+            "authMethod",
+            "authContact",
+            "authVerifiedAt"
+        ].forEach(UserDefaults.standard.removeObject)
+
+        AppPrivacyConsentStore.clear()
+    }
 }
 
 struct MoreView: View {
@@ -824,6 +909,7 @@ struct MoreView: View {
     @State private var activeSheet: MoreSheet?
 
     init() {
+        MoreView.seedPrivacyConsentIfRequested()
         MoreLocalStore.resetIfRequested()
         _profile = State(initialValue: MoreLocalStore.profile)
         _children = State(initialValue: MoreLocalStore.children)
@@ -837,7 +923,7 @@ struct MoreView: View {
         _classFiles = State(initialValue: MoreLocalStore.classFiles)
         _securitySettings = State(initialValue: MoreLocalStore.securitySettings)
         _auditEntries = State(initialValue: MoreLocalStore.auditEntries)
-        _privacySettings = State(initialValue: MoreLocalStore.privacySettings)
+        _privacySettings = State(initialValue: MoreLocalStore.privacySettings.mergingStoredConsent())
         _analyticsEvents = State(initialValue: MoreLocalStore.analyticsEvents)
         _mvpMetrics = State(initialValue: MoreLocalStore.mvpMetrics)
         _aiQualityLogs = State(initialValue: MoreLocalStore.aiQualityLogs)
@@ -1309,6 +1395,18 @@ struct MoreView: View {
         }
 
         return nil
+    }
+
+    private static func seedPrivacyConsentIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-more-privacy-consented") else {
+            return
+        }
+
+        AppPrivacyConsentStore.save(
+            childDataConsent: true,
+            policyAccepted: true,
+            actor: "Владимир"
+        )
     }
 
     private func recordAudit(
@@ -3541,7 +3639,7 @@ private struct SecuritySettingsSheet: View {
                             )
 
                             Button {
-                                settings.exportStatus = "Экспорт подготовлен локально: профиль, дети, семья, классы, файлы и настройки"
+                                settings.exportStatus = MoreLocalStore.localExportSummary()
                             } label: {
                                 Label("Подготовить экспорт", systemImage: "square.and.arrow.up")
                                     .font(.subheadline.weight(.semibold))
@@ -3571,7 +3669,7 @@ private struct SecuritySettingsSheet: View {
                                                 .font(.subheadline.weight(.semibold))
                                                 .foregroundStyle(SchoolTheme.graphite)
                                                 .fixedSize(horizontal: false, vertical: true)
-                                            Text("Без backend это локальная заявка, данные не очищаются автоматически")
+                                            Text("В MVP очищается локальное хранилище, серверное удаление появится с backend")
                                                 .font(.caption)
                                                 .foregroundStyle(SchoolTheme.muted)
                                                 .fixedSize(horizontal: false, vertical: true)
@@ -3711,8 +3809,8 @@ private struct SecuritySettingsSheet: View {
     }
 
     private func prepareDeletionRequest() {
-        let timestamp = Date.now.formatted(date: .numeric, time: .shortened)
-        settings.deleteRequestStatus = "Заявка подготовлена локально \(timestamp): \(settings.deleteScope). После backend она должна уходить на сервер, требовать повторный вход и иметь период отмены."
+        settings.deleteRequestStatus = MoreLocalStore.performLocalDeletion(scope: settings.deleteScope)
+        settings.deleteConfirmation = ""
     }
 }
 
@@ -4084,8 +4182,14 @@ private struct PrivacySettingsSheet: View {
     }
 
     private func save() {
+        AppPrivacyConsentStore.save(
+            childDataConsent: settings.childDataConsent,
+            policyAccepted: settings.privacyPolicyAccepted,
+            actor: "родителем"
+        )
+
         if settings.childDataConsent && settings.privacyPolicyAccepted {
-            settings.consentStatus = "Согласие и политика подтверждены локально"
+            settings.consentStatus = AppPrivacyConsentStore.statusText
         } else if settings.childDataConsent {
             settings.consentStatus = "Согласие есть, но политика еще не подтверждена"
         } else {

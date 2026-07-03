@@ -136,8 +136,8 @@
 - [~] Onboarding
   - Проверка: создание класса, присоединение, авторизация, роль, ребенок, уведомления
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `.build/screenshots/onboarding-*-final.png`
-  - Комментарий: реализован интерактивный первый запуск без реальной авторизации и backend-сохранения
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `.build/screenshots/onboarding-*-final.png`, `.build/screenshots/qa-smoke/onboarding-phone.png`
+  - Комментарий: реализован интерактивный первый запуск: локальная авторизация, роль, данные ребенка/класса, уведомления и обязательное локальное согласие на обработку данных ребенка; настоящая авторизация и backend-сохранение еще не подключены
 
 - [~] Экран "Сегодня / Что завтра"
   - Проверка: за 10 секунд отвечает, что сделать ребенку и родителю
@@ -248,8 +248,8 @@
 - [~] Удаление аккаунта и данных
   - Проверка: пользователь может удалить аккаунт, ребенка и связанные личные данные
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-account-deletion.png`
-  - Комментарий: в безопасности добавлен локальный сценарий: экспорт перед удалением, выбор объема удаления, подтверждение словом `УДАЛИТЬ` и статус заявки; реальное удаление на сервере, повторная авторизация и период отмены еще не подключены
+  - Артефакт: `.build/screenshots/more-account-deletion.png`, `.build/screenshots/security-local-delete-export.png`, `SchoolApp/Features/More/MoreView.swift`
+  - Комментарий: в безопасности добавлен локальный сценарий: экспорт-сводка перед удалением, выбор объема, подтверждение словом `УДАЛИТЬ` и очистка выбранных локальных данных; реальное удаление на сервере, повторная авторизация и период отмены еще не подключены
 
 ## 6. Ребенок, семья и классы
 
@@ -700,20 +700,20 @@
 - [~] Минимизация данных детей
   - Проверка: собираются только нужные данные, нет лишней персональной информации
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-privacy-screen.png`
-  - Комментарий: добавлен локальный экран приватности с принципом минимального профиля ребенка; требуется серверная модель данных, ревизия всех полей и юридическая проверка
+  - Артефакт: `.build/screenshots/more-privacy-screen.png`, `.build/screenshots/privacy-consent-settings.png`
+  - Комментарий: добавлен локальный экран приватности с принципом минимального профиля ребенка; согласие из онбординга подтягивается в настройки; требуется серверная модель данных, ревизия всех полей и юридическая проверка
 
 - [~] Согласие на обработку данных ребенка
   - Проверка: согласие есть в нужном месте и сохраняется
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-privacy-screen.png`
-  - Комментарий: добавлены локальные переключатели согласия родителя и принятия политики; требуется финальный юридический текст, версия согласия и серверное хранение факта согласия
+  - Артефакт: `.build/screenshots/privacy-consent-settings.png`, `.build/screenshots/qa-smoke/more-privacy.png`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Models/SampleData.swift`
+  - Комментарий: согласие родителя и принятие политики обязательны в онбординге, сохраняются локально с временем и отображаются в настройках приватности; требуется финальный юридический текст, версия согласия и серверное хранение факта согласия
 
 - [~] Хранение данных
   - Проверка: если запуск в РФ, данные хранятся в РФ или есть юридически проверенная схема
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-security-screen.png`
-  - Комментарий: добавлен локальный экран безопасности с подготовкой запроса удаления данных; юридически важный пункт, серверная схема хранения и документы еще не готовы
+  - Артефакт: `.build/screenshots/more-security-screen.png`, `.build/screenshots/security-local-delete-export.png`
+  - Комментарий: добавлен локальный экран безопасности с экспортом и очисткой локальных данных по выбранному объему; юридически важный пункт, серверная схема хранения и документы еще не готовы
 
 - [~] Фотоальбомы защищены
   - Проверка: нет публичных ссылок без авторизации, контент не индексируется
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -982,3 +982,4 @@
 | 2026-07-03 | Детский режим MVP | Пройдено | 3 | `.build/screenshots/child-mode-today.png`, `.build/screenshots/qa-smoke/child-mode.png`, `SchoolApp/App/AppView.swift`, `SchoolApp/App/AppTab.swift`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `scripts/qa_smoke.sh` | Добавлена роль "Ребенок": видит только `Сегодня`, `ДЗ`, `Календарь`; онбординг использует детскую форму имени; на главном экране показаны ДЗ, расписание, прогресс и рюкзак, а сборы/класс/родительские чаты и создание новых сущностей скрыты; серверные ограничения остаются следующим этапом |
 | 2026-07-03 | Фильтры списка ДЗ | Пройдено | 3 | `.build/screenshots/homework-filters.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | В список ДЗ добавлены фильтры по ребенку, предмету, статусу и источнику, счетчик результатов и сброс фильтров; модель ДЗ получила совместимое поле ребенка; сценарий добавлен в smoke-проверку |
 | 2026-07-03 | Участники и документы событий | Пройдено | 3 | `.build/screenshots/calendar-participants-documents.png`, `.build/screenshots/qa-smoke/calendar-detail.png`, `SchoolApp/Features/Calendar/CalendarView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | События календаря получили локальные участников и документы: форма создания сохраняет список участников и файл, карточка/детали показывают участников, документы и связанный сбор; сценарий деталей события добавлен в smoke-проверку |
+| 2026-07-03 | Согласие и локальное удаление данных | Пройдено | 3 | `.build/screenshots/privacy-consent-settings.png`, `.build/screenshots/security-local-delete-export.png`, `.build/screenshots/qa-smoke/more-privacy.png`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Онбординг требует локальное согласие на обработку данных ребенка и принятие политики, настройки приватности показывают сохраненный статус, а безопасность получила экспорт-сводку и очистку выбранных локальных данных; сценарий приватности добавлен в smoke-проверку |

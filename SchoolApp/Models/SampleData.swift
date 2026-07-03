@@ -1,5 +1,62 @@
 import Foundation
 
+enum AppPrivacyConsentStore {
+    private static let childDataConsentKey = "school.privacy.childDataConsent"
+    private static let policyAcceptedKey = "school.privacy.policyAccepted"
+    private static let consentTimestampKey = "school.privacy.consentTimestamp"
+    private static let consentActorKey = "school.privacy.consentActor"
+
+    static var childDataConsent: Bool {
+        UserDefaults.standard.bool(forKey: childDataConsentKey)
+    }
+
+    static var policyAccepted: Bool {
+        UserDefaults.standard.bool(forKey: policyAcceptedKey)
+    }
+
+    static var consentTimestamp: String {
+        UserDefaults.standard.string(forKey: consentTimestampKey) ?? ""
+    }
+
+    static var consentActor: String {
+        UserDefaults.standard.string(forKey: consentActorKey) ?? ""
+    }
+
+    static var hasFullConsent: Bool {
+        childDataConsent && policyAccepted
+    }
+
+    static var statusText: String {
+        guard hasFullConsent else {
+            return childDataConsent ? "Согласие есть, но политика еще не подтверждена" : "Согласие еще не подтверждено"
+        }
+
+        let timestamp = consentTimestamp.isEmpty ? "локально" : consentTimestamp
+        let actor = consentActor.isEmpty ? "родителем" : consentActor
+        return "Согласие и политика подтверждены \(actor), \(timestamp)"
+    }
+
+    static func save(childDataConsent: Bool, policyAccepted: Bool, actor: String) {
+        UserDefaults.standard.set(childDataConsent, forKey: childDataConsentKey)
+        UserDefaults.standard.set(policyAccepted, forKey: policyAcceptedKey)
+
+        if childDataConsent && policyAccepted {
+            UserDefaults.standard.set(Date.now.formatted(date: .numeric, time: .shortened), forKey: consentTimestampKey)
+            let cleanActor = actor.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.set(cleanActor.isEmpty ? "родителем" : cleanActor, forKey: consentActorKey)
+        }
+    }
+
+    static func clear() {
+        [
+            childDataConsentKey,
+            policyAcceptedKey,
+            consentTimestampKey,
+            consentActorKey
+        ].forEach(UserDefaults.standard.removeObject)
+    }
+}
+
 enum AppUserRole: String, CaseIterable, Identifiable {
     case parent
     case parentCommittee

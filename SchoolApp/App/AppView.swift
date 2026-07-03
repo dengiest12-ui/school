@@ -137,7 +137,7 @@ struct AppView: View {
         return AppUserRole(rawValue: arguments[roleArgumentIndex + 1])
     }
 
-    private static let requiredOnboardingVersion = 2
+    private static let requiredOnboardingVersion = 3
 }
 
 private struct CustomTabBar: View {

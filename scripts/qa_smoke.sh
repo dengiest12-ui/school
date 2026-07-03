@@ -47,8 +47,8 @@ run_case() {
   xcrun simctl io "$SIMULATOR_ID" screenshot "$SCREENSHOT_DIR/$name.png"
 }
 
-run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified
-run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple
+run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified -qa-onboarding-consent
+run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple -qa-onboarding-consent
 run_case "today-main" -qa-tab today
 run_case "child-mode" -qa-role child -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
@@ -63,6 +63,7 @@ run_case "more-family" -qa-tab more -qa-more-family
 run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
 run_case "more-security" -qa-tab more -qa-more-security
+run_case "more-privacy" -qa-tab more -qa-more-privacy -qa-more-privacy-consented
 run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
 run_case "more-sync" -qa-tab more -qa-more-sync

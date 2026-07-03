@@ -22,6 +22,8 @@ struct OnboardingView: View {
     @State private var schoolName = "Школа 1254"
     @State private var inviteCode = OnboardingView.initialInviteCode
     @State private var notificationsEnabled = true
+    @State private var childDataConsent = OnboardingView.startsWithPrivacyConsent
+    @State private var privacyPolicyAccepted = OnboardingView.startsWithPrivacyConsent
     @State private var didPrepareClass = OnboardingView.startsPrepared
     @FocusState private var focusedField: OnboardingField?
 
@@ -39,6 +41,7 @@ struct OnboardingView: View {
                         authCard
                         roleCard
                         detailsCard
+                        consentCard
                         notificationCard
                     }
                 }
@@ -104,6 +107,11 @@ struct OnboardingView: View {
 
     private static var startsPrepared: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-onboarding-ready")
+    }
+
+    private static var startsWithPrivacyConsent: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-consent")
+            || ProcessInfo.processInfo.arguments.contains("-qa-onboarding-ready")
     }
 
     private var header: some View {
@@ -381,6 +389,50 @@ struct OnboardingView: View {
         }
     }
 
+    private var consentCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "hand.raised.fill", color: SchoolTheme.teal, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Приватность ребенка")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text("Минимум данных: имя, класс, школа и связи с семьей")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                consentToggle(
+                    title: "Я подтверждаю обработку данных ребенка",
+                    detail: "Для домашки, событий, семьи и доступа к классу",
+                    icon: "checkmark.seal.fill",
+                    color: SchoolTheme.success,
+                    isOn: $childDataConsent
+                )
+
+                Divider()
+
+                consentToggle(
+                    title: "Я принимаю политику конфиденциальности",
+                    detail: "Удаление и экспорт данных доступны в настройках",
+                    icon: "doc.text.fill",
+                    color: SchoolTheme.accent,
+                    isOn: $privacyPolicyAccepted
+                )
+
+                if !privacyConsentIsReady {
+                    Text("Чтобы продолжить, подтвердите оба пункта. Это локальная MVP-фиксация согласия.")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
     private var readyCard: some View {
         DashboardCard {
             VStack(alignment: .leading, spacing: 14) {
@@ -484,6 +536,31 @@ struct OnboardingView: View {
         .buttonStyle(.plain)
     }
 
+    private func consentToggle(
+        title: String,
+        detail: String,
+        icon: String,
+        color: Color,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
+                IconBadge(systemName: icon, color: color, size: 38)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .tint(SchoolTheme.success)
+    }
+
     private var primaryButtonTitle: String {
         if didPrepareClass {
             return "Перейти в Сегодня"
@@ -493,7 +570,7 @@ struct OnboardingView: View {
     }
 
     private var canPrepare: Bool {
-        guard authIsReady, !parentName.trimmed.isEmpty, role == .child || !childName.trimmed.isEmpty else {
+        guard authIsReady, privacyConsentIsReady, !parentName.trimmed.isEmpty, role == .child || !childName.trimmed.isEmpty else {
             return false
         }
 
@@ -512,6 +589,10 @@ struct OnboardingView: View {
         case .apple:
             return appleLinked && appleEmail.trimmed.contains("@")
         }
+    }
+
+    private var privacyConsentIsReady: Bool {
+        childDataConsent && privacyPolicyAccepted
     }
 
     private var phoneLooksValid: Bool {
@@ -559,6 +640,11 @@ struct OnboardingView: View {
         storedAuthMethod = authMethod.rawValue
         storedAuthContact = authMethod == .phone ? phoneNumber.trimmed : appleEmail.trimmed
         storedAuthVerifiedAt = Date.now.formatted(date: .numeric, time: .shortened)
+        AppPrivacyConsentStore.save(
+            childDataConsent: childDataConsent,
+            policyAccepted: privacyPolicyAccepted,
+            actor: parentName
+        )
     }
 }
 
