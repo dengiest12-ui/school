@@ -103,7 +103,7 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
     }
 }
 
-struct ScheduleItem: Identifiable, Hashable {
+struct ScheduleItem: Identifiable, Hashable, Codable {
     let id: UUID
     var day: String
     var time: String
@@ -134,7 +134,7 @@ struct ScheduleItem: Identifiable, Hashable {
     }
 }
 
-struct PersonalCircle: Identifiable, Hashable {
+struct PersonalCircle: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var day: String
@@ -272,18 +272,36 @@ struct DayChip: Identifiable, Hashable {
     let isSelected: Bool
 }
 
-struct ParentTask: Identifiable, Hashable {
-    enum Kind {
+struct ParentTask: Identifiable, Hashable, Codable {
+    enum Kind: String, CaseIterable, Codable {
         case bring
         case pay
         case sign
         case buy
     }
 
-    let id = UUID()
-    let title: String
-    let dueLabel: String
-    let kind: Kind
+    let id: UUID
+    var title: String
+    var dueLabel: String
+    var kind: Kind
+    var assignee: String
+    var isDone: Bool
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        dueLabel: String,
+        kind: Kind,
+        assignee: String = "Владимир",
+        isDone: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.dueLabel = dueLabel
+        self.kind = kind
+        self.assignee = assignee
+        self.isDone = isDone
+    }
 }
 
 struct FamilyAccessMember: Identifiable, Hashable, Codable {
