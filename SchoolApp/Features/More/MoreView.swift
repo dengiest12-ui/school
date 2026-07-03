@@ -379,8 +379,8 @@ private struct QaStateScenario: Identifiable, Hashable, Codable {
         QaStateScenario(title: "Нет ребенка", detail: "У родителя нет профиля ребенка", state: "Пустая семья", expectedResult: "Предложить добавить ребенка, не блокируя изучение приложения", iconName: "person.crop.square.fill", colorName: "teal"),
         QaStateScenario(title: "Нет ДЗ", detail: "Домашних заданий пока не добавили", state: "Пустой список", expectedResult: "Показать мягкое пустое состояние и кнопку добавления/разбора", status: "Пройдено", iconName: "tray.fill", colorName: "green"),
         QaStateScenario(title: "Нет прав", detail: "Обычный родитель открывает действия родкомитета", state: "Ограничение роли", expectedResult: "Показать объяснение и не дать менять оплаты, чеки и объявления", status: "Пройдено", iconName: "lock.shield.fill", colorName: "green"),
-        QaStateScenario(title: "Нет подписки", detail: "AI и расширенные функции требуют тарифа", state: "Paywall", expectedResult: "Базовые данные остаются доступны, ограничения честно объяснены", iconName: "creditcard.trianglebadge.exclamationmark", colorName: "orange"),
-        QaStateScenario(title: "Ошибка сети", detail: "Backend или файлы временно недоступны", state: "Offline", expectedResult: "Сохранить локальный черновик и показать, что синхронизация повторится", iconName: "wifi.exclamationmark", colorName: "orange"),
+        QaStateScenario(title: "Нет подписки", detail: "AI и расширенные функции требуют тарифа", state: "Paywall", expectedResult: "Базовые данные остаются доступны, ограничения честно объяснены", status: "Пройдено", iconName: "creditcard.trianglebadge.exclamationmark", colorName: "green"),
+        QaStateScenario(title: "Ошибка сети", detail: "Backend или файлы временно недоступны", state: "Offline", expectedResult: "Сохранить локальный черновик и показать, что синхронизация повторится", status: "Пройдено", iconName: "wifi.exclamationmark", colorName: "green"),
         QaStateScenario(title: "Отмена действия", detail: "Пользователь закрыл форму или системный picker", state: "Cancel", expectedResult: "Не создавать мусорные записи и оставить понятный статус", status: "Пройдено", iconName: "xmark.circle.fill", colorName: "green")
     ]
 }
@@ -5469,10 +5469,16 @@ private struct SyncCenterSheet: View {
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
-        _operations = State(initialValue: operations)
+        var launchOperations = operations
+        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline"), !launchOperations.isEmpty {
+            launchOperations[0].status = "Offline"
+            launchOperations[0].colorName = "orange"
+        }
+
+        _operations = State(initialValue: launchOperations)
         if ProcessInfo.processInfo.arguments.contains("-qa-more-sync") {
-            _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: operations))
-            _syncStatus = State(initialValue: "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
+            _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: launchOperations))
+            _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
         }
     }
 

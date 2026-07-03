@@ -56,7 +56,8 @@ struct HomeworkView: View {
 
     init() {
         HomeworkLocalStore.resetIfRequested()
-        _homeworkItems = State(initialValue: HomeworkLocalStore.items)
+        let launchItems = ProcessInfo.processInfo.arguments.contains("-qa-homework-empty") ? [] : HomeworkLocalStore.items
+        _homeworkItems = State(initialValue: launchItems)
         _activeSheet = State(initialValue: HomeworkView.launchSheet())
     }
 

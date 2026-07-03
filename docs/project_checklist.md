@@ -806,14 +806,14 @@
 - [~] Проверка пустых состояний
   - Проверка: нет класса, нет ребенка, нет ДЗ, нет событий, нет подписки, нет прав
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-qa-states.png`, `.build/screenshots/homework-main-final.png`
-  - Комментарий: добавлен централизованный QA-экран и часть пустых состояний уже реализована в ДЗ, Today, фотоальбомах, памяти и файлах; надо еще пройти реальные пустые stores по всем вкладкам
+  - Артефакт: `.build/screenshots/more-qa-states.png`, `.build/screenshots/homework-main-final.png`, `.build/screenshots/homework-empty-state.png`, `.build/screenshots/qa-smoke/homework-empty.png`
+  - Комментарий: добавлен централизованный QA-экран и отдельный smoke-сценарий пустого списка ДЗ; пустые состояния уже реализованы в ДЗ, Today, фотоальбомах, памяти и файлах; надо еще пройти реальные пустые stores по всем вкладкам
 
 - [~] Проверка ошибок сети
   - Проверка: данные не теряются, пользователь понимает, что произошло
   - Уровень: 3
-  - Артефакт: `.build/screenshots/more-qa-states.png`
-  - Комментарий: offline/error-состояние зафиксировано в QA-сценариях с ожидаемым поведением "сохранить локальный черновик"; настоящие network errors появятся после backend/API
+  - Артефакт: `.build/screenshots/more-qa-states.png`, `.build/screenshots/more-sync-offline-state.png`, `.build/screenshots/qa-smoke/more-sync-offline.png`
+  - Комментарий: offline/error-состояние зафиксировано в QA-сценариях и отдельном smoke-сценарии центра синхронизации: операция остается в очереди, пользователь видит понятный статус; настоящие network errors появятся после backend/API
 
 - [~] Проверка на iPhone Simulator
   - Проверка: основные экраны открываются, верстка не ломается, сценарии проходят
@@ -1002,3 +1002,4 @@
 | 2026-07-03 | Локальная очередь уведомлений | Пройдено | 3 | `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Настройки уведомлений планируют вечерний/утренний дайджест, срочное объявление и дедлайн оплаты в iOS Notification Center; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Поддержка и отчеты о проблеме | Пройдено | 3 | `.build/screenshots/more-support-history.png`, `.build/screenshots/more-problem-history.png`, `.build/screenshots/qa-smoke/more-support.png`, `.build/screenshots/qa-smoke/more-problem.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Формы поддержки сохраняют историю обращений локально и готовят текст для системной отправки через iOS Share Sheet; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | Ошибки AI из ДЗ | Пройдено | 3 | `.build/screenshots/homework-ai-report.png`, `.build/screenshots/more-ai-quality-after-report.png`, `.build/screenshots/qa-smoke/homework-ai-report.png`, `.build/screenshots/qa-smoke/more-ai-quality.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Результат ДЗ по фото может отправить ошибку в общий локальный журнал качества AI, а экран `Качество AI` показывает эту запись; `xcodebuild` и полный smoke-прогон проходят |
+| 2026-07-03 | QA пустого ДЗ и offline | Пройдено | 3 | `.build/screenshots/homework-empty-state.png`, `.build/screenshots/more-sync-offline-state.png`, `.build/screenshots/qa-smoke/homework-empty.png`, `.build/screenshots/qa-smoke/more-sync-offline.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Добавлены smoke-сценарии пустого списка ДЗ и offline-очереди синхронизации; QA-сценарии `Нет подписки` и `Ошибка сети` отмечены как пройденные локально; `xcodebuild` и полный smoke-прогон проходят |

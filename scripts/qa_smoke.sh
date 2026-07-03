@@ -69,6 +69,7 @@ run_case "homework-add" -qa-tab homework -qa-homework-add
 run_case "homework-ai-report" -qa-tab homework -qa-homework-parse -qa-homework-ai-report
 run_case "homework-paywall" -qa-tab homework -qa-no-subscription -qa-homework-paywall
 run_case "homework-filters" -qa-tab homework -qa-homework-filters
+run_case "homework-empty" -qa-tab homework -qa-homework-empty
 run_case "calendar-add" -qa-tab calendar -qa-calendar-add
 run_case "calendar-detail" -qa-tab calendar -qa-calendar-detail
 run_case "more-profile" -qa-tab more -qa-more-profile
@@ -84,5 +85,6 @@ run_case "more-problem" -qa-tab more -qa-more-problem
 run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
 run_case "more-sync" -qa-tab more -qa-more-sync
+run_case "more-sync-offline" -qa-tab more -qa-more-sync -qa-more-sync-offline
 
 echo "QA smoke completed. Screenshots: $SCREENSHOT_DIR"
