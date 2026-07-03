@@ -3,7 +3,18 @@ import SwiftUI
 struct OnboardingView: View {
     let onFinish: (AppUserRole) -> Void
 
+    @AppStorage("authMethod") private var storedAuthMethod = "phone"
+    @AppStorage("authContact") private var storedAuthContact = ""
+    @AppStorage("authVerifiedAt") private var storedAuthVerifiedAt = ""
+
     @State private var mode: OnboardingMode = OnboardingView.initialMode
+    @State private var authMethod: OnboardingAuthMethod = OnboardingView.initialAuthMethod
+    @State private var phoneNumber = "+7 999 000-12-34"
+    @State private var phoneCode = OnboardingView.initialPhoneCode
+    @State private var phoneCodeSent = OnboardingView.startsPhoneVerified
+    @State private var phoneStatus = OnboardingView.initialPhoneStatus
+    @State private var appleEmail = "vladimir@example.com"
+    @State private var appleLinked = OnboardingView.startsAppleLinked
     @State private var role: AppUserRole = .parent
     @State private var parentName = "Владимир"
     @State private var childName = "Миша"
@@ -25,6 +36,7 @@ struct OnboardingView: View {
                     if didPrepareClass {
                         readyCard
                     } else {
+                        authCard
                         roleCard
                         detailsCard
                         notificationCard
@@ -52,6 +64,14 @@ struct OnboardingView: View {
         .onChange(of: mode) { _, _ in
             didPrepareClass = false
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Готово") {
+                    focusedField = nil
+                }
+            }
+        }
     }
 
     private static var initialMode: OnboardingMode {
@@ -60,6 +80,26 @@ struct OnboardingView: View {
 
     private static var initialInviteCode: String {
         initialMode == .join ? "3B-1254" : ""
+    }
+
+    private static var initialAuthMethod: OnboardingAuthMethod {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-apple") ? .apple : .phone
+    }
+
+    private static var startsPhoneVerified: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-phone-verified")
+    }
+
+    private static var initialPhoneCode: String {
+        startsPhoneVerified ? "1234" : ""
+    }
+
+    private static var initialPhoneStatus: String {
+        startsPhoneVerified ? "Телефон подтвержден локально кодом 1234" : "Код еще не отправлен"
+    }
+
+    private static var startsAppleLinked: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-apple")
     }
 
     private static var startsPrepared: Bool {
@@ -125,6 +165,122 @@ struct OnboardingView: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var authCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Вход")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+
+                HStack(spacing: 8) {
+                    ForEach(OnboardingAuthMethod.allCases) { method in
+                        Button {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                                authMethod = method
+                                didPrepareClass = false
+                            }
+                        } label: {
+                            Label(method.title, systemImage: method.iconName)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.84)
+                                .foregroundStyle(authMethod == method ? .white : SchoolTheme.graphite)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .background(authMethod == method ? method.color : SchoolTheme.page, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if authMethod == .phone {
+                    phoneAuthFields
+                } else {
+                    appleAuthFields
+                }
+            }
+        }
+    }
+
+    private var phoneAuthFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            OnboardingTextField(
+                title: "Телефон",
+                placeholder: "+7 999 000-00-00",
+                iconName: "phone.fill",
+                color: SchoolTheme.success,
+                text: $phoneNumber,
+                keyboardType: .phonePad,
+                textInputAutocapitalization: .never
+            )
+            .focused($focusedField, equals: .phone)
+
+            HStack(spacing: 10) {
+                OnboardingTextField(
+                    title: "Код",
+                    placeholder: "1234",
+                    iconName: "number",
+                    color: phoneCodeIsValid ? SchoolTheme.success : SchoolTheme.warning,
+                    text: $phoneCode,
+                    keyboardType: .numberPad,
+                    textInputAutocapitalization: .never
+                )
+                .focused($focusedField, equals: .phoneCode)
+
+                Button {
+                    sendPhoneCode()
+                } label: {
+                    Text(phoneCodeSent ? "Еще раз" : "Код")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.success)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .frame(width: 88, height: 64)
+                        .background(SchoolTheme.success.opacity(0.11), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!phoneLooksValid)
+            }
+
+            Text(phoneStatus)
+                .font(.caption)
+                .foregroundStyle(phoneCodeIsValid ? SchoolTheme.success : SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var appleAuthFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            OnboardingTextField(
+                title: "Apple ID email",
+                placeholder: "name@example.com",
+                iconName: "apple.logo",
+                color: appleLinked ? SchoolTheme.success : SchoolTheme.graphite,
+                text: $appleEmail,
+                keyboardType: .emailAddress,
+                textInputAutocapitalization: .never,
+                autocorrectionDisabled: true
+            )
+            .focused($focusedField, equals: .appleEmail)
+
+            Button {
+                appleLinked = appleEmail.trimmed.contains("@")
+                phoneStatus = appleLinked ? "Apple ID привязан локально" : "Введите email Apple ID"
+            } label: {
+                Label(appleLinked ? "Apple ID привязан" : "Привязать Apple ID", systemImage: "apple.logo")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(appleLinked ? SchoolTheme.success : SchoolTheme.graphite)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background((appleLinked ? SchoolTheme.success : SchoolTheme.graphite).opacity(0.10), in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Text("Сейчас это локальная привязка. Настоящий Sign in with Apple подключается через Apple ID entitlement, nonce и backend-связку аккаунта.")
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var roleCard: some View {
@@ -263,6 +419,7 @@ struct OnboardingView: View {
     private var primaryButton: some View {
         Button {
             if didPrepareClass {
+                persistAuthIfNeeded()
                 onFinish(role)
             } else {
                 focusedField = nil
@@ -334,7 +491,7 @@ struct OnboardingView: View {
     }
 
     private var canPrepare: Bool {
-        guard !parentName.trimmed.isEmpty, !childName.trimmed.isEmpty else {
+        guard authIsReady, !parentName.trimmed.isEmpty, !childName.trimmed.isEmpty else {
             return false
         }
 
@@ -344,6 +501,23 @@ struct OnboardingView: View {
         case .join:
             return inviteCode.trimmed.count >= 4
         }
+    }
+
+    private var authIsReady: Bool {
+        switch authMethod {
+        case .phone:
+            return phoneLooksValid && phoneCodeIsValid
+        case .apple:
+            return appleLinked && appleEmail.trimmed.contains("@")
+        }
+    }
+
+    private var phoneLooksValid: Bool {
+        phoneNumber.filter(\.isNumber).count >= 10
+    }
+
+    private var phoneCodeIsValid: Bool {
+        phoneCode.trimmed == "1234"
     }
 
     private var generatedInviteCode: String {
@@ -361,6 +535,21 @@ struct OnboardingView: View {
             return "\(childName.trimmed) добавлен в класс по коду \(inviteCode.trimmed.uppercased())."
         }
     }
+
+    private func sendPhoneCode() {
+        phoneCodeSent = true
+        if phoneLooksValid {
+            phoneStatus = "Код 1234 отправлен локально. Повторная отправка доступна."
+        } else {
+            phoneStatus = "Проверьте номер телефона"
+        }
+    }
+
+    private func persistAuthIfNeeded() {
+        storedAuthMethod = authMethod.rawValue
+        storedAuthContact = authMethod == .phone ? phoneNumber.trimmed : appleEmail.trimmed
+        storedAuthVerifiedAt = Date.now.formatted(date: .numeric, time: .shortened)
+    }
 }
 
 private struct OnboardingTextField: View {
@@ -369,6 +558,7 @@ private struct OnboardingTextField: View {
     let iconName: String
     let color: Color
     @Binding var text: String
+    var keyboardType: UIKeyboardType = .default
     var textInputAutocapitalization: TextInputAutocapitalization = .sentences
     var autocorrectionDisabled = false
 
@@ -383,6 +573,7 @@ private struct OnboardingTextField: View {
                 TextField(placeholder, text: $text)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(SchoolTheme.graphite)
+                    .keyboardType(keyboardType)
                     .textInputAutocapitalization(textInputAutocapitalization)
                     .autocorrectionDisabled(autocorrectionDisabled)
             }
@@ -392,6 +583,40 @@ private struct OnboardingTextField: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+}
+
+private enum OnboardingAuthMethod: String, CaseIterable, Identifiable {
+    case phone
+    case apple
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .phone:
+            "Телефон"
+        case .apple:
+            "Apple"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .phone:
+            "phone.fill"
+        case .apple:
+            "apple.logo"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .phone:
+            SchoolTheme.success
+        case .apple:
+            SchoolTheme.graphite
         }
     }
 }
@@ -449,6 +674,9 @@ private enum OnboardingMode: String, CaseIterable, Identifiable {
 }
 
 private enum OnboardingField: Hashable {
+    case phone
+    case phoneCode
+    case appleEmail
     case parentName
     case childName
     case className

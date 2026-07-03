@@ -47,6 +47,8 @@ run_case() {
   xcrun simctl io "$SIMULATOR_ID" screenshot "$SCREENSHOT_DIR/$name.png"
 }
 
+run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified
+run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple
 run_case "today-main" -qa-tab today
 run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
 run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
