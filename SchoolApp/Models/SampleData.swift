@@ -114,6 +114,96 @@ struct ChatPreviewItem: Identifiable, Hashable {
     let hasUnread: Bool
 }
 
+struct ClassChatMessage: Identifiable, Hashable {
+    let id: UUID
+    var author: String
+    var text: String
+    var timeLabel: String
+    var isImportant: Bool
+    var actionTitle: String?
+    var createdTask: Bool
+
+    init(
+        id: UUID = UUID(),
+        author: String,
+        text: String,
+        timeLabel: String,
+        isImportant: Bool = false,
+        actionTitle: String? = nil,
+        createdTask: Bool = false
+    ) {
+        self.id = id
+        self.author = author
+        self.text = text
+        self.timeLabel = timeLabel
+        self.isImportant = isImportant
+        self.actionTitle = actionTitle
+        self.createdTask = createdTask
+    }
+}
+
+struct ChatThread: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var subtitle: String
+    var icon: String
+    var colorName: String
+    var unreadCount: Int
+    var isAnnouncementOnly: Bool
+    var messages: [ClassChatMessage]
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        subtitle: String,
+        icon: String,
+        colorName: String,
+        unreadCount: Int,
+        isAnnouncementOnly: Bool = false,
+        messages: [ClassChatMessage]
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.colorName = colorName
+        self.unreadCount = unreadCount
+        self.isAnnouncementOnly = isAnnouncementOnly
+        self.messages = messages
+    }
+}
+
+struct ChatDigestItem: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var source: String
+    var iconName: String
+    var colorName: String
+    var actionTitle: String
+    var isDone: Bool
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String,
+        source: String,
+        iconName: String,
+        colorName: String,
+        actionTitle: String,
+        isDone: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.source = source
+        self.iconName = iconName
+        self.colorName = colorName
+        self.actionTitle = actionTitle
+        self.isDone = isDone
+    }
+}
+
 struct DayChip: Identifiable, Hashable {
     let id = UUID()
     let weekday: String
@@ -396,6 +486,71 @@ enum SampleData {
             icon: "building.columns.fill",
             colorName: "teal",
             hasUnread: false
+        )
+    ]
+
+    static let chatThreads = [
+        ChatThread(
+            title: "Родители 3Б",
+            subtitle: "Общий чат родителей",
+            icon: "person.3.fill",
+            colorName: "green",
+            unreadCount: 5,
+            messages: [
+                ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь"),
+                ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18"),
+                ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу")
+            ]
+        ),
+        ChatThread(
+            title: "Классный руководитель",
+            subtitle: "Объявления без лишних обсуждений",
+            icon: "graduationcap.fill",
+            colorName: "blue",
+            unreadCount: 2,
+            isAnnouncementOnly: true,
+            messages: [
+                ClassChatMessage(author: "Елена Сергеевна", text: "Завтра на физкультуру нужна форма и сменная обувь.", timeLabel: "Вчера", isImportant: true, actionTitle: "Добавить в Что завтра"),
+                ClassChatMessage(author: "Елена Сергеевна", text: "Проект «Моя семья» сдаем до пятницы.", timeLabel: "Вчера", isImportant: true, actionTitle: "Создать задачу")
+            ]
+        ),
+        ChatThread(
+            title: "Родительский комитет",
+            subtitle: "Сборы, отчеты и организационные вопросы",
+            icon: "building.columns.fill",
+            colorName: "teal",
+            unreadCount: 0,
+            messages: [
+                ClassChatMessage(author: "Ольга", text: "По празднику большинство выбрало мастер-класс в школе.", timeLabel: "Вчера"),
+                ClassChatMessage(author: "Мария", text: "Отчет по театру добавлю после оплаты автобуса.", timeLabel: "Вчера", isImportant: true, actionTitle: "Открыть сбор")
+            ]
+        )
+    ]
+
+    static let chatDigestItems = [
+        ChatDigestItem(
+            title: "Форма на физкультуру",
+            detail: "Завтра нужна форма и сменная обувь.",
+            source: "Классный руководитель",
+            iconName: "figure.run",
+            colorName: "red",
+            actionTitle: "Добавить в Что завтра"
+        ),
+        ChatDigestItem(
+            title: "Согласие на экскурсию",
+            detail: "Распечатать, подписать и передать утром.",
+            source: "Родители 3Б",
+            iconName: "doc.text.fill",
+            colorName: "blue",
+            actionTitle: "Создать задачу"
+        ),
+        ChatDigestItem(
+            title: "Проект «Моя семья»",
+            detail: "Сдать до пятницы, можно принести фото и короткий рассказ.",
+            source: "Классный руководитель",
+            iconName: "text.book.closed",
+            colorName: "green",
+            actionTitle: "Добавить к ДЗ"
         )
     ]
 

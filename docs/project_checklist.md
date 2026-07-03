@@ -41,7 +41,7 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[ ]` | 0 | Нужно отдельно отделить первый релиз от будущих функций. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы и расписание собираются и проверяются на iPhone 17 Simulator. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты и объявления собираются и проверяются на iPhone 17 Simulator. |
 | Backend / синхронизация | `[ ]` | 0 | Нужно выбрать подход: backend-first или локальная модель + синхронизация. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[ ]` | 0 | Вечерний и утренний дайджесты, срочные объявления, дедлайны. |
@@ -160,14 +160,14 @@
 - [~] Экран "Класс / Лента"
   - Проверка: объявления, события, сборы, фотоальбомы, закрепленные материалы
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`
-  - Комментарий: реализованы вкладки ленты, чатов, сборов, фото и участников; переключатель разделов проверен без обрезания текста
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/regression-class-after-chats.png`, `.build/screenshots/chats-main-final.png`
+  - Комментарий: реализованы вкладки ленты, чатов, сборов, фото и участников; лента, чаты и переключатель разделов проверены в Simulator
 
 - [~] Экран "Тихий чат / Важное за день"
   - Проверка: есть дайджест, важное, даты, задачи, платежи и пропущенное
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Today/TodayView.swift`
-  - Комментарий: пока статический дайджест без реального разбора сообщений
+  - Артефакт: `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-digest-final.png`
+  - Комментарий: реализован локальный тихий дайджест с важными пунктами и действиями; настоящий AI-разбор сообщений и синхронизация будут отдельным этапом
 
 - [~] Экран "Сборы родкомитета"
   - Проверка: видны цель, сумма, дедлайн, кто сдал, кто не сдал, чеки и отчет
@@ -373,23 +373,23 @@
 
 ## 9. Чат и объявления
 
-- [ ] Общий чат класса
+- [~] Общий чат класса
   - Проверка: сообщения, вложения, фото, документы, голосовые, реакции
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-detail-final.png`
+  - Комментарий: есть локальные ветки чатов, сообщения, непрочитанные, быстрый ответ и действия из важных сообщений; вложения, голосовые, реакции и backend не подключены
 
-- [ ] Объявления учителя
+- [~] Объявления учителя
   - Проверка: отдельный канал объявлений, важные объявления, закрепление
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`
+  - Комментарий: есть создание объявления, канал, подтверждение прочтения и детальный просмотр; закрепление и доставка участникам еще не реализованы
 
-- [ ] Чат родкомитета
+- [~] Чат родкомитета
   - Проверка: доступен нужным ролям, не смешивается с общим чатом
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/chats-main-final.png`
+  - Комментарий: отдельная локальная ветка родкомитета видна рядом с общим чатом и учительскими объявлениями; права доступа пока не проверяются
 
 - [ ] Комментарии под объявлениями
   - Проверка: можно включить/выключить обсуждение
@@ -397,23 +397,23 @@
   - Артефакт:
   - Комментарий:
 
-- [ ] Индикатор прочтения
+- [~] Индикатор прочтения
   - Проверка: автор важного объявления видит, кто прочитал и кто подтвердил
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/announcement-detail-final.png`
+  - Комментарий: в UI есть счетчик прочтений и подтверждение семьи; список конкретных родителей и серверная фиксация прочтения еще не реализованы
 
-- [ ] AI-дайджест чата
+- [~] AI-дайджест чата
   - Проверка: показывает важное за день, пропущенное, даты, платежи, задачи и файлы
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-digest-final.png`
+  - Комментарий: UX тихого дайджеста реализован локально; настоящего AI-суммаризатора, источников сообщений и файлов пока нет
 
-- [ ] Создание задач из чата
+- [~] Создание задач из чата
   - Проверка: дата, ДЗ, сбор или "принести" превращаются в структурированный объект
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/chat-detail-final.png`, `.build/screenshots/chat-digest-final.png`
+  - Комментарий: важные сообщения и пункты дайджеста имеют действия "создать задачу", "добавить к ДЗ" и "добавить в календарь"; пока это локальная отметка без записи в общие ДЗ/календарь
 
 ## 10. Календарь и события
 
@@ -794,7 +794,7 @@
 - [~] Проверка на iPhone Simulator
   - Проверка: основные экраны открываются, верстка не ломается, сценарии проходят
   - Уровень: 3
-  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`
+  - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`
   - Комментарий: сборка проходит; пять вкладок запускались в booted Simulator через QA-параметр `-qa-tab`, для вкладки `Класс` используется внутреннее имя `classRoom`
 
 - [ ] Проверка на реальном iPhone
@@ -919,3 +919,5 @@
 | 2026-07-03 | Регрессия основных вкладок после связки события со сбором | Пройдено | 3 | `.build/screenshots/regression-today-after-linked-collections.png`, `.build/screenshots/regression-class-after-linked-collections.png`, `.build/screenshots/regression-homework-after-linked-collections.png`, `.build/screenshots/regression-calendar-after-linked-collections.png`, `.build/screenshots/regression-more-after-linked-collections.png` | После изменения модели события проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
 | 2026-07-03 | Интерактивное расписание и план дня | Пройдено | 3 | `.build/screenshots/schedule-today-final.png`, `.build/screenshots/schedule-planner-final.png`, `.build/screenshots/schedule-add-final.png`, `.build/screenshots/schedule-import-final.png` | Проверены план дня, недельное расписание, форма урока/замены, личные кружки и локальный импорт расписания из распознанного текста |
 | 2026-07-03 | Регрессия основных вкладок после расписания | Пройдено | 3 | `.build/screenshots/regression-today-after-schedule.png`, `.build/screenshots/regression-class-after-schedule.png`, `.build/screenshots/regression-homework-after-schedule.png`, `.build/screenshots/regression-calendar-after-schedule.png`, `.build/screenshots/regression-more-after-schedule.png` | После изменения модели расписания проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
+| 2026-07-03 | Интерактивные чаты, объявления и тихий дайджест | Пройдено | 3 | `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-detail-final.png`, `.build/screenshots/chat-digest-final.png`, `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png` | Проверены список чатов, детальный чат, действия из важных сообщений, тихий дайджест, создание объявления и подтверждение прочтения |
+| 2026-07-03 | Регрессия основных вкладок после чатов | Пройдено | 3 | `.build/screenshots/regression-today-after-chats.png`, `.build/screenshots/regression-class-after-chats.png`, `.build/screenshots/regression-homework-after-chats.png`, `.build/screenshots/regression-calendar-after-chats.png`, `.build/screenshots/regression-more-after-chats.png` | После изменения модели чатов и ленты проверены запуск и первичная верстка вкладок `Сегодня`, `Класс`, `ДЗ`, `Календарь`, `Еще` |
