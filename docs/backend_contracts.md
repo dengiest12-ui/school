@@ -1,0 +1,195 @@
+# Школьный класс: сущности, роли и контракты синхронизации
+
+Документ фиксирует текущую модель MVP и целевую серверную форму. Сейчас приложение хранит данные локально для проверки UX. Backend должен стать источником истины для аккаунтов, ролей, приватности детей, финансов и файлов.
+
+## 1. Основные сущности
+
+### User
+- `id`: стабильный UUID.
+- `phone`: основной идентификатор входа, подтверждается SMS/звонком.
+- `appleUserId`: опциональная связка для Sign in with Apple.
+- `displayName`, `avatar`, `email`.
+- `status`: active, invited, blocked, deleted.
+- `createdAt`, `updatedAt`, `deletedAt`.
+
+### Child
+- `id`, `displayName`, `birthDate`, `avatar`.
+- `familyId`: семья, которая управляет профилем ребенка.
+- `classIds`: классы, к которым ребенок подключен.
+- `visibility`: настройки показа имени, фото и семейных контактов.
+
+### Family / FamilyMember
+- `Family`: `id`, `title`, `ownerUserId`, `childrenIds`.
+- `FamilyMember`: `id`, `familyId`, `userId`, `role`, `accessScope`, `inviteStatus`.
+- Роли семьи: owner, parent, relative, nanny.
+- Семейные доступы не дают права управлять классом, если у пользователя нет отдельной роли в классе.
+
+### ClassRoom / ClassMember / Role
+- `ClassRoom`: `id`, `title`, `schoolName`, `grade`, `inviteCode`, `status`.
+- `ClassMember`: `id`, `classId`, `userId`, `childId`, `role`, `status`.
+- Роли класса: parent, parentCommittee, teacher, classAdmin.
+- `classAdmin` нужен для приглашений, состава класса и передачи прав.
+
+### Chat / Message
+- `Chat`: `id`, `classId`, `type`, `title`, `participants`, `announcementOnly`.
+- `Message`: `id`, `chatId`, `authorId`, `text`, `attachments`, `createdAt`, `editedAt`, `deletedAt`.
+- Для AI-дайджеста сообщения должны иметь `importance`, `actionHint`, `sourceMessageIds`.
+
+### Announcement
+- `id`, `classId`, `authorId`, `title`, `body`, `tag`, `requiresAcknowledgement`.
+- `readReceipts`: список `userId`, `readAt`.
+- `commentsEnabled`, `comments`.
+- Создание доступно учителю, родкомитету и администратору класса.
+
+### Homework
+- `id`, `classId`, `authorId`, `subject`, `text`, `dueAt`, `status`, `attachments`.
+- `source`: manual, photoAI, chatAI, teacher.
+- `assignees`: класс, ребенок или группа детей.
+
+### ScheduleItem / Event / Reminder
+- `ScheduleItem`: уроки, замены, форма/предметы.
+- `Event`: экскурсии, собрания, кружки, праздники, связанные сборы.
+- `Reminder`: персональные и семейные напоминания, привязанные к событию, ДЗ или сбору.
+
+### Collection / Expense
+- `Collection`: `id`, `classId`, `title`, `amount`, `deadline`, `status`, `recipient`, `createdBy`.
+- `PaymentMark`: `collectionId`, `familyId`, `status`, `amount`, `confirmedBy`.
+- `Expense`: `id`, `collectionId`, `title`, `amount`, `note`, `attachments`, `createdBy`.
+- Управление сбором доступно родкомитету и администратору класса. Родитель видит свой статус и отчеты, но не меняет чужие оплаты.
+
+### Album / Photo / File
+- `Album`: `id`, `classId`, `title`, `eventId`, `visibility`.
+- `Photo`: `id`, `albumId`, `fileId`, `authorId`, `createdAt`, `moderationStatus`.
+- `File`: `id`, `ownerId`, `storageKey`, `mimeType`, `size`, `checksum`, `scanStatus`.
+
+### Task
+- `id`, `familyId`, `classId`, `childId`, `title`, `dueAt`, `assigneeUserId`, `source`, `status`.
+- Источники: manual, chatDigest, homework, event, collection.
+
+### AIParseResult
+- `id`, `sourceType`, `sourceId`, `inputHash`, `modelVersion`, `confidence`.
+- `items`: распознанные ДЗ, события, задачи или напоминания.
+- `reviewStatus`: draft, accepted, rejected, edited.
+- Должен хранить след аудита: кто принял результат и что было изменено.
+
+### Subscription
+- `id`, `familyId`, `productId`, `storeTransactionId`, `status`, `expiresAt`.
+- Источник истины для подписки: App Store Server Notifications плюс локальная StoreKit-проверка.
+
+### NotificationSetting
+- `id`, `userId`, `classId`, `channel`, `enabled`, `quietHours`, `topic`.
+- Темы: announcements, homework, collections, events, chats, familyTasks, aiDigest.
+
+### AuditLog
+- `id`, `actorUserId`, `entityType`, `entityId`, `action`, `diff`, `createdAt`, `ipHash`.
+- Обязателен для ролей, приглашений, сборов, файлов, удаления данных и согласий.
+
+## 2. Backend-права
+
+UI может скрывать кнопки, но backend обязан повторно проверять все действия.
+
+| Действие | Parent | Parent committee | Teacher | Class admin |
+| --- | --- | --- | --- | --- |
+| Читать объявления класса | Да | Да | Да | Да |
+| Создавать объявления | Нет | Да | Да | Да |
+| Отмечать свое прочтение | Да | Да | Да | Да |
+| Создавать ДЗ | Нет | Нет | Да | Да |
+| Создавать семейные задачи | Да, в своей семье | Да, в своей семье | Нет | Да, в своей семье |
+| Создавать сборы | Нет | Да | Нет | Да |
+| Менять чужую оплату | Нет | Да | Нет | Да |
+| Добавлять расходы и чеки | Нет | Да | Нет | Да |
+| Приглашать участников класса | Нет | Да | Да | Да |
+| Удалять участника класса | Нет | Нет | Нет | Да |
+| Управлять файлами класса | Только просмотр | Да | Да | Да |
+| Удалять аккаунт/данные | Только свои данные | Только свои данные | Только свои данные | Только свои данные |
+
+Сервер должен проверять:
+- членство пользователя в классе или семье;
+- роль в конкретном классе, а не глобальную роль профиля;
+- связь ребенка с семьей;
+- подписку и доступ к платным функциям;
+- запрет на доступ к файлам и финансам вне класса;
+- аудит всех действий с персональными данными детей.
+
+## 3. Контракты синхронизации
+
+### Общий формат изменений
+
+```json
+{
+  "mutationId": "uuid",
+  "clientId": "ios-device-id",
+  "actorUserId": "uuid",
+  "entityType": "Announcement",
+  "entityId": "uuid",
+  "operation": "create|update|delete|acknowledge",
+  "baseVersion": 12,
+  "payload": {},
+  "createdAt": "2026-07-03T12:00:00Z"
+}
+```
+
+Ответ сервера:
+
+```json
+{
+  "mutationId": "uuid",
+  "status": "accepted|rejected|conflict",
+  "entityVersion": 13,
+  "serverState": {},
+  "errorCode": null
+}
+```
+
+### Что можно создавать локально
+- Черновики объявлений, ДЗ, событий, сборов и задач.
+- Отметки "прочитано" и "моя семья оплатила" до подтверждения сервером.
+- AI-распознавание как draft, пока пользователь не принял результат.
+- Локальные настройки уведомлений и приватности до синхронизации.
+
+### Что должно подтверждаться backend
+- Создание объявления, ДЗ, сбора, расхода, файла, участника класса.
+- Любое изменение ролей.
+- Любое изменение финансового статуса другой семьи.
+- Загрузка фото, чеков и документов.
+- Удаление аккаунта, ребенка, семьи или класса.
+- Подписка и платежи.
+
+### Разрешение конфликтов
+- `lastWriteWins` допустим только для личных настроек.
+- Для сборов, расходов, ролей и состава класса нужен `baseVersion`; при конфликте сервер возвращает актуальное состояние.
+- Для read receipts и реакций используется merge-set: отметки разных пользователей не перетирают друг друга.
+- Для файлов используется immutable upload: новая версия создает новый `fileId`.
+- Для AI-результатов пользовательское редактирование всегда важнее повторного парсинга.
+
+### Offline-очередь
+- Каждая локальная операция получает `mutationId`.
+- Повторная отправка с тем же `mutationId` должна быть идемпотентной.
+- UI показывает optimistic state, но помечает действие как "ждет синхронизации".
+- При отклонении сервером UI возвращает состояние и показывает понятную причину.
+
+## 4. Окружения
+
+### Dev
+- Локальные данные, моковые пользователи и тестовые файлы.
+- Разрешены QA-флаги запуска.
+- Push/SMS/StoreKit могут быть sandbox.
+
+### Staging
+- Реальный backend с тестовой базой.
+- Отдельные ключи хранилища файлов, AI и уведомлений.
+- Тестовые Apple/StoreKit-сценарии.
+- Нужен перед TestFlight.
+
+### Production
+- Реальные пользователи, реальные платежи, реальные файлы.
+- Строгие политики удаления, аудита и доступа.
+- Отдельные ключи, мониторинг, резервные копии и лимиты.
+
+## 5. Следующие инженерные шаги
+
+- Вынести модели из `SampleData.swift` в доменные файлы `Models`.
+- Добавить `version`, `createdAt`, `updatedAt` в синхронизируемые сущности.
+- Сделать локальную очередь мутаций поверх текущего JSON-хранения.
+- Подготовить backend schema и OpenAPI/Swift-клиент.
+- Добавить unit-тесты ролей и конфликтов синхронизации.
