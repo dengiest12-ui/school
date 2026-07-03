@@ -344,8 +344,8 @@
 - [~] Список ДЗ
   - Проверка: вкладки Сегодня, Завтра, Неделя, Выполнено; фильтры по ребенку, предмету, статусу и источнику
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-main-final.png`, `.build/screenshots/homework-persistence-main.png`
-  - Комментарий: есть вкладки по сроку и статусу, счетчики, локальная фильтрация и хранение между перезапусками; фильтры по ребенку/источнику еще не вынесены отдельно
+  - Артефакт: `.build/screenshots/homework-main-final.png`, `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-filters.png`, `.build/screenshots/qa-smoke/homework-filters.png`
+  - Комментарий: есть вкладки по сроку, счетчики, локальное хранение между перезапусками и отдельные фильтры по ребенку, предмету, статусу и источнику; серверная синхронизация и общий поиск по истории еще не подключены
 
 - [~] Отметка выполнения
   - Проверка: родитель/ребенок может отметить ДЗ выполненным, статус сохраняется
@@ -825,7 +825,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Child mode, Class parent/committee/member management, Homework add/filters, Calendar add, More security и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -980,3 +980,4 @@
 | 2026-07-03 | Приглашения по ссылке и QR | Пройдено | 3 | `.build/screenshots/invite-link-qr-class.png`, `.build/screenshots/invite-link-qr-family.png`, `.build/screenshots/qa-smoke/class-member-invite.png`, `.build/screenshots/qa-smoke/more-family.png`, `scripts/qa_smoke.sh` | В приглашения класса и семьи добавлены deep link-ссылки, QR-коды, системный ShareLink и обновление локального кода; сценарии добавлены в smoke-проверку, backend invite-token и отзыв ссылок остаются следующим этапом |
 | 2026-07-03 | Управление участниками класса | Пройдено | 3 | `.build/screenshots/member-management-actions.png`, `.build/screenshots/qa-smoke/class-member-management.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Добавлено локальное меню участника: смена роли, отключение/возврат доступа, удаление и передача админа с защитой последнего администратора; сценарий добавлен в smoke-проверку, backend-аудит и серверные права остаются следующим этапом |
 | 2026-07-03 | Детский режим MVP | Пройдено | 3 | `.build/screenshots/child-mode-today.png`, `.build/screenshots/qa-smoke/child-mode.png`, `SchoolApp/App/AppView.swift`, `SchoolApp/App/AppTab.swift`, `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/Today/TodayView.swift`, `scripts/qa_smoke.sh` | Добавлена роль "Ребенок": видит только `Сегодня`, `ДЗ`, `Календарь`; онбординг использует детскую форму имени; на главном экране показаны ДЗ, расписание, прогресс и рюкзак, а сборы/класс/родительские чаты и создание новых сущностей скрыты; серверные ограничения остаются следующим этапом |
+| 2026-07-03 | Фильтры списка ДЗ | Пройдено | 3 | `.build/screenshots/homework-filters.png`, `.build/screenshots/qa-smoke/homework-filters.png`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | В список ДЗ добавлены фильтры по ребенку, предмету, статусу и источнику, счетчик результатов и сброс фильтров; модель ДЗ получила совместимое поле ребенка; сценарий добавлен в smoke-проверку |

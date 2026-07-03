@@ -77,7 +77,7 @@ struct ChildSummary: Identifiable, Hashable, Codable {
 }
 
 struct HomeworkItem: Identifiable, Hashable, Codable {
-    enum Status: String, Codable {
+    enum Status: String, CaseIterable, Codable {
         case pending = "Нужно сделать"
         case done = "Готово"
         case review = "Проверить"
@@ -91,6 +91,7 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
     var status: Status
     var bring: String?
     var attachment: String?
+    var childName: String
 
     init(
         id: UUID = UUID(),
@@ -100,7 +101,8 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
         source: String,
         status: Status,
         bring: String?,
-        attachment: String? = nil
+        attachment: String? = nil,
+        childName: String = "Миша"
     ) {
         self.id = id
         self.subject = subject
@@ -110,6 +112,33 @@ struct HomeworkItem: Identifiable, Hashable, Codable {
         self.status = status
         self.bring = bring
         self.attachment = attachment
+        self.childName = childName
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case subject
+        case title
+        case dueLabel
+        case source
+        case status
+        case bring
+        case attachment
+        case childName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        subject = try container.decode(String.self, forKey: .subject)
+        title = try container.decode(String.self, forKey: .title)
+        dueLabel = try container.decode(String.self, forKey: .dueLabel)
+        source = try container.decode(String.self, forKey: .source)
+        status = try container.decode(Status.self, forKey: .status)
+        bring = try container.decodeIfPresent(String.self, forKey: .bring)
+        attachment = try container.decodeIfPresent(String.self, forKey: .attachment)
+        childName = try container.decodeIfPresent(String.self, forKey: .childName) ?? "Миша"
     }
 }
 
@@ -755,7 +784,8 @@ enum SampleData {
             dueLabel: "завтра",
             source: "AI из фото доски",
             status: .pending,
-            bring: nil
+            bring: nil,
+            childName: "Миша"
         ),
         HomeworkItem(
             subject: "Русский язык",
@@ -763,7 +793,8 @@ enum SampleData {
             dueLabel: "завтра",
             source: "Учитель",
             status: .review,
-            bring: nil
+            bring: nil,
+            childName: "Миша"
         ),
         HomeworkItem(
             subject: "Окружающий мир",
@@ -771,7 +802,8 @@ enum SampleData {
             dueLabel: "пятница",
             source: "Родитель",
             status: .pending,
-            bring: "картон и клей"
+            bring: "картон и клей",
+            childName: "Соня"
         )
     ]
 

@@ -44,7 +44,13 @@ private enum HomeworkLocalStore {
 }
 
 struct HomeworkView: View {
+    private static let allFilterValue = "Все"
+
     @State private var selectedScope: HomeworkScope = .tomorrow
+    @State private var selectedChildName = HomeworkView.allFilterValue
+    @State private var selectedSubject = HomeworkView.allFilterValue
+    @State private var selectedStatus = HomeworkView.allFilterValue
+    @State private var selectedSource = HomeworkView.allFilterValue
     @State private var homeworkItems: [HomeworkItem]
     @State private var activeSheet: HomeworkSheet?
 
@@ -61,6 +67,7 @@ struct HomeworkView: View {
                 scopePicker
                 parseCard
                 summaryCard
+                filtersCard
                 homeworkList
             }
             .padding(.horizontal, 20)
@@ -68,6 +75,9 @@ struct HomeworkView: View {
             .padding(.bottom, SchoolTheme.bottomScrollPadding)
         }
         .background(SchoolTheme.page.ignoresSafeArea())
+        .onAppear {
+            applyLaunchFiltersIfNeeded()
+        }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .add:
@@ -158,6 +168,69 @@ struct HomeworkView: View {
         }
     }
 
+    private var filtersCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "line.3.horizontal.decrease.circle.fill", color: SchoolTheme.accent, size: 42)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Фильтры")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(filtersSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.86)
+                    }
+                    Spacer()
+                    if hasActiveFilters {
+                        Button {
+                            resetFilters()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(SchoolTheme.muted)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Сбросить фильтры ДЗ")
+                    }
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    filterMenu(
+                        title: "Ребенок",
+                        selection: $selectedChildName,
+                        values: childFilterValues,
+                        iconName: "figure.child",
+                        color: SchoolTheme.success
+                    )
+                    filterMenu(
+                        title: "Предмет",
+                        selection: $selectedSubject,
+                        values: subjectFilterValues,
+                        iconName: "book.closed.fill",
+                        color: SchoolTheme.accent
+                    )
+                    filterMenu(
+                        title: "Статус",
+                        selection: $selectedStatus,
+                        values: statusFilterValues,
+                        iconName: "checkmark.seal.fill",
+                        color: SchoolTheme.warning
+                    )
+                    filterMenu(
+                        title: "Источник",
+                        selection: $selectedSource,
+                        values: sourceFilterValues,
+                        iconName: "person.crop.circle.fill",
+                        color: SchoolTheme.teal
+                    )
+                }
+            }
+        }
+    }
+
     private var homeworkList: some View {
         VStack(spacing: 12) {
             if filteredHomework.isEmpty {
@@ -187,7 +260,7 @@ struct HomeworkView: View {
     }
 
     private var filteredHomework: [HomeworkItem] {
-        switch selectedScope {
+        let scopedItems: [HomeworkItem] = switch selectedScope {
         case .today:
             homeworkItems.filter { $0.status != .done && $0.dueLabel.localizedCaseInsensitiveContains("сегодня") }
         case .tomorrow:
@@ -196,6 +269,13 @@ struct HomeworkView: View {
             homeworkItems.filter { $0.status != .done }
         case .done:
             homeworkItems.filter { $0.status == .done }
+        }
+
+        return scopedItems.filter { item in
+            matchesFilter(selectedChildName, value: item.childName)
+                && matchesFilter(selectedSubject, value: item.subject)
+                && matchesFilter(selectedStatus, value: item.status.rawValue)
+                && matchesFilter(selectedSource, value: item.source)
         }
     }
 
@@ -209,6 +289,50 @@ struct HomeworkView: View {
 
     private var doneCount: Int {
         homeworkItems.filter { $0.status == .done }.count
+    }
+
+    private var childFilterValues: [String] {
+        filterValues(homeworkItems.map(\.childName))
+    }
+
+    private var subjectFilterValues: [String] {
+        filterValues(homeworkItems.map(\.subject))
+    }
+
+    private var statusFilterValues: [String] {
+        [Self.allFilterValue] + HomeworkItem.Status.allCases.map(\.rawValue)
+    }
+
+    private var sourceFilterValues: [String] {
+        filterValues(homeworkItems.map(\.source))
+    }
+
+    private var filtersSubtitle: String {
+        if hasActiveFilters {
+            return "Показано \(filteredHomework.count) из \(scopedHomeworkCount) в выбранном периоде"
+        }
+
+        return "Ребенок, предмет, статус и источник"
+    }
+
+    private var hasActiveFilters: Bool {
+        selectedChildName != Self.allFilterValue
+            || selectedSubject != Self.allFilterValue
+            || selectedStatus != Self.allFilterValue
+            || selectedSource != Self.allFilterValue
+    }
+
+    private var scopedHomeworkCount: Int {
+        switch selectedScope {
+        case .today:
+            homeworkItems.filter { $0.status != .done && $0.dueLabel.localizedCaseInsensitiveContains("сегодня") }.count
+        case .tomorrow:
+            homeworkItems.filter { $0.status != .done && $0.dueLabel.localizedCaseInsensitiveContains("завтра") }.count
+        case .week:
+            homeworkItems.filter { $0.status != .done }.count
+        case .done:
+            homeworkItems.filter { $0.status == .done }.count
+        }
     }
 
     private func homeworkCard(_ item: HomeworkItem) -> some View {
@@ -232,6 +356,7 @@ struct HomeworkView: View {
                 }
 
                 HStack(spacing: 10) {
+                    Label(item.childName, systemImage: "figure.child")
                     Label(item.dueLabel, systemImage: "clock")
                     Label(item.source, systemImage: "person.crop.circle")
                 }
@@ -295,6 +420,51 @@ struct HomeworkView: View {
         .buttonStyle(.plain)
     }
 
+    private func filterMenu(title: String, selection: Binding<String>, values: [String], iconName: String, color: Color) -> some View {
+        Menu {
+            ForEach(values, id: \.self) { value in
+                Button {
+                    selection.wrappedValue = value
+                } label: {
+                    if selection.wrappedValue == value {
+                        Label(value, systemImage: "checkmark")
+                    } else {
+                        Text(value)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: iconName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(color)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+                    Text(selection.wrappedValue)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.muted)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.horizontal, 10)
+            .background(color.opacity(selection.wrappedValue == Self.allFilterValue ? 0.08 : 0.14), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(selection.wrappedValue == Self.allFilterValue ? SchoolTheme.line : color.opacity(0.35), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private func summaryMetric(value: String, title: String, color: Color) -> some View {
         VStack(spacing: 3) {
             Text(value)
@@ -316,6 +486,33 @@ struct HomeworkView: View {
 
         homeworkItems[index].status = homeworkItems[index].status == .done ? .pending : .done
         HomeworkLocalStore.items = homeworkItems
+    }
+
+    private func filterValues(_ values: [String]) -> [String] {
+        [Self.allFilterValue] + Array(Set(values.filter { !$0.trimmed.isEmpty })).sorted()
+    }
+
+    private func matchesFilter(_ filter: String, value: String) -> Bool {
+        filter == Self.allFilterValue || value == filter
+    }
+
+    private func resetFilters() {
+        selectedChildName = Self.allFilterValue
+        selectedSubject = Self.allFilterValue
+        selectedStatus = Self.allFilterValue
+        selectedSource = Self.allFilterValue
+    }
+
+    private func applyLaunchFiltersIfNeeded() {
+        guard ProcessInfo.processInfo.arguments.contains("-qa-homework-filters") else {
+            return
+        }
+
+        selectedScope = .week
+        selectedChildName = "Миша"
+        selectedSubject = "Русский язык"
+        selectedStatus = HomeworkItem.Status.review.rawValue
+        selectedSource = "Учитель"
     }
 
     private func badgeColor(for status: HomeworkItem.Status) -> Color {
