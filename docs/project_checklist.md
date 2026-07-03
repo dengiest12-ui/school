@@ -388,8 +388,8 @@
 - [~] Объявления учителя
   - Проверка: отдельный канал объявлений, важные объявления, закрепление
   - Уровень: 3
-  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`
-  - Комментарий: есть создание объявления, канал, подтверждение прочтения с сохранением состояния и детальный просмотр; родителю публикация заблокирована локально, закрепление и доставка участникам еще не реализованы
+  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/announcement-comments-create.png`
+  - Комментарий: есть создание объявления, канал, подтверждение прочтения с сохранением состояния, детальный просмотр и настройка обсуждения; родителю публикация заблокирована локально, закрепление и доставка участникам еще не реализованы
 
 - [~] Чат родкомитета
   - Проверка: доступен нужным ролям, не смешивается с общим чатом
@@ -397,11 +397,11 @@
   - Артефакт: `.build/screenshots/chats-main-final.png`
   - Комментарий: отдельная локальная ветка родкомитета видна рядом с общим чатом и учительскими объявлениями; часть прав проверяется в UI, серверная проверка еще не реализована
 
-- [ ] Комментарии под объявлениями
+- [~] Комментарии под объявлениями
   - Проверка: можно включить/выключить обсуждение
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `.build/screenshots/announcement-comments-detail.png`, `.build/screenshots/announcement-comments-create.png`
+  - Комментарий: у объявления есть локальные комментарии, быстрый ответ и переключатель обсуждения при создании/редактировании автором; модерация, жалобы и серверная синхронизация еще не реализованы
 
 - [~] Индикатор прочтения
   - Проверка: автор важного объявления видит, кто прочитал и кто подтвердил
@@ -956,3 +956,4 @@
 | 2026-07-03 | Закрытие клавиатуры в формах | Пройдено | 3 | `.build/screenshots/keyboard-homework-add.png`, `.build/screenshots/keyboard-calendar-add.png`, `.build/screenshots/keyboard-announcement-add.png`, `.build/screenshots/keyboard-more-children.png` | Добавлена общая кнопка `Готово` над клавиатурой и интерактивное скрытие при прокрутке для форм ДЗ, календаря, объявления и раздела `Еще`; сборка `xcodebuild` проходит |
 | 2026-07-03 | Безопасность, поддержка и выход | Пройдено | 3 | `.build/screenshots/more-security-screen.png`, `.build/screenshots/more-support-screen.png`, `.build/screenshots/more-problem-screen.png`, `.build/screenshots/more-logout-screen.png` | Добавлены рабочие листы для безопасности, поддержки, отчета о проблеме и выхода; настройки безопасности сохраняются локально; сборка `xcodebuild` проходит |
 | 2026-07-03 | Живое состояние главного экрана Сегодня | Пройдено | 3 | `.build/screenshots/today-state-main.png`, `.build/screenshots/today-add-homework.png`, `.build/screenshots/today-add-task-payment.png`, `.build/screenshots/today-important-chat.png` | Добавлено локальное хранение Today-состояния, отметки ДЗ и семейных задач, быстрые листы ДЗ/задач и отдельное важное из чата; сборка `xcodebuild` проходит |
+| 2026-07-03 | Комментарии под объявлениями | Пройдено | 3 | `.build/screenshots/announcement-comments-detail.png`, `.build/screenshots/announcement-comments-create.png` | Добавлены комментарии к объявлениям, поле быстрого ответа и переключатель обсуждения для автора; сборка `xcodebuild` проходит |

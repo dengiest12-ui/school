@@ -158,7 +158,7 @@ struct ClassRoomView: View {
                     ClassRoomLocalStore.digestItems = updatedItems
                 }
             case .announcementDetail(let item):
-                AnnouncementDetailSheet(item: item) { updatedItem in
+                AnnouncementDetailSheet(item: item, userRole: userRole) { updatedItem in
                     updateFeedItem(updatedItem)
                 }
             case .newAnnouncement:
@@ -1820,14 +1820,21 @@ private struct AnnouncementDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let item: FeedItem
+    let userRole: AppUserRole
     let onSave: (FeedItem) -> Void
 
     @State private var acknowledged: Bool
+    @State private var commentsEnabled: Bool
+    @State private var comments: [AnnouncementComment]
+    @State private var commentText = "Спасибо, увидели"
 
-    init(item: FeedItem, onSave: @escaping (FeedItem) -> Void) {
+    init(item: FeedItem, userRole: AppUserRole, onSave: @escaping (FeedItem) -> Void) {
         self.item = item
+        self.userRole = userRole
         self.onSave = onSave
         _acknowledged = State(initialValue: item.isAcknowledged)
+        _commentsEnabled = State(initialValue: item.commentsEnabled)
+        _comments = State(initialValue: item.comments)
     }
 
     var body: some View {
@@ -1870,6 +1877,31 @@ private struct AnnouncementDetailSheet: View {
                         }
                     }
 
+                    if userRole.canPublishAnnouncements {
+                        DashboardCard {
+                            Toggle(isOn: $commentsEnabled) {
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: commentsEnabled ? "bubble.left.and.bubble.right.fill" : "bubble.left.slash.fill", color: commentsEnabled ? SchoolTheme.teal : SchoolTheme.muted, size: 42)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(commentsEnabled ? "Обсуждение открыто" : "Обсуждение закрыто")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text("\(comments.count) комментария")
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .tint(SchoolTheme.success)
+                            .onChange(of: commentsEnabled) {
+                                save()
+                            }
+                        }
+                    }
+
+                    commentsCard
+
                     Button {
                         acknowledge()
                     } label: {
@@ -1910,9 +1942,92 @@ private struct AnnouncementDetailSheet: View {
         save()
     }
 
+    private var commentsCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    IconBadge(systemName: "bubble.left.and.bubble.right.fill", color: SchoolTheme.teal, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Обсуждение")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(commentsEnabled ? "\(comments.count) комментария" : "Комментарии закрыты")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                }
+
+                if comments.isEmpty {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "text.bubble.fill", color: SchoolTheme.muted, size: 38)
+                        Text("Комментариев пока нет")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.muted)
+                        Spacer()
+                    }
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(comments) { comment in
+                            commentRow(comment)
+                        }
+                    }
+                }
+
+                if commentsEnabled {
+                    VStack(spacing: 10) {
+                        CollectionTextField(title: "Комментарий", iconName: "text.bubble.fill", color: SchoolTheme.teal, text: $commentText)
+
+                        Button {
+                            addComment()
+                        } label: {
+                            Label("Добавить комментарий", systemImage: "paperplane.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SchoolTheme.teal)
+                        .disabled(commentText.trimmed.isEmpty)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func commentRow(_ comment: AnnouncementComment) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            InitialAvatar(text: String(comment.author.prefix(1)), size: 38)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(comment.author)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    Text(comment.timeLabel)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                }
+                Text(comment.text)
+                    .font(.subheadline)
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func addComment() {
+        let comment = AnnouncementComment(author: "Владимир", text: commentText.trimmed, timeLabel: "сейчас")
+        comments.append(comment)
+        commentText = ""
+        save()
+    }
+
     private func save() {
         var updatedItem = item
         updatedItem.isAcknowledged = acknowledged
+        updatedItem.commentsEnabled = commentsEnabled
+        updatedItem.comments = comments
         onSave(updatedItem)
     }
 
@@ -1948,6 +2063,7 @@ private struct NewAnnouncementSheet: View {
     @State private var bodyText = "Завтра нужна форма и сменная обувь для спортзала."
     @State private var tag = "Учитель"
     @State private var requiresAck = true
+    @State private var commentsEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -1975,21 +2091,41 @@ private struct NewAnnouncementSheet: View {
                     }
 
                     DashboardCard {
-                        Toggle(isOn: $requiresAck) {
-                            HStack(spacing: 12) {
-                                IconBadge(systemName: "checkmark.seal.fill", color: SchoolTheme.warning, size: 42)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Нужно подтверждение")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(SchoolTheme.graphite)
-                                    Text("Покажем, кто прочитал")
-                                        .font(.caption)
-                                        .foregroundStyle(SchoolTheme.muted)
+                        VStack(spacing: 12) {
+                            Toggle(isOn: $requiresAck) {
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: "checkmark.seal.fill", color: SchoolTheme.warning, size: 42)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Нужно подтверждение")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text("Покажем, кто прочитал")
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
                                 }
                             }
+                            .toggleStyle(.switch)
+                            .tint(SchoolTheme.success)
+
+                            Divider()
+
+                            Toggle(isOn: $commentsEnabled) {
+                                HStack(spacing: 12) {
+                                    IconBadge(systemName: "bubble.left.and.bubble.right.fill", color: SchoolTheme.teal, size: 42)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Разрешить обсуждение")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                        Text("Родители смогут оставить вопросы")
+                                            .font(.caption)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .tint(SchoolTheme.success)
                         }
-                        .toggleStyle(.switch)
-                        .tint(SchoolTheme.success)
                     }
 
                     Button {
@@ -2026,7 +2162,8 @@ private struct NewAnnouncementSheet: View {
         let item = FeedItem(
             title: title.trimmed,
             subtitle: bodyText.trimmed + ackText,
-            tag: tag
+            tag: tag,
+            commentsEnabled: commentsEnabled
         )
 
         onSave(item)

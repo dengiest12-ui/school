@@ -575,19 +575,57 @@ struct CollectionSummary: Identifiable, Hashable, Codable {
     }
 }
 
+struct AnnouncementComment: Identifiable, Hashable, Codable {
+    let id: UUID
+    var author: String
+    var text: String
+    var timeLabel: String
+
+    init(id: UUID = UUID(), author: String, text: String, timeLabel: String) {
+        self.id = id
+        self.author = author
+        self.text = text
+        self.timeLabel = timeLabel
+    }
+}
+
 struct FeedItem: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var subtitle: String
     var tag: String
     var isAcknowledged: Bool
+    var commentsEnabled: Bool
+    var comments: [AnnouncementComment]
 
-    init(id: UUID = UUID(), title: String, subtitle: String, tag: String, isAcknowledged: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        subtitle: String,
+        tag: String,
+        isAcknowledged: Bool = false,
+        commentsEnabled: Bool = true,
+        comments: [AnnouncementComment] = []
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.tag = tag
         self.isAcknowledged = isAcknowledged
+        self.commentsEnabled = commentsEnabled
+        self.comments = comments
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decode(String.self, forKey: .subtitle)
+        tag = try container.decode(String.self, forKey: .tag)
+        isAcknowledged = try container.decodeIfPresent(Bool.self, forKey: .isAcknowledged) ?? false
+        commentsEnabled = try container.decodeIfPresent(Bool.self, forKey: .commentsEnabled) ?? true
+        comments = try container.decodeIfPresent([AnnouncementComment].self, forKey: .comments) ?? []
     }
 }
 
@@ -818,9 +856,29 @@ enum SampleData {
     ]
 
     static let feed = [
-        FeedItem(title: "Важное объявление", subtitle: "Форма на физкультуру нужна завтра.", tag: "Учитель"),
-        FeedItem(title: "Сбор на театр", subtitle: "500 руб. до пятницы, отчет будет в приложении.", tag: "Родкомитет"),
-        FeedItem(title: "AI-дайджест чата", subtitle: "3 важных пункта: форма, картон, согласие.", tag: "Тихий чат")
+        FeedItem(
+            title: "Важное объявление",
+            subtitle: "Форма на физкультуру нужна завтра.",
+            tag: "Учитель",
+            comments: [
+                AnnouncementComment(author: "Мария", text: "Спасибо, передала в семейные дела.", timeLabel: "09:18"),
+                AnnouncementComment(author: "Антон", text: "Сменная обувь тоже нужна?", timeLabel: "09:21")
+            ]
+        ),
+        FeedItem(
+            title: "Сбор на театр",
+            subtitle: "500 руб. до пятницы, отчет будет в приложении.",
+            tag: "Родкомитет",
+            comments: [
+                AnnouncementComment(author: "Ольга", text: "Отчет добавлю после оплаты автобуса.", timeLabel: "Вчера")
+            ]
+        ),
+        FeedItem(
+            title: "AI-дайджест чата",
+            subtitle: "3 важных пункта: форма, картон, согласие.",
+            tag: "Тихий чат",
+            commentsEnabled: false
+        )
     ]
 
     static let chats = [
