@@ -76,6 +76,79 @@ private struct FamilyTaskSummary: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct AuditLogEntry: Identifiable, Hashable, Codable {
+    let id: UUID
+    var title: String
+    var detail: String
+    var actor: String
+    var target: String
+    var category: String
+    var status: String
+    var timestampLabel: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        detail: String,
+        actor: String,
+        target: String,
+        category: String,
+        status: String = "Локально",
+        timestampLabel: String = "сейчас",
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.actor = actor
+        self.target = target
+        self.category = category
+        self.status = status
+        self.timestampLabel = timestampLabel
+        self.iconName = iconName
+        self.colorName = colorName
+    }
+
+    static let sample = [
+        AuditLogEntry(
+            title: "Создан закрытый класс",
+            detail: "Код 3B-742 включен только для приглашенных семей",
+            actor: "Владимир",
+            target: "3Б",
+            category: "Доступ",
+            status: "Проверено",
+            timestampLabel: "сегодня 09:12",
+            iconName: "lock.shield.fill",
+            colorName: "green"
+        ),
+        AuditLogEntry(
+            title: "Родителю ограничены финансы",
+            detail: "Обычный родитель видит отчет, но не меняет оплаты и расходы",
+            actor: "Система ролей",
+            target: "Сбор на театр",
+            category: "Роли",
+            status: "Проверено",
+            timestampLabel: "сегодня 10:35",
+            iconName: "person.badge.shield.checkmark.fill",
+            colorName: "blue"
+        ),
+        AuditLogEntry(
+            title: "Жалоба на фото сохранена",
+            detail: "Фото скрыто из спорных действий до подключения модерации",
+            actor: "Екатерина",
+            target: "Альбом 3Б",
+            category: "Модерация",
+            status: "Локально",
+            timestampLabel: "вчера",
+            iconName: "exclamationmark.shield.fill",
+            colorName: "red"
+        )
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -88,6 +161,7 @@ private struct MoreStoreSnapshot: Codable {
     var classMemory: [ClassMemoryEntry]
     var classFiles: [ClassFileSummary]
     var securitySettings: SecuritySettingsState
+    var auditEntries: [AuditLogEntry]
 
     init(
         profile: ParentProfileState = .sample,
@@ -100,7 +174,8 @@ private struct MoreStoreSnapshot: Codable {
         subscriptionPlans: [SubscriptionPlanSummary],
         classMemory: [ClassMemoryEntry],
         classFiles: [ClassFileSummary],
-        securitySettings: SecuritySettingsState = .sample
+        securitySettings: SecuritySettingsState = .sample,
+        auditEntries: [AuditLogEntry] = AuditLogEntry.sample
     ) {
         self.profile = profile
         self.children = children
@@ -113,6 +188,7 @@ private struct MoreStoreSnapshot: Codable {
         self.classMemory = classMemory
         self.classFiles = classFiles
         self.securitySettings = securitySettings
+        self.auditEntries = auditEntries
     }
 
     init(from decoder: Decoder) throws {
@@ -128,6 +204,7 @@ private struct MoreStoreSnapshot: Codable {
         classMemory = try container.decodeIfPresent([ClassMemoryEntry].self, forKey: .classMemory) ?? SampleData.classMemory
         classFiles = try container.decodeIfPresent([ClassFileSummary].self, forKey: .classFiles) ?? SampleData.classFiles
         securitySettings = try container.decodeIfPresent(SecuritySettingsState.self, forKey: .securitySettings) ?? .sample
+        auditEntries = try container.decodeIfPresent([AuditLogEntry].self, forKey: .auditEntries) ?? AuditLogEntry.sample
     }
 
     static let sample = MoreStoreSnapshot(
@@ -141,7 +218,8 @@ private struct MoreStoreSnapshot: Codable {
         subscriptionPlans: SampleData.subscriptionPlans,
         classMemory: SampleData.classMemory,
         classFiles: SampleData.classFiles,
-        securitySettings: .sample
+        securitySettings: .sample,
+        auditEntries: AuditLogEntry.sample
     )
 }
 
@@ -237,6 +315,19 @@ private enum MoreLocalStore {
         }
     }
 
+    static var auditEntries: [AuditLogEntry] {
+        get { snapshot.auditEntries }
+        set {
+            snapshot.auditEntries = newValue
+            save()
+        }
+    }
+
+    static func recordAudit(_ entry: AuditLogEntry) {
+        snapshot.auditEntries.insert(entry, at: 0)
+        save()
+    }
+
     static func resetIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-qa-reset-more-store") else {
             return
@@ -278,6 +369,7 @@ struct MoreView: View {
     @State private var classMemory: [ClassMemoryEntry]
     @State private var classFiles: [ClassFileSummary]
     @State private var securitySettings: SecuritySettingsState
+    @State private var auditEntries: [AuditLogEntry]
     @State private var activeSheet: MoreSheet?
 
     init() {
@@ -293,6 +385,7 @@ struct MoreView: View {
         _classMemory = State(initialValue: MoreLocalStore.classMemory)
         _classFiles = State(initialValue: MoreLocalStore.classFiles)
         _securitySettings = State(initialValue: MoreLocalStore.securitySettings)
+        _auditEntries = State(initialValue: MoreLocalStore.auditEntries)
         _activeSheet = State(initialValue: MoreView.launchSheet())
     }
 
@@ -321,31 +414,79 @@ struct MoreView: View {
                 ) { updatedProfile in
                     profile = updatedProfile
                     MoreLocalStore.profile = updatedProfile
+                    recordAudit(
+                        title: "Профиль обновлен",
+                        detail: "Изменены контакт или роль родителя",
+                        target: updatedProfile.roleSummary,
+                        category: "Аккаунт",
+                        iconName: "person.crop.circle.fill",
+                        colorName: "blue"
+                    )
                 }
             case .children:
                 ChildrenAccessSheet(children: children) { updatedChildren in
                     children = updatedChildren
                     MoreLocalStore.children = updatedChildren
+                    recordAudit(
+                        title: "Профили детей сохранены",
+                        detail: "Всего профилей: \(updatedChildren.count)",
+                        target: "Дети",
+                        category: "Данные детей",
+                        iconName: "person.crop.square",
+                        colorName: "green"
+                    )
                 }
             case .family:
                 FamilyAccessSheet(members: familyMembers) { updatedMembers in
                     familyMembers = updatedMembers
                     MoreLocalStore.familyMembers = updatedMembers
+                    recordAudit(
+                        title: "Семейный доступ обновлен",
+                        detail: "Всего доступов: \(updatedMembers.count)",
+                        target: "Семья",
+                        category: "Доступ",
+                        iconName: "person.2.fill",
+                        colorName: "teal"
+                    )
                 }
             case .familyTasks:
                 FamilyTasksSheet(profile: profile, members: familyMembers, tasks: familyTasks) { updatedTasks in
                     familyTasks = updatedTasks
                     MoreLocalStore.familyTasks = updatedTasks
+                    recordAudit(
+                        title: "Семейные задачи сохранены",
+                        detail: "Активных задач: \(updatedTasks.filter { $0.status != "Готово" }.count)",
+                        target: "Задачи семьи",
+                        category: "Семья",
+                        iconName: "checklist.checked",
+                        colorName: "orange"
+                    )
                 }
             case .classes:
                 ClassesAccessSheet(classes: classAccess) { updatedClasses in
                     classAccess = updatedClasses
                     MoreLocalStore.classAccess = updatedClasses
+                    recordAudit(
+                        title: "Доступ к классам обновлен",
+                        detail: "Классов подключено: \(updatedClasses.count)",
+                        target: "Классы",
+                        category: "Доступ",
+                        iconName: "building.2.fill",
+                        colorName: "blue"
+                    )
                 }
             case .subscription:
                 SubscriptionSheet(plans: subscriptionPlans) { updatedPlans in
                     subscriptionPlans = updatedPlans
                     MoreLocalStore.subscriptionPlans = updatedPlans
+                    recordAudit(
+                        title: "Подписка изменена",
+                        detail: updatedPlans.first(where: \.isCurrent)?.title ?? "Тариф не выбран",
+                        target: "Подписка",
+                        category: "Оплата",
+                        iconName: "creditcard.fill",
+                        colorName: "orange"
+                    )
                 }
             case .notifications:
                 NotificationSettingsSheet(preferences: notificationPreferences, settings: notificationSettings) { updatedPreferences, updatedSettings in
@@ -353,6 +494,14 @@ struct MoreView: View {
                     notificationSettings = updatedSettings
                     MoreLocalStore.notificationPreferences = updatedPreferences
                     MoreLocalStore.notificationSettings = updatedSettings
+                    recordAudit(
+                        title: "Уведомления сохранены",
+                        detail: "Включено сценариев: \(updatedPreferences.filter(\.isEnabled).count)",
+                        target: "Настройки",
+                        category: "Уведомления",
+                        iconName: "bell.fill",
+                        colorName: "green"
+                    )
                 }
             case .memory:
                 ClassMemorySheet(entries: classMemory) { updatedEntries in
@@ -363,11 +512,32 @@ struct MoreView: View {
                 ClassFilesSheet(files: classFiles) { updatedFiles in
                     classFiles = updatedFiles
                     MoreLocalStore.classFiles = updatedFiles
+                    recordAudit(
+                        title: "Файлы класса обновлены",
+                        detail: "Файлов в локальном архиве: \(updatedFiles.count)",
+                        target: "Файлы",
+                        category: "Файлы",
+                        iconName: "folder.fill",
+                        colorName: "teal"
+                    )
                 }
             case .security:
                 SecuritySettingsSheet(settings: securitySettings) { updatedSettings in
                     securitySettings = updatedSettings
                     MoreLocalStore.securitySettings = updatedSettings
+                    recordAudit(
+                        title: "Настройки безопасности сохранены",
+                        detail: "\(securityEnabledCount(updatedSettings)) защиты включено",
+                        target: "Безопасность",
+                        category: "Безопасность",
+                        iconName: "lock.shield.fill",
+                        colorName: "green"
+                    )
+                }
+            case .audit:
+                AuditLogSheet(entries: auditEntries) { updatedEntries in
+                    auditEntries = updatedEntries
+                    MoreLocalStore.auditEntries = updatedEntries
                 }
             case .support:
                 SupportMessageSheet(kind: .support)
@@ -465,7 +635,8 @@ struct MoreView: View {
             MoreMenuItem(title: "Подписка", subtitle: subscriptionSubtitle, icon: "creditcard.fill", color: SchoolTheme.warning, sheet: .subscription),
             MoreMenuItem(title: "Уведомления", subtitle: "\(enabledNotificationCount) включено: дайджесты, дедлайны, срочное", icon: "bell.fill", color: SchoolTheme.success, sheet: .notifications),
             MoreMenuItem(title: "Память класса", subtitle: "\(classMemory.count) находки: объявления, файлы, события", icon: "magnifyingglass", color: SchoolTheme.accent, sheet: .memory),
-            MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files)
+            MoreMenuItem(title: "Файлы", subtitle: "\(classFiles.count) файла: согласия, чеки, материалы", icon: "folder.fill", color: SchoolTheme.teal, sheet: .files),
+            MoreMenuItem(title: "Журнал действий", subtitle: "\(auditEntries.count) записей: роли, доступы, файлы", icon: "list.bullet.rectangle.portrait.fill", color: SchoolTheme.graphite, sheet: .audit)
         ]
     }
 
@@ -543,6 +714,10 @@ struct MoreView: View {
             return .files
         }
 
+        if arguments.contains("-qa-more-audit") {
+            return .audit
+        }
+
         if arguments.contains("-qa-more-security") {
             return .security
         }
@@ -560,6 +735,36 @@ struct MoreView: View {
         }
 
         return nil
+    }
+
+    private func recordAudit(
+        title: String,
+        detail: String,
+        target: String,
+        category: String,
+        iconName: String,
+        colorName: String
+    ) {
+        let entry = AuditLogEntry(
+            title: title,
+            detail: detail,
+            actor: profile.name,
+            target: target,
+            category: category,
+            timestampLabel: "сейчас",
+            iconName: iconName,
+            colorName: colorName
+        )
+        auditEntries.insert(entry, at: 0)
+        MoreLocalStore.recordAudit(entry)
+    }
+
+    private func securityEnabledCount(_ settings: SecuritySettingsState) -> Int {
+        [
+            settings.closedClassOnly,
+            settings.maskFinanceForFamily,
+            settings.requireInviteApproval
+        ].filter { $0 }.count
     }
 }
 
@@ -2419,6 +2624,211 @@ private struct SecuritySettingsSheet: View {
     }
 }
 
+private struct AuditLogSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let onSave: ([AuditLogEntry]) -> Void
+
+    @State private var entries: [AuditLogEntry]
+    @State private var selectedCategory = "Все"
+
+    init(entries: [AuditLogEntry], onSave: @escaping ([AuditLogEntry]) -> Void) {
+        self.onSave = onSave
+        _entries = State(initialValue: entries)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "list.bullet.rectangle.portrait.fill",
+                        color: SchoolTheme.graphite,
+                        title: "Журнал действий",
+                        subtitle: "Роли, доступы, файлы и важные изменения класса"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(entries.count)", title: "записей", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(localCount)", title: "локально", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(verifiedCount)", title: "проверено", color: SchoolTheme.success)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Фильтр")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(categories, id: \.self) { category in
+                                        Button {
+                                            selectedCategory = category
+                                        } label: {
+                                            Text(category)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(selectedCategory == category ? .white : SchoolTheme.graphite)
+                                                .lineLimit(1)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    selectedCategory == category ? SchoolTheme.accent : SchoolTheme.page,
+                                                    in: Capsule()
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Text("Последние действия")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                Button {
+                                    addControlCheckpoint()
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(SchoolTheme.accent)
+                                        .frame(width: 34, height: 34)
+                                        .background(SchoolTheme.accent.opacity(0.10), in: Circle())
+                                }
+                                .accessibilityLabel("Добавить контрольную запись")
+                            }
+
+                            if filteredEntries.isEmpty {
+                                MoreEmptyState(
+                                    icon: "checkmark.shield.fill",
+                                    title: "Записей нет",
+                                    detail: "Для этого фильтра пока не было действий"
+                                )
+                            } else {
+                                ForEach(filteredEntries) { entry in
+                                    auditRow(entry)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Серверный AuditLog подключается следующим этапом", systemImage: "server.rack")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Сейчас журнал сохраняется на устройстве и показывает UX-сценарий: кто изменил доступ, файл, безопасность или семейную задачу. Для продакшена эти записи должны уходить на backend и быть защищены от ручного изменения.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Журнал")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        save()
+                    }
+                }
+            }
+        }
+    }
+
+    private var categories: [String] {
+        ["Все"] + Array(Set(entries.map(\.category))).sorted()
+    }
+
+    private var filteredEntries: [AuditLogEntry] {
+        entries.filter { entry in
+            selectedCategory == "Все" || entry.category == selectedCategory
+        }
+    }
+
+    private var localCount: Int {
+        entries.filter { $0.status == "Локально" }.count
+    }
+
+    private var verifiedCount: Int {
+        entries.filter { $0.status == "Проверено" }.count
+    }
+
+    private func auditRow(_ entry: AuditLogEntry) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: entry.iconName, color: moreColor(for: entry.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(entry.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+                    StatusBadge(text: entry.category, color: moreColor(for: entry.colorName))
+                }
+
+                Text(entry.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\(entry.actor) - \(entry.target)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+
+                HStack(spacing: 8) {
+                    Text(entry.timestampLabel)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                    Text(entry.status)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(entry.status == "Проверено" ? SchoolTheme.success : SchoolTheme.warning)
+                }
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func addControlCheckpoint() {
+        entries.insert(
+            AuditLogEntry(
+                title: "Контрольная проверка",
+                detail: "Администратор открыл журнал и сверил локальные записи",
+                actor: "Владимир",
+                target: "AuditLog",
+                category: "Безопасность",
+                status: "Локально",
+                timestampLabel: "сейчас",
+                iconName: "checkmark.shield.fill",
+                colorName: "green"
+            ),
+            at: 0
+        )
+    }
+
+    private func save() {
+        onSave(entries)
+        dismiss()
+    }
+}
+
 private struct SupportMessageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -2792,6 +3202,7 @@ private enum MoreSheet: String, Identifiable {
     case notifications
     case memory
     case files
+    case audit
     case security
     case support
     case problem
