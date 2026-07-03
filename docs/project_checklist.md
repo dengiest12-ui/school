@@ -215,9 +215,9 @@
 
 - [~] Подготовить модель ролей на backend
   - Проверка: права проверяются не только в интерфейсе, но и на сервере
-  - Уровень: 1
-  - Артефакт: `docs/backend_contracts.md`
-  - Комментарий: описана серверная матрица прав для родителей, родкомитета, учителя и администратора класса; фактические backend-проверки еще не подключены, это критично для приватности детей и финансовых сборов
+  - Уровень: 2
+  - Артефакт: `docs/backend_contracts.md`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/more-sync-permissions.png`, `.build/screenshots/qa-smoke/more-sync.png`
+  - Комментарий: описана серверная матрица прав для родителей, родкомитета, учителя и администратора класса; в центре синхронизации добавлен локальный policy-аудит действий объявлений, сборов, оплат, фото и приглашений по ролям; фактические backend-проверки еще не подключены, это критично для приватности детей и финансовых сборов
 
 - [~] Настроить окружения
   - Проверка: dev, staging, production разделены
@@ -986,3 +986,4 @@
 | 2026-07-03 | Навигация главной и мультидети | Пройдено | 3 | `.build/screenshots/onboarding-account-first.png`, `.build/screenshots/today-child-profile-switch.png`, `.build/screenshots/today-add-child-class-code.png`, `.build/screenshots/today-homework-sheet.png`, `.build/screenshots/today-chats-sheet.png`, `.build/screenshots/qa-smoke/today-notifications.png`, `.build/screenshots/qa-smoke/today-urgent.png`, `SchoolApp/Features/Today/TodayView.swift`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh` | Первый вход перестроен по шагам аккаунт -> статус -> класс, выбранный ребенок сохраняется между вкладками и задает контекст класса/роли, добавление ребенка требует код класса, колокольчик/профиль/срочное/домашка/чаты на главной открывают листы; smoke расширен и пройден |
 | 2026-07-03 | Просмотр фотоальбомов и права удаления | Пройдено | 3 | `.build/screenshots/class-photo-viewer.png`, `.build/screenshots/qa-smoke/class-photo-viewer.png`, `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `scripts/qa_smoke.sh` | Альбомы получили крупный просмотр с перелистыванием, быстрые действия скачать/поделиться/пожаловаться и удаление только для учителя или родкомитета; `xcodebuild` и полный smoke-прогон проходят |
 | 2026-07-03 | API dry-run центра синхронизации | Пройдено | 3 | `.build/screenshots/more-sync-api-dry-run.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh` | Центр синхронизации получил dev/staging/prod, типизированный каталог endpoint-ов, request id dry-run и подсчет готовых/ожидающих/заблокированных операций; реальный backend и OpenAPI-клиент остаются следующим слоем |
+| 2026-07-03 | Backend policy-аудит ролей | Пройдено | 2 | `.build/screenshots/more-sync-permissions.png`, `.build/screenshots/qa-smoke/more-sync.png`, `SchoolApp/Features/More/MoreView.swift` | В центр синхронизации добавлена матрица серверных прав: объявления, сборы, оплата своей семьи, удаление фото и приглашения проверяются по ролям родитель/родкомитет/учитель/ребенок; настоящий backend enforcement остается следующим слоем |

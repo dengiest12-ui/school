@@ -701,6 +701,82 @@ private struct SyncDryRunResult: Hashable {
     }
 }
 
+private struct BackendPermissionRule: Identifiable, Hashable {
+    enum Decision: String {
+        case allow = "Разрешить"
+        case deny = "Запретить"
+        case ownOnly = "Только свое"
+
+        var color: Color {
+            switch self {
+            case .allow:
+                SchoolTheme.success
+            case .deny:
+                SchoolTheme.danger
+            case .ownOnly:
+                SchoolTheme.warning
+            }
+        }
+    }
+
+    let id = UUID()
+    var action: String
+    var endpoint: SyncEndpointKind
+    var parent: Decision
+    var committee: Decision
+    var teacher: Decision
+    var child: Decision
+    var auditReason: String
+
+    static let sample = [
+        BackendPermissionRule(
+            action: "Создать объявление",
+            endpoint: .announcementRead,
+            parent: .deny,
+            committee: .allow,
+            teacher: .allow,
+            child: .deny,
+            auditReason: "Публикации класса должны иметь автора с ролью учитель или родкомитет"
+        ),
+        BackendPermissionRule(
+            action: "Изменить статус сбора",
+            endpoint: .receipt,
+            parent: .deny,
+            committee: .allow,
+            teacher: .deny,
+            child: .deny,
+            auditReason: "Финансовые статусы меняет только родкомитет, сервер повторно проверяет роль"
+        ),
+        BackendPermissionRule(
+            action: "Отметить оплату семьи",
+            endpoint: .receipt,
+            parent: .ownOnly,
+            committee: .allow,
+            teacher: .deny,
+            child: .deny,
+            auditReason: "Родитель может менять только запись своей семьи"
+        ),
+        BackendPermissionRule(
+            action: "Удалить фото альбома",
+            endpoint: .photo,
+            parent: .deny,
+            committee: .allow,
+            teacher: .allow,
+            child: .deny,
+            auditReason: "Удаление фото доступно модераторам класса и фиксируется в AuditLog"
+        ),
+        BackendPermissionRule(
+            action: "Пригласить участника",
+            endpoint: .familyInvite,
+            parent: .deny,
+            committee: .allow,
+            teacher: .allow,
+            child: .deny,
+            auditReason: "Инвайт создает токен доступа к закрытому классу"
+        )
+    ]
+}
+
 private struct MoreStoreSnapshot: Codable {
     var profile: ParentProfileState
     var children: [ChildSummary]
@@ -5081,6 +5157,10 @@ private struct SyncCenterSheet: View {
                     }
 
                     DashboardCard {
+                        backendPermissionSummary
+                    }
+
+                    DashboardCard {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Состояние backend MVP")
                                 .font(.headline)
@@ -5134,6 +5214,23 @@ private struct SyncCenterSheet: View {
 
                             ForEach(SyncEndpointKind.allCases) { endpoint in
                                 endpointRow(endpoint)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Серверные права")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Spacer()
+                                StatusBadge(text: "\(BackendPermissionRule.sample.count)", color: SchoolTheme.success)
+                            }
+
+                            ForEach(BackendPermissionRule.sample) { rule in
+                                permissionRuleRow(rule)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -5231,6 +5328,46 @@ private struct SyncCenterSheet: View {
         operations.filter { $0.status == "Нужен storage" }.count
     }
 
+    private var blockedPermissionCount: Int {
+        BackendPermissionRule.sample.reduce(0) { count, rule in
+            count
+            + [rule.parent, rule.committee, rule.teacher, rule.child].filter { $0 == .deny }.count
+        }
+    }
+
+    private var ownOnlyPermissionCount: Int {
+        BackendPermissionRule.sample.reduce(0) { count, rule in
+            count
+            + [rule.parent, rule.committee, rule.teacher, rule.child].filter { $0 == .ownOnly }.count
+        }
+    }
+
+    private var backendPermissionSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Backend-права", systemImage: "lock.shield.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: "policy", color: SchoolTheme.success)
+            }
+
+            Text("Сервер должен повторять эти проверки, даже если кнопки скрыты в интерфейсе.")
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                MoreMetric(value: "\(BackendPermissionRule.sample.count)", title: "правил", color: SchoolTheme.success)
+                Divider()
+                MoreMetric(value: "\(blockedPermissionCount)", title: "запрет", color: SchoolTheme.danger)
+                Divider()
+                MoreMetric(value: "\(ownOnlyPermissionCount)", title: "только свое", color: SchoolTheme.warning)
+            }
+            .frame(height: 54)
+        }
+    }
+
     private func syncStateRow(icon: String, color: Color, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             IconBadge(systemName: icon, color: color, size: 40)
@@ -5322,6 +5459,52 @@ private struct SyncCenterSheet: View {
             }
             Spacer()
         }
+    }
+
+    private func permissionRuleRow(_ rule: BackendPermissionRule) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: "lock.shield.fill", color: SchoolTheme.success, size: 38)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(rule.action)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("\(rule.endpoint.contractLine) - \(rule.auditReason)")
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 6) {
+                permissionChip("Родитель", rule.parent)
+                permissionChip("Родком", rule.committee)
+                permissionChip("Учитель", rule.teacher)
+                permissionChip("Ребенок", rule.child)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func permissionChip(_ title: String, _ decision: BackendPermissionRule.Decision) -> some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Text(decision.rawValue)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(decision.color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .frame(maxWidth: .infinity, minHeight: 38)
+        .background(decision.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func dryRunCard(_ result: SyncDryRunResult) -> some View {
