@@ -1,21 +1,34 @@
 import SwiftUI
 import UIKit
 
+private enum ClassRoomLocalStore {
+    static var feedItems = SampleData.feed
+    static var collections = SampleData.collections
+    static var chatThreads = SampleData.chatThreads
+    static var digestItems = SampleData.chatDigestItems
+    static var members = SampleData.classMembers
+}
+
 struct ClassRoomView: View {
     let userRole: AppUserRole
 
     @State private var selectedSection: ClassSection
-    @State private var feedItems = SampleData.feed
-    @State private var collections = SampleData.collections
-    @State private var chatThreads = SampleData.chatThreads
-    @State private var digestItems = SampleData.chatDigestItems
-    @State private var members = SampleData.classMembers
+    @State private var feedItems: [FeedItem]
+    @State private var collections: [CollectionSummary]
+    @State private var chatThreads: [ChatThread]
+    @State private var digestItems: [ChatDigestItem]
+    @State private var members: [ClassMemberSummary]
     @State private var activeSheet: ClassRoomSheet?
 
     init(userRole: AppUserRole = .parent) {
         self.userRole = userRole
         let launchSheet = ClassRoomView.launchSheet()
         _selectedSection = State(initialValue: launchSheet?.preferredSection ?? ClassRoomView.launchSection())
+        _feedItems = State(initialValue: ClassRoomLocalStore.feedItems)
+        _collections = State(initialValue: ClassRoomLocalStore.collections)
+        _chatThreads = State(initialValue: ClassRoomLocalStore.chatThreads)
+        _digestItems = State(initialValue: ClassRoomLocalStore.digestItems)
+        _members = State(initialValue: ClassRoomLocalStore.members)
         _activeSheet = State(initialValue: launchSheet)
     }
 
@@ -38,6 +51,7 @@ struct ClassRoomView: View {
                 if userRole.canManageCollections {
                     AddCollectionSheet { collection in
                         collections.insert(collection, at: 0)
+                        ClassRoomLocalStore.collections = collections
                         selectedSection = .collections
                     }
                 } else {
@@ -58,6 +72,7 @@ struct ClassRoomView: View {
             case .digestDetail:
                 ChatDigestSheet(items: digestItems) { updatedItems in
                     digestItems = updatedItems
+                    ClassRoomLocalStore.digestItems = updatedItems
                 }
             case .announcementDetail(let item):
                 AnnouncementDetailSheet(item: item) { updatedItem in
@@ -67,6 +82,7 @@ struct ClassRoomView: View {
                 if userRole.canPublishAnnouncements {
                     NewAnnouncementSheet { item in
                         feedItems.insert(item, at: 0)
+                        ClassRoomLocalStore.feedItems = feedItems
                         selectedSection = .feed
                     }
                 } else {
@@ -80,6 +96,7 @@ struct ClassRoomView: View {
                 if userRole.canInviteMembers {
                     InviteMembersSheet(members: members) { updatedMembers in
                         members = updatedMembers
+                        ClassRoomLocalStore.members = updatedMembers
                         selectedSection = .members
                     }
                 } else {
@@ -570,6 +587,7 @@ struct ClassRoomView: View {
         }
 
         collections[index] = updatedCollection
+        ClassRoomLocalStore.collections = collections
     }
 
     private func updateChatThread(_ updatedThread: ChatThread) {
@@ -578,6 +596,7 @@ struct ClassRoomView: View {
         }
 
         chatThreads[index] = updatedThread
+        ClassRoomLocalStore.chatThreads = chatThreads
     }
 
     private func updateFeedItem(_ updatedItem: FeedItem) {
@@ -586,6 +605,7 @@ struct ClassRoomView: View {
         }
 
         feedItems[index] = updatedItem
+        ClassRoomLocalStore.feedItems = feedItems
     }
 
     private func openCreateAction() {
