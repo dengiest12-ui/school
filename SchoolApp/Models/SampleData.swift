@@ -43,10 +43,65 @@ struct HomeworkItem: Identifiable, Hashable {
 }
 
 struct ScheduleItem: Identifiable, Hashable {
-    let id = UUID()
-    let time: String
-    let title: String
-    let detail: String
+    let id: UUID
+    var day: String
+    var time: String
+    var title: String
+    var detail: String
+    var teacher: String
+    var requiresForm: Bool
+    var isReplacement: Bool
+
+    init(
+        id: UUID = UUID(),
+        day: String = "Чт",
+        time: String,
+        title: String,
+        detail: String,
+        teacher: String = "",
+        requiresForm: Bool = false,
+        isReplacement: Bool = false
+    ) {
+        self.id = id
+        self.day = day
+        self.time = time
+        self.title = title
+        self.detail = detail
+        self.teacher = teacher
+        self.requiresForm = requiresForm
+        self.isReplacement = isReplacement
+    }
+}
+
+struct PersonalCircle: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var day: String
+    var time: String
+    var place: String
+    var responsible: String
+    var iconName: String
+    var colorName: String
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        day: String,
+        time: String,
+        place: String,
+        responsible: String,
+        iconName: String,
+        colorName: String
+    ) {
+        self.id = id
+        self.title = title
+        self.day = day
+        self.time = time
+        self.place = place
+        self.responsible = responsible
+        self.iconName = iconName
+        self.colorName = colorName
+    }
 }
 
 struct ChatPreviewItem: Identifiable, Hashable {
@@ -222,10 +277,36 @@ enum SampleData {
     ]
 
     static let schedule = [
-        ScheduleItem(time: "08:30", title: "Математика", detail: "Каб. 21"),
-        ScheduleItem(time: "09:25", title: "Русский язык", detail: "Каб. 15"),
-        ScheduleItem(time: "10:35", title: "Физкультура", detail: "Спортзал - нужна форма"),
-        ScheduleItem(time: "11:30", title: "Окружающий мир", detail: "Каб. 12")
+        ScheduleItem(day: "Пн", time: "08:30", title: "Литература", detail: "Каб. 18", teacher: "Ирина Петровна"),
+        ScheduleItem(day: "Пн", time: "09:25", title: "Математика", detail: "Каб. 21", teacher: "Ольга Ивановна"),
+        ScheduleItem(day: "Вт", time: "08:30", title: "Русский язык", detail: "Каб. 15", teacher: "Елена Сергеевна"),
+        ScheduleItem(day: "Ср", time: "10:35", title: "Музыка", detail: "Актовый зал", teacher: "Анна Викторовна"),
+        ScheduleItem(day: "Чт", time: "08:30", title: "Математика", detail: "Каб. 21", teacher: "Ольга Ивановна"),
+        ScheduleItem(day: "Чт", time: "09:25", title: "Русский язык", detail: "Каб. 15", teacher: "Елена Сергеевна"),
+        ScheduleItem(day: "Чт", time: "10:35", title: "Физкультура", detail: "Спортзал", teacher: "Дмитрий Андреевич", requiresForm: true),
+        ScheduleItem(day: "Чт", time: "11:30", title: "Окружающий мир", detail: "Каб. 12", teacher: "Наталья Павловна"),
+        ScheduleItem(day: "Пт", time: "09:25", title: "Английский язык", detail: "Вместо музыки, каб. 32", teacher: "Мария Олеговна", isReplacement: true)
+    ]
+
+    static let personalCircles = [
+        PersonalCircle(
+            title: "Шахматы",
+            day: "Чт",
+            time: "17:00",
+            place: "Клуб у школы",
+            responsible: "Папа",
+            iconName: "brain.head.profile",
+            colorName: "teal"
+        ),
+        PersonalCircle(
+            title: "Английский",
+            day: "Ср",
+            time: "18:30",
+            place: "Онлайн",
+            responsible: "Мама",
+            iconName: "text.book.closed",
+            colorName: "blue"
+        )
     ]
 
     static let parentTasks = [
