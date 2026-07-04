@@ -668,6 +668,7 @@ private struct SyncDryRunResult: Hashable {
     var mutations: [SyncMutationPreview]
     var requestPreview: SyncRequestPreview
     var clientPreview: SyncClientPreview
+    var authContext: SyncAuthContext
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let suffix = UUID().uuidString.prefix(8).uppercased()
@@ -675,7 +676,8 @@ private struct SyncDryRunResult: Hashable {
             SyncMutationPreview.make(environment: environment, operation: operation, index: index)
         }
         let requestID = "dry-\(suffix)"
-        let clientProbe = SchoolSyncClient.dryRun(environment: environment, requestID: requestID, mutations: mutations)
+        let authContext = SyncAuthContext.make(environment: environment)
+        let clientProbe = SchoolSyncClient.dryRun(environment: environment, requestID: requestID, authContext: authContext, mutations: mutations)
 
         return SyncDryRunResult(
             environment: environment,
@@ -686,7 +688,8 @@ private struct SyncDryRunResult: Hashable {
             summary: "Dry-run: \(clientProbe.acceptedCount) можно отправить, \(clientProbe.queuedCount) ждут сети, \(clientProbe.blockedCount) требуют решения до API.",
             mutations: mutations,
             requestPreview: clientProbe.requestPreview,
-            clientPreview: SyncClientPreview.make(environment: environment, probe: clientProbe)
+            clientPreview: SyncClientPreview.make(environment: environment, probe: clientProbe),
+            authContext: authContext
         )
     }
 }
@@ -752,8 +755,38 @@ private struct SyncRequestPreview: Hashable {
     }
 }
 
+private struct SyncAuthContext: Hashable {
+    var userID: String
+    var sessionState: String
+    var bearerPreview: String
+    var refreshPlan: String
+    var roleClaim: String
+    var serverPolicy: String
+
+    static func make(environment: BackendEnvironment) -> SyncAuthContext {
+        let roleClaim: String
+        switch environment {
+        case .development:
+            roleClaim = "class:demo-3b parentCommittee"
+        case .staging:
+            roleClaim = "class:staging-3b parentCommittee"
+        case .production:
+            roleClaim = "class:prod-3b parent"
+        }
+
+        return SyncAuthContext(
+            userID: "user-ios-local",
+            sessionState: "dry session, expires in 15 min",
+            bearerPreview: "Bearer dry-\(environment.rawValue)-session",
+            refreshPlan: "Refresh token before batch retry; logout on 401/403",
+            roleClaim: roleClaim,
+            serverPolicy: "Server must re-check class role for every mutation"
+        )
+    }
+}
+
 private struct SchoolSyncClient {
-    static func dryRun(environment: BackendEnvironment, requestID: String, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
+    static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
             return SyncClientProbeResult.failed(environment: environment, requestID: requestID, reason: "Invalid environment URL")
         }
@@ -761,6 +794,8 @@ private struct SchoolSyncClient {
         let request = MutationBatchRequest(
             clientId: "ios-local",
             environment: environment.rawValue,
+            actorUserId: authContext.userID,
+            roleClaim: authContext.roleClaim,
             mutations: mutations.map { mutation in
                 MutationRequestItem(
                     mutationId: mutation.mutationID,
@@ -784,7 +819,7 @@ private struct SchoolSyncClient {
                 method: "POST",
                 path: "/sync/mutations",
                 url: url.absoluteString,
-                authState: "Bearer token required",
+                authState: "\(authContext.bearerPreview), \(authContext.sessionState)",
                 idempotencyKey: requestID,
                 bodyPreview: compactPreview(from: requestData)
             )
@@ -856,6 +891,8 @@ private struct SchoolSyncClient {
 private struct MutationBatchRequest: Codable, Hashable {
     var clientId: String
     var environment: String
+    var actorUserId: String
+    var roleClaim: String
     var mutations: [MutationRequestItem]
 }
 
@@ -967,11 +1004,11 @@ private struct ApiReadinessItem: Identifiable, Hashable {
         ),
         ApiReadinessItem(
             title: "Auth + server roles",
-            artifact: "Backend policy",
-            status: "Блокер",
-            detail: "Сервер должен проверять роль в конкретном классе для объявлений, сборов, чеков, фото и приглашений.",
+            artifact: "Auth context + Backend policy",
+            status: "Частично",
+            detail: "iOS dry-run передает user id, role claim и refresh-план; сервер все равно должен проверять роль в конкретном классе для каждого действия.",
             iconName: "lock.shield.fill",
-            colorName: "red"
+            colorName: "orange"
         ),
         ApiReadinessItem(
             title: "File storage",
@@ -5881,13 +5918,19 @@ private struct SyncCenterSheet: View {
                                 icon: "paperplane.fill",
                                 color: SchoolTheme.success,
                                 title: "Batch request",
-                                detail: "Dry-run готовит POST /sync/mutations: base URL окружения, auth-заглушка, idempotency key и compact JSON body"
+                                detail: "Dry-run готовит POST /sync/mutations: base URL окружения, typed auth context, idempotency key и compact JSON body"
                             )
                             syncStateRow(
                                 icon: "curlybraces.square.fill",
                                 color: SchoolTheme.success,
                                 title: "Swift client",
                                 detail: "Dry-run проходит через типизированный Codable-клиент: URLSession request, JSON body, mock response decode и mapping accepted/queued/blocked"
+                            )
+                            syncStateRow(
+                                icon: "person.badge.key.fill",
+                                color: SchoolTheme.success,
+                                title: "Auth context",
+                                detail: "Dry-run добавляет user id, class role claim, bearer preview и refresh-план; backend обязан повторно проверить роль"
                             )
                             syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
@@ -6307,6 +6350,7 @@ private struct SyncCenterSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             syncRequestPreviewCard(result.requestPreview)
+            syncAuthPreviewCard(result.authContext)
             syncClientPreviewCard(result.clientPreview)
 
             HStack(spacing: 10) {
@@ -6375,6 +6419,44 @@ private struct SyncCenterSheet: View {
                 .minimumScaleFactor(0.76)
 
             Text(client.failureMapping)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+        }
+        .padding(10)
+        .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func syncAuthPreviewCard(_ auth: SyncAuthContext) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Auth context", systemImage: "person.badge.key.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: "typed", color: SchoolTheme.success)
+            }
+
+            Text("\(auth.userID) - \(auth.sessionState)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+
+            Text(auth.roleClaim)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+
+            Text(auth.refreshPlan)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(auth.serverPolicy)
                 .font(.caption2)
                 .foregroundStyle(SchoolTheme.muted)
                 .lineLimit(2)
