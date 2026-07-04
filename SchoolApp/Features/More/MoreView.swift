@@ -547,6 +547,17 @@ private enum BackendEnvironment: String, CaseIterable, Identifiable, Codable {
             "только после юридической проверки"
         }
     }
+
+    var storageBucketPrefix: String {
+        switch self {
+        case .development:
+            "dev"
+        case .staging:
+            "staging"
+        case .production:
+            "prod"
+        }
+    }
 }
 
 private enum SyncEndpointKind: String, CaseIterable, Identifiable {
@@ -820,6 +831,7 @@ private struct SyncStoragePreflight: Hashable {
     var metadataReady: Int
     var requiredBeforeMutationIDs: [String]
     var uploadIntents: [SyncUploadIntentPreview]
+    var signedResponses: [SyncSignedUploadResponsePreview]
     var signedURLPlan: String
     var privacyRule: String
     var blockedReason: String
@@ -831,22 +843,18 @@ private struct SyncStoragePreflight: Hashable {
         let uploadIntents = uploadMutations.enumerated().map { index, mutation in
             SyncUploadIntentPreview.make(environment: environment, mutation: mutation, index: index)
         }
-        let bucketPrefix: String
-        switch environment {
-        case .development:
-            bucketPrefix = "dev"
-        case .staging:
-            bucketPrefix = "staging"
-        case .production:
-            bucketPrefix = "prod"
+        let bucket = "school-class-\(environment.storageBucketPrefix)-private"
+        let signedResponses = uploadIntents.map { intent in
+            SyncSignedUploadResponsePreview.make(environment: environment, bucket: bucket, intent: intent)
         }
 
         return SyncStoragePreflight(
-            bucket: "school-class-\(bucketPrefix)-private",
+            bucket: bucket,
             pendingUploads: uploadMutations.count,
             metadataReady: max(0, mutations.count - uploadMutations.count),
             requiredBeforeMutationIDs: uploadMutations.map(\.mutationID),
             uploadIntents: uploadIntents,
+            signedResponses: signedResponses,
             signedURLPlan: "Request signed upload URL, upload binary, receive fileId, then send metadata mutation",
             privacyRule: "Private by class/family membership; teacher/committee moderation for class photos",
             blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_required_before_metadata"
@@ -907,6 +915,36 @@ private struct SyncUploadIntentPreview: Identifiable, Hashable {
     }
 }
 
+private struct SyncSignedUploadResponsePreview: Identifiable, Hashable, Codable {
+    var id: String { fileID }
+    var fileID: String
+    var uploadURL: String
+    var method: String
+    var expiresAt: String
+    var requiredHeader: String
+    var privateBucket: String
+    var storageKey: String
+    var visibility: String
+    var metadataPlan: String
+
+    static func make(environment: BackendEnvironment, bucket: String, intent: SyncUploadIntentPreview) -> SyncSignedUploadResponsePreview {
+        let fileID = "file-\(intent.uploadID.suffix(10))"
+        let storageKey = "classes/demo-3b/\(intent.kind)/\(fileID)-\(intent.fileName)"
+
+        return SyncSignedUploadResponsePreview(
+            fileID: fileID,
+            uploadURL: "\(environment.baseURL)/storage/signed/\(fileID)",
+            method: "PUT",
+            expiresAt: "15 min",
+            requiredHeader: "Content-Type: \(intent.mimeType)",
+            privateBucket: bucket,
+            storageKey: storageKey,
+            visibility: intent.kind == "receipt" ? "class_members" : "class_members",
+            metadataPlan: "Use \(fileID) in mutation \(intent.mutationID)"
+        )
+    }
+}
+
 private struct SchoolSyncClient {
     static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, storagePreflight: SyncStoragePreflight, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
@@ -932,6 +970,18 @@ private struct SchoolSyncClient {
                         mimeType: intent.mimeType,
                         sizeBytes: intent.sizeBytes,
                         checksumSha256: intent.checksumPreview
+                    )
+                },
+                signedResponses: storagePreflight.signedResponses.map { response in
+                    SignedUploadResponsePreviewRequest(
+                        fileId: response.fileID,
+                        method: response.method,
+                        uploadUrl: response.uploadURL,
+                        expiresAt: response.expiresAt,
+                        requiredHeader: response.requiredHeader,
+                        privateBucket: response.privateBucket,
+                        storageKey: response.storageKey,
+                        visibility: response.visibility
                     )
                 },
                 policy: storagePreflight.privacyRule
@@ -1042,6 +1092,7 @@ private struct StoragePreflightRequest: Codable, Hashable {
     var pendingUploads: Int
     var requiredBeforeMutationIds: [String]
     var uploadIntents: [UploadIntentRequest]
+    var signedResponses: [SignedUploadResponsePreviewRequest]
     var policy: String
 }
 
@@ -1054,6 +1105,17 @@ private struct UploadIntentRequest: Codable, Hashable {
     var mimeType: String
     var sizeBytes: Int
     var checksumSha256: String
+}
+
+private struct SignedUploadResponsePreviewRequest: Codable, Hashable {
+    var fileId: String
+    var method: String
+    var uploadUrl: String
+    var expiresAt: String
+    var requiredHeader: String
+    var privateBucket: String
+    var storageKey: String
+    var visibility: String
 }
 
 private struct MutationRequestItem: Codable, Hashable {
@@ -6676,6 +6738,10 @@ private struct SyncCenterSheet: View {
             ForEach(storage.uploadIntents.prefix(2)) { intent in
                 uploadIntentRow(intent)
             }
+
+            ForEach(storage.signedResponses.prefix(2)) { response in
+                signedUploadResponseRow(response)
+            }
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -6707,6 +6773,43 @@ private struct SyncCenterSheet: View {
         }
         .padding(8)
         .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func signedUploadResponseRow(_ response: SyncSignedUploadResponsePreview) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                StatusBadge(text: response.method, color: SchoolTheme.success)
+                Text(response.fileID)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer()
+                Text(response.expiresAt)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.warning)
+            }
+
+            Text(response.uploadURL)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Text("\(response.privateBucket) - \(response.storageKey)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("\(response.requiredHeader) - \(response.metadataPlan)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(8)
+        .background(SchoolTheme.success.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func formattedBytes(_ bytes: Int) -> String {

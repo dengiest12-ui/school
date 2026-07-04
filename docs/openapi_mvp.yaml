@@ -279,7 +279,7 @@ components:
             $ref: '#/components/schemas/Mutation'
     StoragePreflight:
       type: object
-      required: [privateBucket, pendingUploads, requiredBeforeMutationIds, uploadIntents, policy]
+      required: [privateBucket, pendingUploads, requiredBeforeMutationIds, uploadIntents, signedResponses, policy]
       properties:
         privateBucket:
           type: string
@@ -294,6 +294,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/UploadIntentPreview'
+        signedResponses:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignedUploadResponsePreview'
         policy:
           type: string
     UploadIntentPreview:
@@ -319,6 +323,29 @@ components:
           minimum: 1
         checksumSha256:
           type: string
+    SignedUploadResponsePreview:
+      type: object
+      required: [fileId, method, uploadUrl, expiresAt, requiredHeader, privateBucket, storageKey, visibility]
+      properties:
+        fileId:
+          type: string
+        method:
+          type: string
+          enum: [PUT, POST]
+        uploadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+        requiredHeader:
+          type: string
+        privateBucket:
+          type: string
+        storageKey:
+          type: string
+        visibility:
+          type: string
+          enum: [class_members, family_members, staff_only]
     MutationBatchResponse:
       type: object
       required: [results]
