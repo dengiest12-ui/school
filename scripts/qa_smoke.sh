@@ -146,6 +146,7 @@ more-notifications|-qa-tab more -qa-more-notifications
 more-security|-qa-tab more -qa-more-security
 more-security-lifecycle|-qa-tab more -qa-more-security -qa-more-security-lifecycle
 more-privacy|-qa-tab more -qa-more-privacy -qa-more-privacy-consented
+more-legal|-qa-tab more -qa-more-legal -qa-more-privacy-consented
 more-support|-qa-tab more -qa-more-support
 more-problem|-qa-tab more -qa-more-problem
 more-ai-quality|-qa-tab more -qa-more-ai-quality

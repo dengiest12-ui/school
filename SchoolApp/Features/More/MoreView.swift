@@ -706,6 +706,83 @@ private struct ModerationRule: Identifiable, Hashable {
     ]
 }
 
+private struct LegalDocumentItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var version: String
+    var status: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [LegalDocumentItem] = [
+        LegalDocumentItem(
+            title: "Политика приватности",
+            version: "draft 0.1",
+            status: "Черновик",
+            detail: "Описывает данные детей, семьи, файлов, чеков, AI-разбора, удаления и роли доступа.",
+            iconName: "hand.raised.fill",
+            colorName: "teal"
+        ),
+        LegalDocumentItem(
+            title: "Пользовательское соглашение",
+            version: "draft 0.1",
+            status: "Черновик",
+            detail: "Фиксирует правила класса, родкомитета, семейного доступа, платных функций и ограничений.",
+            iconName: "doc.text.fill",
+            colorName: "blue"
+        ),
+        LegalDocumentItem(
+            title: "Согласие родителя",
+            version: "MVP flow",
+            status: "В приложении",
+            detail: "Согласие есть в онбординге и настройках приватности; перед релизом нужна финальная формулировка.",
+            iconName: "checkmark.seal.fill",
+            colorName: "green"
+        )
+    ]
+}
+
+private struct LegalReadinessItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var status: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [LegalReadinessItem] = [
+        LegalReadinessItem(
+            title: "Публичная ссылка",
+            detail: "Нужна постоянная HTTPS-страница политики для App Store Connect и onboarding.",
+            status: "Блокер",
+            iconName: "link",
+            colorName: "red"
+        ),
+        LegalReadinessItem(
+            title: "Владелец приложения",
+            detail: "В документе нужно указать юрлицо/ИП, контакт поддержки и регион обработки данных.",
+            status: "Блокер",
+            iconName: "building.2.fill",
+            colorName: "red"
+        ),
+        LegalReadinessItem(
+            title: "Фактические провайдеры",
+            detail: "После выбора backend, storage, AI и платежей нужно обновить текст и privacy nutrition labels.",
+            status: "Нужна проверка",
+            iconName: "server.rack",
+            colorName: "orange"
+        ),
+        LegalReadinessItem(
+            title: "Локальный MVP",
+            detail: "Черновики документов и пользовательский экран готовы для внутреннего обсуждения.",
+            status: "Готово",
+            iconName: "checkmark.shield.fill",
+            colorName: "green"
+        )
+    ]
+}
+
 private struct BetaTesterGroup: Identifiable, Hashable {
     let id = UUID()
     var title: String
@@ -2233,6 +2310,8 @@ struct MoreView: View {
                         colorName: "green"
                     )
                 }
+            case .legal:
+                LegalCenterSheet(settings: privacySettings)
             case .metrics:
                 MvpMetricsSheet(events: analyticsEvents, metrics: mvpMetrics) { updatedEvents, updatedMetrics in
                     analyticsEvents = updatedEvents
@@ -2465,6 +2544,7 @@ struct MoreView: View {
         [
             MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
             MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
+            MoreMenuItem(title: "Юридика", subtitle: "Политика, условия и App Store-блокеры", icon: "doc.text.magnifyingglass", color: SchoolTheme.graphite, sheet: .legal),
             MoreMenuItem(title: "Модерация", subtitle: moderationSubtitle, icon: "flag.fill", color: SchoolTheme.danger, sheet: .moderation),
             MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
             MoreMenuItem(title: "Бета / TestFlight", subtitle: "Release gate, тестеры и сценарии приемки", icon: "testtube.2", color: SchoolTheme.accent, sheet: .betaReadiness),
@@ -2550,6 +2630,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-privacy") {
             return .privacy
+        }
+
+        if arguments.contains("-qa-more-legal") {
+            return .legal
         }
 
         if arguments.contains("-qa-more-metrics") {
@@ -6015,6 +6099,155 @@ private struct AuditLogSheet: View {
     }
 }
 
+private struct LegalCenterSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let settings: PrivacySettingsState
+
+    private let documents = LegalDocumentItem.sample
+    private let readinessItems = LegalReadinessItem.sample
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "doc.text.magnifyingglass",
+                        color: SchoolTheme.graphite,
+                        title: "Юридика",
+                        subtitle: "Политика, условия, согласие родителя и готовность к App Store"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(documents.count)", title: "документа", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(blockerCount)", title: "блокеры", color: SchoolTheme.danger)
+                            Divider()
+                            MoreMetric(value: consentValue, title: "согласие", color: consentColor)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Документы MVP")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(documents) { document in
+                                legalDocumentRow(document)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Готовность к публикации")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(readinessItems) { item in
+                                legalReadinessRow(item)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Что важно перед TestFlight", systemImage: "exclamationmark.shield.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Для внутренней разработки достаточно черновиков. Перед внешними тестерами нужно финализировать владельца приложения, публичную ссылку политики, фактических провайдеров хранения/AI/платежей и App Store privacy labels.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Юридика")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var blockerCount: Int {
+        readinessItems.filter { $0.status == "Блокер" }.count
+    }
+
+    private var consentValue: String {
+        settings.childDataConsent && settings.privacyPolicyAccepted ? "есть" : "нет"
+    }
+
+    private var consentColor: Color {
+        settings.childDataConsent && settings.privacyPolicyAccepted ? SchoolTheme.success : SchoolTheme.warning
+    }
+
+    private func legalDocumentRow(_ document: LegalDocumentItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: document.iconName, color: moreColor(for: document.colorName), size: 42)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(document.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: document.status, color: moreColor(for: document.colorName))
+                }
+
+                Text(document.version)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.70))
+
+                Text(document.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func legalReadinessRow(_ item: LegalReadinessItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: item.iconName, color: moreColor(for: item.colorName), size: 40)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: item.status, color: moreColor(for: item.colorName))
+                }
+
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct PrivacySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -8743,6 +8976,7 @@ private enum MoreSheet: String, Identifiable {
     case audit
     case security
     case privacy
+    case legal
     case metrics
     case aiQuality
     case qaStates
