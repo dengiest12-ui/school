@@ -27,6 +27,24 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Создать сбор"].exists)
     }
 
+    func testParentCannotManageCollectionStatusOrReceipts() {
+        let app = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-collection-detail"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Сбор"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Общий счетчик закрыт"].exists)
+        XCTAssertTrue(app.staticTexts["Его меняет родкомитет после подтверждения оплаты"].exists)
+        XCTAssertTrue(app.buttons["Сохранить мою оплату"].exists)
+        XCTAssertFalse(app.steppers.element.exists)
+        XCTAssertFalse(app.staticTexts["Подтверждено родкомитетом"].exists)
+        XCTAssertFalse(app.buttons["Добавить расход"].exists)
+        XCTAssertFalse(app.buttons["Фото чека"].exists)
+        XCTAssertFalse(app.buttons["Файл"].exists)
+    }
+
     func testParentCannotPublishAnnouncement() {
         let app = launchApp(arguments: [
             "-qa-role", "parent",
