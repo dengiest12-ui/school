@@ -833,6 +833,7 @@ private struct SyncStoragePreflight: Hashable {
     var uploadIntents: [SyncUploadIntentPreview]
     var signedResponses: [SyncSignedUploadResponsePreview]
     var scanGates: [SyncFileScanGatePreview]
+    var metadataReleases: [SyncMetadataReleasePreview]
     var signedURLPlan: String
     var privacyRule: String
     var blockedReason: String
@@ -851,6 +852,9 @@ private struct SyncStoragePreflight: Hashable {
         let scanGates = zip(uploadIntents, signedResponses).map { intent, response in
             SyncFileScanGatePreview.make(intent: intent, response: response)
         }
+        let metadataReleases = zip(uploadIntents, scanGates).map { intent, gate in
+            SyncMetadataReleasePreview.make(intent: intent, gate: gate)
+        }
 
         return SyncStoragePreflight(
             bucket: bucket,
@@ -860,6 +864,7 @@ private struct SyncStoragePreflight: Hashable {
             uploadIntents: uploadIntents,
             signedResponses: signedResponses,
             scanGates: scanGates,
+            metadataReleases: metadataReleases,
             signedURLPlan: "Request signed upload URL, upload binary, receive fileId, then send metadata mutation",
             privacyRule: "Private by class/family membership; teacher/committee moderation for class photos",
             blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_scan_required_before_metadata"
@@ -981,6 +986,25 @@ private struct SyncFileScanGatePreview: Identifiable, Hashable, Codable {
     }
 }
 
+private struct SyncMetadataReleasePreview: Identifiable, Hashable, Codable {
+    var id: String { mutationID }
+    var mutationID: String
+    var fileID: String
+    var releaseStatus: String
+    var payloadPatch: String
+    var unlockRule: String
+
+    static func make(intent: SyncUploadIntentPreview, gate: SyncFileScanGatePreview) -> SyncMetadataReleasePreview {
+        SyncMetadataReleasePreview(
+            mutationID: intent.mutationID,
+            fileID: gate.fileID,
+            releaseStatus: "waiting_for_clean_scan",
+            payloadPatch: #"{"fileId":"\#(gate.fileID)","scanStatus":"clean"}"#,
+            unlockRule: "Send metadata only after \(gate.scanID) returns clean"
+        )
+    }
+}
+
 private struct SchoolSyncClient {
     static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, storagePreflight: SyncStoragePreflight, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
@@ -1028,6 +1052,15 @@ private struct SchoolSyncClient {
                         queue: gate.queue,
                         moderationRule: gate.moderationRule,
                         metadataGate: gate.metadataGate
+                    )
+                },
+                metadataReleases: storagePreflight.metadataReleases.map { release in
+                    MetadataReleaseRequest(
+                        mutationId: release.mutationID,
+                        fileId: release.fileID,
+                        releaseStatus: release.releaseStatus,
+                        payloadPatch: release.payloadPatch,
+                        unlockRule: release.unlockRule
                     )
                 },
                 policy: storagePreflight.privacyRule
@@ -1140,6 +1173,7 @@ private struct StoragePreflightRequest: Codable, Hashable {
     var uploadIntents: [UploadIntentRequest]
     var signedResponses: [SignedUploadResponsePreviewRequest]
     var scanGates: [FileScanGateRequest]
+    var metadataReleases: [MetadataReleaseRequest]
     var policy: String
 }
 
@@ -1172,6 +1206,14 @@ private struct FileScanGateRequest: Codable, Hashable {
     var queue: String
     var moderationRule: String
     var metadataGate: String
+}
+
+private struct MetadataReleaseRequest: Codable, Hashable {
+    var mutationId: String
+    var fileId: String
+    var releaseStatus: String
+    var payloadPatch: String
+    var unlockRule: String
 }
 
 private struct MutationRequestItem: Codable, Hashable {
@@ -6802,6 +6844,10 @@ private struct SyncCenterSheet: View {
             ForEach(storage.scanGates.prefix(2)) { gate in
                 fileScanGateRow(gate)
             }
+
+            ForEach(storage.metadataReleases.prefix(2)) { release in
+                metadataReleaseRow(release)
+            }
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -6898,6 +6944,34 @@ private struct SyncCenterSheet: View {
         }
         .padding(8)
         .background(SchoolTheme.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func metadataReleaseRow(_ release: SyncMetadataReleasePreview) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                StatusBadge(text: release.releaseStatus, color: SchoolTheme.warning)
+                Text(release.mutationID)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Spacer()
+            }
+
+            Text(release.payloadPatch)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(release.unlockRule)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(8)
+        .background(SchoolTheme.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func formattedBytes(_ bytes: Int) -> String {

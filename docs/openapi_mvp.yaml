@@ -279,7 +279,7 @@ components:
             $ref: '#/components/schemas/Mutation'
     StoragePreflight:
       type: object
-      required: [privateBucket, pendingUploads, requiredBeforeMutationIds, uploadIntents, signedResponses, scanGates, policy]
+      required: [privateBucket, pendingUploads, requiredBeforeMutationIds, uploadIntents, signedResponses, scanGates, metadataReleases, policy]
       properties:
         privateBucket:
           type: string
@@ -302,6 +302,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileScanGatePreview'
+        metadataReleases:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetadataReleasePreview'
         policy:
           type: string
     UploadIntentPreview:
@@ -366,6 +370,21 @@ components:
         moderationRule:
           type: string
         metadataGate:
+          type: string
+    MetadataReleasePreview:
+      type: object
+      required: [mutationId, fileId, releaseStatus, payloadPatch, unlockRule]
+      properties:
+        mutationId:
+          type: string
+        fileId:
+          type: string
+        releaseStatus:
+          type: string
+          enum: [waiting_for_clean_scan, ready_for_metadata, rejected]
+        payloadPatch:
+          type: string
+        unlockRule:
           type: string
     MutationBatchResponse:
       type: object
