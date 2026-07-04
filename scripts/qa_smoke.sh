@@ -10,6 +10,8 @@ APP_PATH="${APP_PATH:-}"
 SIMULATOR_ID="${SIMULATOR_ID:-}"
 
 mkdir -p "$SCREENSHOT_DIR"
+SUMMARY_PATH="$SCREENSHOT_DIR/summary.txt"
+RUN_CASES=()
 
 if [[ -z "$SIMULATOR_ID" ]]; then
   SIMULATOR_ID="$(xcrun simctl list devices booted | awk -F '[()]' '/Booted/ {print $2; exit}')"
@@ -83,49 +85,76 @@ run_case() {
   sleep 2
   xcrun simctl io "$SIMULATOR_ID" screenshot "$SCREENSHOT_DIR/$name.png"
   assert_screenshot "$name"
+  RUN_CASES+=("$name")
 }
 
-run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified -qa-onboarding-consent
-run_case "onboarding-apple" -qa-onboarding -qa-reset-onboarding -qa-onboarding-apple -qa-onboarding-consent
-run_case "today-main" -qa-tab today
-run_case "today-notifications" -qa-tab today -qa-today-notifications
-run_case "today-profile" -qa-tab today -qa-today-profile
-run_case "today-urgent" -qa-tab today -qa-today-urgent
-run_case "today-homework-list" -qa-tab today -qa-today-homework-list
-run_case "today-chats" -qa-tab today -qa-today-chats
-run_case "today-add-child" -qa-tab today -qa-today-add-child
-run_case "today-paywall" -qa-tab today -qa-no-subscription -qa-today-paywall
-run_case "child-mode" -qa-role child -qa-tab today
-run_case "class-parent-permissions" -qa-role parent -qa-tab classRoom
-run_case "class-committee-collections" -qa-role parentCommittee -qa-tab classRoom
-run_case "class-collection-report" -qa-role parentCommittee -qa-tab classRoom -qa-collection-detail -qa-collection-report
-run_case "class-chat-detail" -qa-role parent -qa-tab classRoom -qa-chat-detail
-run_case "class-member-management" -qa-role parentCommittee -qa-tab classRoom -qa-member-management
-run_case "class-member-invite" -qa-role parentCommittee -qa-tab classRoom -qa-member-invite
-run_case "class-photo-album-create" -qa-role parentCommittee -qa-tab classRoom -qa-photo-album-create
-run_case "class-photo-viewer" -qa-role parentCommittee -qa-tab classRoom -qa-photo-viewer
-run_case "homework-add" -qa-tab homework -qa-homework-add
-run_case "homework-ai-report" -qa-tab homework -qa-homework-parse -qa-homework-ai-report
-run_case "homework-paywall" -qa-tab homework -qa-no-subscription -qa-homework-paywall
-run_case "homework-filters" -qa-tab homework -qa-homework-filters
-run_case "homework-empty" -qa-tab homework -qa-homework-empty
-run_case "calendar-add" -qa-tab calendar -qa-calendar-add
-run_case "calendar-detail" -qa-tab calendar -qa-calendar-detail
-run_case "more-profile" -qa-tab more -qa-more-profile
-run_case "more-children" -qa-tab more -qa-more-children
-run_case "more-family" -qa-tab more -qa-more-family
-run_case "more-classes" -qa-tab more -qa-more-classes
-run_case "more-subscription" -qa-tab more -qa-more-subscription
-run_case "more-notifications" -qa-tab more -qa-more-notifications
-run_case "more-security" -qa-tab more -qa-more-security
-run_case "more-security-lifecycle" -qa-tab more -qa-more-security -qa-more-security-lifecycle
-run_case "more-privacy" -qa-tab more -qa-more-privacy -qa-more-privacy-consented
-run_case "more-support" -qa-tab more -qa-more-support
-run_case "more-problem" -qa-tab more -qa-more-problem
-run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
-run_case "more-qa-states" -qa-tab more -qa-more-states
-run_case "more-sync" -qa-tab more -qa-more-sync
-run_case "more-sync-offline" -qa-tab more -qa-more-sync -qa-more-sync-offline
-run_case "more-beta" -qa-tab more -qa-more-beta
+write_summary() {
+  {
+    echo "QA smoke summary"
+    echo "Project: $PROJECT_PATH"
+    echo "Scheme: $SCHEME"
+    echo "Destination: $DESTINATION"
+    echo "Simulator: $SIMULATOR_ID"
+    echo "Bundle: $BUNDLE_ID"
+    echo "Screenshots: $SCREENSHOT_DIR"
+    echo "Cases passed: ${#RUN_CASES[@]}"
+    echo
+    for name in "${RUN_CASES[@]}"; do
+      echo "- $name.png"
+    done
+  } > "$SUMMARY_PATH"
+}
 
-echo "QA smoke completed. Screenshots: $SCREENSHOT_DIR"
+while IFS='|' read -r name args; do
+  [[ -z "$name" || "$name" == \#* ]] && continue
+  # shellcheck disable=SC2086
+  run_case "$name" $args
+done <<'SMOKE_CASES'
+onboarding-phone|-qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified -qa-onboarding-consent
+onboarding-apple|-qa-onboarding -qa-reset-onboarding -qa-onboarding-apple -qa-onboarding-consent
+today-main|-qa-tab today
+today-notifications|-qa-tab today -qa-today-notifications
+today-profile|-qa-tab today -qa-today-profile
+today-urgent|-qa-tab today -qa-today-urgent
+today-homework-list|-qa-tab today -qa-today-homework-list
+today-chats|-qa-tab today -qa-today-chats
+today-add-child|-qa-tab today -qa-today-add-child
+today-paywall|-qa-tab today -qa-no-subscription -qa-today-paywall
+child-mode|-qa-role child -qa-tab today
+class-parent-permissions|-qa-role parent -qa-tab classRoom
+class-committee-collections|-qa-role parentCommittee -qa-tab classRoom
+class-collection-report|-qa-role parentCommittee -qa-tab classRoom -qa-collection-detail -qa-collection-report
+class-chat-detail|-qa-role parent -qa-tab classRoom -qa-chat-detail
+class-member-management|-qa-role parentCommittee -qa-tab classRoom -qa-member-management
+class-member-invite|-qa-role parentCommittee -qa-tab classRoom -qa-member-invite
+class-photo-album-create|-qa-role parentCommittee -qa-tab classRoom -qa-photo-album-create
+class-photo-viewer|-qa-role parentCommittee -qa-tab classRoom -qa-photo-viewer
+homework-add|-qa-tab homework -qa-homework-add
+homework-ai-report|-qa-tab homework -qa-homework-parse -qa-homework-ai-report
+homework-paywall|-qa-tab homework -qa-no-subscription -qa-homework-paywall
+homework-filters|-qa-tab homework -qa-homework-filters
+homework-empty|-qa-tab homework -qa-homework-empty
+calendar-add|-qa-tab calendar -qa-calendar-add
+calendar-detail|-qa-tab calendar -qa-calendar-detail
+more-profile|-qa-tab more -qa-more-profile
+more-children|-qa-tab more -qa-more-children
+more-family|-qa-tab more -qa-more-family
+more-classes|-qa-tab more -qa-more-classes
+more-subscription|-qa-tab more -qa-more-subscription
+more-notifications|-qa-tab more -qa-more-notifications
+more-security|-qa-tab more -qa-more-security
+more-security-lifecycle|-qa-tab more -qa-more-security -qa-more-security-lifecycle
+more-privacy|-qa-tab more -qa-more-privacy -qa-more-privacy-consented
+more-support|-qa-tab more -qa-more-support
+more-problem|-qa-tab more -qa-more-problem
+more-ai-quality|-qa-tab more -qa-more-ai-quality
+more-qa-states|-qa-tab more -qa-more-states
+more-sync|-qa-tab more -qa-more-sync
+more-sync-offline|-qa-tab more -qa-more-sync -qa-more-sync-offline
+more-beta|-qa-tab more -qa-more-beta
+SMOKE_CASES
+
+write_summary
+
+echo "QA smoke completed. Cases: ${#RUN_CASES[@]}. Screenshots: $SCREENSHOT_DIR"
+echo "Summary: $SUMMARY_PATH"
