@@ -53,6 +53,20 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Добавить приглашение"].exists)
     }
 
+    func testParentCannotDeleteClassPhotos() {
+        let app = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-photo-viewer"
+        ])
+
+        XCTAssertTrue(app.buttons["Скачать"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Поделиться"].exists)
+        XCTAssertTrue(app.buttons["Жалоба"].exists)
+        XCTAssertTrue(app.staticTexts["Удаляет учитель или родкомитет"].exists)
+        XCTAssertFalse(app.buttons["Удалить"].exists)
+    }
+
     func testBehaviorQAGateListsCriticalInvariants() {
         let app = launchApp(arguments: ["-qa-tab", "more", "-qa-more-behavior"])
 
