@@ -46,7 +46,7 @@
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
 | Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP, восстановления покупок, StoreKit 2 каталога и entitlement-readiness проверен в Simulator; настоящие покупки и App Store Connect еще не подключены. |
-| Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, управление участниками, маскирование финансов, подтверждение входов, подготовка удаления данных и server deletion readiness; юридическая часть и серверная защита еще впереди. |
+| Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, управление участниками, маскирование финансов, подтверждение входов, подготовка удаления данных, request lifecycle, локальная отмена через re-auth и server deletion readiness; юридическая часть и серверная защита еще впереди. |
 | Релизная готовность | `[~]` | 3 | Добавлены локальные экраны поддержки, отчета о проблеме и выхода; App Store, политика, аналитика и TestFlight еще не готовы. |
 
 ## 1. Продуктовая рамка MVP
@@ -255,7 +255,7 @@
   - Проверка: пользователь может удалить аккаунт, ребенка и связанные личные данные
   - Уровень: 3
   - Артефакт: `.build/screenshots/more-account-deletion.png`, `.build/screenshots/security-local-delete-export.png`, `SchoolApp/Features/More/MoreView.swift`
-  - Комментарий: в безопасности добавлен локальный сценарий: экспорт-сводка перед удалением, выбор объема, подтверждение словом `УДАЛИТЬ` и очистка выбранных локальных данных; реальное удаление на сервере, повторная авторизация и период отмены еще не подключены
+  - Комментарий: в безопасности добавлен локальный сценарий: экспорт-сводка перед удалением, выбор объема, подтверждение словом `УДАЛИТЬ`, локальная очистка выбранных данных, requestId, 7-дневный grace period, re-auth код `1234`, отмена заявки и AuditLog; реальное удаление/восстановление на сервере еще не подключено
 
 ## 6. Ребенок, семья и классы
 
@@ -1020,3 +1020,4 @@
 | 2026-07-04 | StoreKit entitlement readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/storekit_mvp_plan.md`, `docs/backend_contracts.md`, `.build/screenshots/qa-smoke/more-subscription.png` | Экран подписки показывает entitlement state, AI-доступ, источник проверки, будущий `GET /subscriptions/entitlement` и правила active/expired/failed; OpenAPI получил entitlement schema; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана подписки прошли |
 | 2026-07-04 | Server deletion readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-security.png` | Экран безопасности показывает будущий server deletion gate: `GET /me/export`, `POST /me/deletion-requests`, AuditLog, scope и 7-day grace period; OpenAPI получил export/deletion schemas; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
 | 2026-07-04 | Deletion status and cancel readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-security.png` | Экран безопасности и backend-контракт показывают жизненный цикл заявки удаления: `GET /me/deletion-requests/{requestId}`, `POST /me/deletion-requests/{requestId}/cancel`, `canCancel`, re-auth и AuditLog для отмены; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
+| 2026-07-04 | Local deletion lifecycle UX | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-security-lifecycle.png`, `docs/project_checklist.md` | Экран безопасности хранит локальный requestId, grace period, статус `canCancel`, re-auth код `1234`, кнопку отмены и AuditLog-события создания/отмены заявки; smoke получил отдельный кадр нижнего lifecycle-блока; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |

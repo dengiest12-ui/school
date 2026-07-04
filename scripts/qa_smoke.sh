@@ -89,6 +89,7 @@ run_case "more-classes" -qa-tab more -qa-more-classes
 run_case "more-subscription" -qa-tab more -qa-more-subscription
 run_case "more-notifications" -qa-tab more -qa-more-notifications
 run_case "more-security" -qa-tab more -qa-more-security
+run_case "more-security-lifecycle" -qa-tab more -qa-more-security -qa-more-security-lifecycle
 run_case "more-privacy" -qa-tab more -qa-more-privacy -qa-more-privacy-consented
 run_case "more-support" -qa-tab more -qa-more-support
 run_case "more-problem" -qa-tab more -qa-more-problem

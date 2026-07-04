@@ -75,6 +75,11 @@ private struct SecuritySettingsState: Codable, Hashable {
     var deleteScope: String
     var exportStatus: String
     var deleteConfirmation: String
+    var deletionRequestId: String
+    var deletionGracePeriod: String
+    var deletionCanCancel: Bool
+    var deletionCancelStatus: String
+    var deletionReauthCode: String
 
     static let sample = SecuritySettingsState(
         closedClassOnly: true,
@@ -83,7 +88,12 @@ private struct SecuritySettingsState: Codable, Hashable {
         deleteRequestStatus: "Запрос удаления не отправлялся",
         deleteScope: "Аккаунт и личные данные",
         exportStatus: "Экспорт не подготовлен",
-        deleteConfirmation: ""
+        deleteConfirmation: "",
+        deletionRequestId: "",
+        deletionGracePeriod: "Период отмены не запущен",
+        deletionCanCancel: false,
+        deletionCancelStatus: "Отмена недоступна: активной заявки нет",
+        deletionReauthCode: ""
     )
 
     init(
@@ -93,7 +103,12 @@ private struct SecuritySettingsState: Codable, Hashable {
         deleteRequestStatus: String,
         deleteScope: String,
         exportStatus: String,
-        deleteConfirmation: String
+        deleteConfirmation: String,
+        deletionRequestId: String = "",
+        deletionGracePeriod: String = "Период отмены не запущен",
+        deletionCanCancel: Bool = false,
+        deletionCancelStatus: String = "Отмена недоступна: активной заявки нет",
+        deletionReauthCode: String = ""
     ) {
         self.closedClassOnly = closedClassOnly
         self.maskFinanceForFamily = maskFinanceForFamily
@@ -102,6 +117,11 @@ private struct SecuritySettingsState: Codable, Hashable {
         self.deleteScope = deleteScope
         self.exportStatus = exportStatus
         self.deleteConfirmation = deleteConfirmation
+        self.deletionRequestId = deletionRequestId
+        self.deletionGracePeriod = deletionGracePeriod
+        self.deletionCanCancel = deletionCanCancel
+        self.deletionCancelStatus = deletionCancelStatus
+        self.deletionReauthCode = deletionReauthCode
     }
 
     init(from decoder: Decoder) throws {
@@ -113,6 +133,11 @@ private struct SecuritySettingsState: Codable, Hashable {
         deleteScope = try container.decodeIfPresent(String.self, forKey: .deleteScope) ?? "Аккаунт и личные данные"
         exportStatus = try container.decodeIfPresent(String.self, forKey: .exportStatus) ?? "Экспорт не подготовлен"
         deleteConfirmation = try container.decodeIfPresent(String.self, forKey: .deleteConfirmation) ?? ""
+        deletionRequestId = try container.decodeIfPresent(String.self, forKey: .deletionRequestId) ?? ""
+        deletionGracePeriod = try container.decodeIfPresent(String.self, forKey: .deletionGracePeriod) ?? "Период отмены не запущен"
+        deletionCanCancel = try container.decodeIfPresent(Bool.self, forKey: .deletionCanCancel) ?? false
+        deletionCancelStatus = try container.decodeIfPresent(String.self, forKey: .deletionCancelStatus) ?? "Отмена недоступна: активной заявки нет"
+        deletionReauthCode = try container.decodeIfPresent(String.self, forKey: .deletionReauthCode) ?? ""
     }
 }
 
@@ -5110,162 +5135,176 @@ private struct SecuritySettingsSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 14) {
-                    MoreSheetHeader(
-                        icon: "lock.shield.fill",
-                        color: SchoolTheme.success,
-                        title: "Безопасность",
-                        subtitle: "Данные детей, закрытый класс и семейные доступы"
-                    )
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 14) {
+                        MoreSheetHeader(
+                            icon: "lock.shield.fill",
+                            color: SchoolTheme.success,
+                            title: "Безопасность",
+                            subtitle: "Данные детей, закрытый класс и семейные доступы"
+                        )
 
-                    DashboardCard {
-                        HStack(spacing: 12) {
-                            MoreMetric(value: "\(enabledCount)", title: "защиты", color: SchoolTheme.success)
-                            Divider()
-                            MoreMetric(value: settings.closedClassOnly ? "да" : "нет", title: "закрытый", color: SchoolTheme.accent)
-                            Divider()
-                            MoreMetric(value: settings.requireInviteApproval ? "да" : "нет", title: "входы", color: SchoolTheme.teal)
-                        }
-                        .frame(height: 62)
-                    }
-
-                    DashboardCard {
-                        VStack(spacing: 14) {
-                            securityToggle(
-                                title: "Только участники класса",
-                                detail: "Материалы и файлы видят только подключенные семьи",
-                                icon: "person.3.fill",
-                                color: SchoolTheme.success,
-                                isOn: $settings.closedClassOnly
-                            )
-
-                            Divider()
-
-                            securityToggle(
-                                title: "Скрывать финансы",
-                                detail: "Бабушка и няня видят задачи без сумм сборов",
-                                icon: "rublesign.circle.fill",
-                                color: SchoolTheme.warning,
-                                isOn: $settings.maskFinanceForFamily
-                            )
-
-                            Divider()
-
-                            securityToggle(
-                                title: "Подтверждать входы",
-                                detail: "Новые приглашения ждут одобрения администратора",
-                                icon: "checkmark.shield.fill",
-                                color: SchoolTheme.accent,
-                                isOn: $settings.requireInviteApproval
-                            )
-                        }
-                    }
-
-                    DashboardCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Удаление данных")
-                                .font(.headline)
-                                .foregroundStyle(SchoolTheme.graphite)
-
-                            deletionRow(
-                                icon: "square.and.arrow.up.fill",
-                                color: SchoolTheme.accent,
-                                title: "Экспорт перед удалением",
-                                detail: settings.exportStatus
-                            )
-
-                            Button {
-                                settings.exportStatus = MoreLocalStore.localExportSummary()
-                            } label: {
-                                Label("Подготовить экспорт", systemImage: "square.and.arrow.up")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                        DashboardCard {
+                            HStack(spacing: 12) {
+                                MoreMetric(value: "\(enabledCount)", title: "защиты", color: SchoolTheme.success)
+                                Divider()
+                                MoreMetric(value: settings.closedClassOnly ? "да" : "нет", title: "закрытый", color: SchoolTheme.accent)
+                                Divider()
+                                MoreMetric(value: settings.requireInviteApproval ? "да" : "нет", title: "входы", color: SchoolTheme.teal)
                             }
-                            .buttonStyle(.bordered)
-                            .tint(SchoolTheme.accent)
+                            .frame(height: 62)
+                        }
 
-                            serverDeletionReadinessCard(ServerDeletionReadiness.make(scope: settings.deleteScope))
+                        DashboardCard {
+                            VStack(spacing: 14) {
+                                securityToggle(
+                                    title: "Только участники класса",
+                                    detail: "Материалы и файлы видят только подключенные семьи",
+                                    icon: "person.3.fill",
+                                    color: SchoolTheme.success,
+                                    isOn: $settings.closedClassOnly
+                                )
 
-                            Divider()
+                                Divider()
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Что удалить")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(SchoolTheme.muted)
+                                securityToggle(
+                                    title: "Скрывать финансы",
+                                    detail: "Бабушка и няня видят задачи без сумм сборов",
+                                    icon: "rublesign.circle.fill",
+                                    color: SchoolTheme.warning,
+                                    isOn: $settings.maskFinanceForFamily
+                                )
 
-                                Menu {
-                                    ForEach(deleteScopes, id: \.self) { scope in
-                                        Button(scope) {
-                                            settings.deleteScope = scope
-                                        }
-                                    }
+                                Divider()
+
+                                securityToggle(
+                                    title: "Подтверждать входы",
+                                    detail: "Новые приглашения ждут одобрения администратора",
+                                    icon: "checkmark.shield.fill",
+                                    color: SchoolTheme.accent,
+                                    isOn: $settings.requireInviteApproval
+                                )
+                            }
+                        }
+
+                        DashboardCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Удаление данных")
+                                    .font(.headline)
+                                    .foregroundStyle(SchoolTheme.graphite)
+
+                                deletionRow(
+                                    icon: "square.and.arrow.up.fill",
+                                    color: SchoolTheme.accent,
+                                    title: "Экспорт перед удалением",
+                                    detail: settings.exportStatus
+                                )
+
+                                Button {
+                                    settings.exportStatus = MoreLocalStore.localExportSummary()
                                 } label: {
-                                    HStack(spacing: 12) {
-                                        IconBadge(systemName: "trash.fill", color: SchoolTheme.danger, size: 38)
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(settings.deleteScope)
-                                                .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(SchoolTheme.graphite)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            Text("В MVP очищается локальное хранилище, серверное удаление появится с backend")
-                                                .font(.caption)
-                                                .foregroundStyle(SchoolTheme.muted)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                            .foregroundStyle(SchoolTheme.muted)
-                                    }
-                                    .padding(12)
-                                    .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                            .stroke(SchoolTheme.line, lineWidth: 1)
-                                    }
+                                    Label("Подготовить экспорт", systemImage: "square.and.arrow.up")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 44)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.bordered)
+                                .tint(SchoolTheme.accent)
+
+                                serverDeletionReadinessCard(ServerDeletionReadiness.make(scope: settings.deleteScope))
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Что удалить")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(SchoolTheme.muted)
+
+                                    Menu {
+                                        ForEach(deleteScopes, id: \.self) { scope in
+                                            Button(scope) {
+                                                settings.deleteScope = scope
+                                            }
+                                        }
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            IconBadge(systemName: "trash.fill", color: SchoolTheme.danger, size: 38)
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(settings.deleteScope)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(SchoolTheme.graphite)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                                Text("В MVP очищается локальное хранилище, серверное удаление появится с backend")
+                                                    .font(.caption)
+                                                    .foregroundStyle(SchoolTheme.muted)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.down")
+                                                .foregroundStyle(SchoolTheme.muted)
+                                        }
+                                        .padding(12)
+                                        .background(SchoolTheme.surface, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                                .stroke(SchoolTheme.line, lineWidth: 1)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                MoreTextField(
+                                    title: "Подтверждение",
+                                    iconName: "keyboard.fill",
+                                    color: confirmationReady ? SchoolTheme.success : SchoolTheme.warning,
+                                    text: $settings.deleteConfirmation
+                                )
+
+                                Text(settings.deleteRequestStatus)
+                                    .font(.caption)
+                                    .foregroundStyle(SchoolTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                deletionLifecycleCard
+                                    .id("deletion-lifecycle")
+
+                                Button {
+                                    prepareDeletionRequest()
+                                } label: {
+                                    Label("Подготовить заявку на удаление", systemImage: "trash.fill")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(SchoolTheme.danger)
+                                .disabled(!confirmationReady)
                             }
-
-                            MoreTextField(
-                                title: "Подтверждение",
-                                iconName: "keyboard.fill",
-                                color: confirmationReady ? SchoolTheme.success : SchoolTheme.warning,
-                                text: $settings.deleteConfirmation
-                            )
-
-                            Text(settings.deleteRequestStatus)
-                                .font(.caption)
-                                .foregroundStyle(SchoolTheme.muted)
-
-                            Button {
-                                prepareDeletionRequest()
-                            } label: {
-                                Label("Подготовить заявку на удаление", systemImage: "trash.fill")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 44)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(SchoolTheme.danger)
-                            .disabled(!confirmationReady)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
-                    Button {
-                        save()
-                    } label: {
-                        Label("Сохранить безопасность", systemImage: "checkmark")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 52)
+                        Button {
+                            save()
+                        } label: {
+                            Label("Сохранить безопасность", systemImage: "checkmark")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SchoolTheme.success)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SchoolTheme.success)
+                    .padding(20)
+                    .padding(.bottom, 20)
                 }
-                .padding(20)
-                .padding(.bottom, 20)
+                .scrollDismissesKeyboard(.interactively)
+                .onAppear {
+                    guard ProcessInfo.processInfo.arguments.contains("-qa-more-security-lifecycle") else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.snappy) {
+                            proxy.scrollTo("deletion-lifecycle", anchor: .center)
+                        }
+                    }
+                }
             }
-            .scrollDismissesKeyboard(.interactively)
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Безопасность")
             .navigationBarTitleDisplayMode(.inline)
@@ -5300,6 +5339,64 @@ private struct SecuritySettingsSheet: View {
 
     private var confirmationReady: Bool {
         settings.deleteConfirmation.trimmed.uppercased() == "УДАЛИТЬ"
+    }
+
+    private var cancelReady: Bool {
+        settings.deletionCanCancel && settings.deletionReauthCode.trimmed == "1234"
+    }
+
+    private var deletionLifecycleCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Статус заявки", systemImage: "clock.badge.checkmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(
+                    text: settings.deletionCanCancel ? "можно отменить" : "нет активной",
+                    color: settings.deletionCanCancel ? SchoolTheme.success : SchoolTheme.muted
+                )
+            }
+
+            deletionLifecycleRow(title: "requestId", value: settings.deletionRequestId.isEmpty ? "заявка не создана" : settings.deletionRequestId)
+            deletionLifecycleRow(title: "grace period", value: settings.deletionGracePeriod)
+            deletionLifecycleRow(title: "cancel", value: settings.deletionCancelStatus)
+
+            MoreTextField(
+                title: "Код повторного входа",
+                iconName: "key.fill",
+                color: cancelReady ? SchoolTheme.success : SchoolTheme.warning,
+                text: $settings.deletionReauthCode
+            )
+
+            Button {
+                cancelDeletionRequest()
+            } label: {
+                Label("Отменить заявку", systemImage: "arrow.uturn.backward.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 42)
+            }
+            .buttonStyle(.bordered)
+            .tint(SchoolTheme.success)
+            .disabled(!cancelReady)
+        }
+        .padding(10)
+        .background(SchoolTheme.success.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func deletionLifecycleRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(SchoolTheme.muted)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.78))
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+            Spacer(minLength: 0)
+        }
     }
 
     private func deletionRow(icon: String, color: Color, title: String, detail: String) -> some View {
@@ -5396,8 +5493,54 @@ private struct SecuritySettingsSheet: View {
     }
 
     private func prepareDeletionRequest() {
+        let requestId = "del-\(UUID().uuidString.prefix(8).lowercased())"
+        let now = Date.now.formatted(date: .numeric, time: .shortened)
+        let graceEnds = Calendar.current.date(byAdding: .day, value: 7, to: Date.now) ?? Date.now
+
         settings.deleteRequestStatus = MoreLocalStore.performLocalDeletion(scope: settings.deleteScope)
+        settings.deletionRequestId = requestId
+        settings.deletionGracePeriod = "До \(graceEnds.formatted(date: .numeric, time: .shortened)); создано \(now)"
+        settings.deletionCanCancel = true
+        settings.deletionCancelStatus = "Ожидает повторный вход: локальный код 1234"
         settings.deleteConfirmation = ""
+        settings.deletionReauthCode = ""
+
+        MoreLocalStore.recordAudit(
+            AuditLogEntry(
+                title: "Создана заявка удаления",
+                detail: "Scope: \(settings.deleteScope), requestId: \(requestId), отмена доступна до конца grace period",
+                actor: "Локальный пользователь",
+                target: settings.deleteScope,
+                category: "Приватность",
+                status: "Локально",
+                timestampLabel: "сейчас",
+                iconName: "trash.fill",
+                colorName: "red"
+            )
+        )
+    }
+
+    private func cancelDeletionRequest() {
+        guard cancelReady else { return }
+
+        settings.deletionCanCancel = false
+        settings.deletionCancelStatus = "Заявка отменена локально после повторного входа"
+        settings.deleteRequestStatus = "Удаление отменено: серверный MVP должен восстановить доступы в рамках scope и записать AuditLog"
+        settings.deletionReauthCode = ""
+
+        MoreLocalStore.recordAudit(
+            AuditLogEntry(
+                title: "Отменена заявка удаления",
+                detail: "RequestId: \(settings.deletionRequestId.isEmpty ? "local" : settings.deletionRequestId), повторный вход подтвержден",
+                actor: "Локальный пользователь",
+                target: settings.deleteScope,
+                category: "Приватность",
+                status: "Локально",
+                timestampLabel: "сейчас",
+                iconName: "arrow.uturn.backward.circle.fill",
+                colorName: "green"
+            )
+        )
     }
 }
 
