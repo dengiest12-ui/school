@@ -148,6 +148,7 @@ more-security-lifecycle|-qa-tab more -qa-more-security -qa-more-security-lifecyc
 more-privacy|-qa-tab more -qa-more-privacy -qa-more-privacy-consented
 more-legal|-qa-tab more -qa-more-legal -qa-more-privacy-consented
 more-real-device|-qa-tab more -qa-more-real-device
+more-behavior|-qa-tab more -qa-more-behavior
 more-support|-qa-tab more -qa-more-support
 more-problem|-qa-tab more -qa-more-problem
 more-ai-quality|-qa-tab more -qa-more-ai-quality

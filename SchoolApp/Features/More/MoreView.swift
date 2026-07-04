@@ -844,6 +844,74 @@ private struct RealDeviceQaItem: Identifiable, Hashable {
     ]
 }
 
+private struct BehavioralQaItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var invariant: String
+    var smokeCase: String
+    var evidence: String
+    var status: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [BehavioralQaItem] = [
+        BehavioralQaItem(
+            title: "Родительские права",
+            invariant: "Родитель не создает объявления, сборы, приглашения и не меняет общий финансовый статус.",
+            smokeCase: "class-parent-permissions",
+            evidence: "UI показывает read-only состояние и блокирует действия владельца/родкомитета.",
+            status: "Smoke + ручной assert",
+            iconName: "lock.shield.fill",
+            colorName: "green"
+        ),
+        BehavioralQaItem(
+            title: "Состояния сохраняются",
+            invariant: "Прочтение объявления, выбранный ребенок, ДЗ, сборы, чеки и статусы не сбрасываются при переходах.",
+            smokeCase: "today-main, homework-archive, class-collection-report",
+            evidence: "Локальные store сохраняют состояние между экранами; нужен XCTest на перезапуск приложения.",
+            status: "Частично покрыто",
+            iconName: "externaldrive.fill",
+            colorName: "orange"
+        ),
+        BehavioralQaItem(
+            title: "Детский режим",
+            invariant: "Ребенок видит только Сегодня, ДЗ и Календарь без сборов, класса и родительских обсуждений.",
+            smokeCase: "child-mode",
+            evidence: "Smoke запускает роль child и проверяет безопасную навигацию скриншотом.",
+            status: "Smoke",
+            iconName: "figure.and.child.holdinghands",
+            colorName: "green"
+        ),
+        BehavioralQaItem(
+            title: "Offline и конфликты",
+            invariant: "Операции не теряются без сети: мутации остаются в очереди и показывают понятный статус.",
+            smokeCase: "more-sync-offline",
+            evidence: "Sync center показывает queued/offline состояние; нужен backend e2e после API.",
+            status: "Dry-run",
+            iconName: "wifi.slash",
+            colorName: "orange"
+        ),
+        BehavioralQaItem(
+            title: "Paywall не ломает базовый MVP",
+            invariant: "Без подписки AI закрыт paywall-ом, но ручные ДЗ, списки, календарь и фильтры остаются доступны.",
+            smokeCase: "today-paywall, homework-paywall",
+            evidence: "Smoke проверяет оба входа в paywall и базовые экраны ДЗ отдельно.",
+            status: "Smoke",
+            iconName: "creditcard.fill",
+            colorName: "green"
+        ),
+        BehavioralQaItem(
+            title: "Файлы и медиа",
+            invariant: "Фото, файл, чек и голосовое вложение имеют предсказуемое состояние до backend-хранилища.",
+            smokeCase: "class-chat-detail, class-photo-viewer, class-collection-report",
+            evidence: "Локальные вложения видны в UI; реальная камера и файлы проверяются на iPhone gate.",
+            status: "Smoke + iPhone",
+            iconName: "paperclip",
+            colorName: "orange"
+        )
+    ]
+}
+
 private struct BetaTesterGroup: Identifiable, Hashable {
     let id = UUID()
     var title: String
@@ -2375,6 +2443,8 @@ struct MoreView: View {
                 LegalCenterSheet(settings: privacySettings)
             case .realDeviceQa:
                 RealDeviceQaSheet()
+            case .behavioralQa:
+                BehavioralQaSheet()
             case .metrics:
                 MvpMetricsSheet(events: analyticsEvents, metrics: mvpMetrics) { updatedEvents, updatedMetrics in
                     analyticsEvents = updatedEvents
@@ -2610,6 +2680,7 @@ struct MoreView: View {
             MoreMenuItem(title: "Юридика", subtitle: "Политика, условия и App Store-блокеры", icon: "doc.text.magnifyingglass", color: SchoolTheme.graphite, sheet: .legal),
             MoreMenuItem(title: "Модерация", subtitle: moderationSubtitle, icon: "flag.fill", color: SchoolTheme.danger, sheet: .moderation),
             MoreMenuItem(title: "Проверка на iPhone", subtitle: "Камера, файлы, уведомления, подпись", icon: "iphone.gen3", color: SchoolTheme.accent, sheet: .realDeviceQa),
+            MoreMenuItem(title: "Behavior QA", subtitle: "Инварианты прав, ролей и сохранения", icon: "checklist.checked", color: SchoolTheme.success, sheet: .behavioralQa),
             MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
             MoreMenuItem(title: "Бета / TestFlight", subtitle: "Release gate, тестеры и сценарии приемки", icon: "testtube.2", color: SchoolTheme.accent, sheet: .betaReadiness),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
@@ -2702,6 +2773,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-real-device") {
             return .realDeviceQa
+        }
+
+        if arguments.contains("-qa-more-behavior") {
+            return .behavioralQa
         }
 
         if arguments.contains("-qa-more-metrics") {
@@ -6434,6 +6509,120 @@ private struct RealDeviceQaSheet: View {
     }
 }
 
+private struct BehavioralQaSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let items = BehavioralQaItem.sample
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "checklist.checked",
+                        color: SchoolTheme.success,
+                        title: "Behavior QA",
+                        subtitle: "Инварианты, которые должны проверяться не только скриншотами"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(items.count)", title: "правил", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(smokeCount)", title: "smoke", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(needsXCTestCount)", title: "XCTest", color: SchoolTheme.warning)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Критичные инварианты")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(items) { item in
+                                behavioralRow(item)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Следующий уровень автоматизации", systemImage: "testtube.2")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Текущий smoke доказывает, что экраны открываются и не пустые. Перед релизом эти правила нужно перенести в XCTest/UI-тесты: нажимать кнопки, менять роли, перезапускать приложение и проверять конкретное состояние, а не только PNG.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Behavior QA")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var smokeCount: Int {
+        items.filter { $0.status.contains("Smoke") }.count
+    }
+
+    private var needsXCTestCount: Int {
+        items.filter { $0.status != "Smoke" }.count
+    }
+
+    private func behavioralRow(_ item: BehavioralQaItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: item.iconName, color: moreColor(for: item.colorName), size: 42)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        StatusBadge(text: item.status, color: moreColor(for: item.colorName))
+                    }
+
+                    Text(item.invariant)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+            }
+
+            Label(item.smokeCase, systemImage: "camera.viewfinder")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.accent)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(item.evidence)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct PrivacySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -9164,6 +9353,7 @@ private enum MoreSheet: String, Identifiable {
     case privacy
     case legal
     case realDeviceQa
+    case behavioralQa
     case metrics
     case aiQuality
     case qaStates

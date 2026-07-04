@@ -830,8 +830,8 @@
 - [~] Автоматические тесты критичных сценариев
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 3
-  - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`, `.build/screenshots/qa-smoke/summary.txt`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management/photo viewer, Homework add/filters, Calendar add/detail, More security/privacy, QA states и beta readiness; каждый снимок теперь проверяется на наличие, PNG-размеры и минимальный вес файла, а прогон пишет summary со списком прошедших сценариев. Нужны XCTest/UI-тесты с behavioral assert-ами перед релизом
+  - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`, `.build/screenshots/qa-smoke/summary.txt`, `.build/screenshots/qa-smoke/more-behavior.png`
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки ключевых экранов; каждый снимок проверяется на наличие, PNG-размеры и минимальный вес файла, а прогон пишет summary. В приложении добавлен Behavior QA gate с инвариантами ролей, сохранения состояния, детского режима, offline, paywall и медиа; полноценные XCTest/UI-тесты с кликами, перезапуском и assert-ами конкретного состояния все еще нужны перед релизом
 
 ## 21. Релиз
 
@@ -1032,3 +1032,4 @@
 | 2026-07-04 | Локальный центр модерации | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-moderation.png` | В разделе `Еще` добавлен экран модерации: очередь жалоб на фото, чат и участника, счетчики новых/на проверке/закрытых, локальные действия смены статуса и правила безопасности; серверная очередь и аудит решений еще не подключены |
 | 2026-07-04 | Юридический центр MVP | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-legal.png` | В разделе `Еще` добавлен экран юридической готовности: черновики политики/условий, статус согласия родителя, блокеры App Store, публичной ссылки, владельца приложения и фактических провайдеров; финальный юридический обзор еще не выполнен |
 | 2026-07-04 | Gate проверки на iPhone | Пройдено | 2 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-real-device.png` | В разделе `Еще` добавлен экран ручной проверки физического iPhone: подпись, камера, фото, файлы, системный шаринг, уведомления, роли, приватность и производительность; smoke проверяет доступность экрана, фактическая проверка на устройстве остается отдельным ручным шагом |
+| 2026-07-04 | Behavior QA gate | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-behavior.png` | В разделе `Еще` добавлен экран behavioral-инвариантов: родительские права, сохранение состояния, детский режим, offline-очередь, paywall и медиа; smoke проверяет доступность gate, настоящие XCTest/UI assert-ы остаются следующим слоем |
