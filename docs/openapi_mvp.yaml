@@ -24,6 +24,7 @@ tags:
   - name: Collections
   - name: Invites
   - name: Files
+  - name: Subscriptions
   - name: Sync
 paths:
   /health:
@@ -77,6 +78,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MutationBatchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /subscriptions/entitlement:
+    get:
+      tags: [Subscriptions]
+      summary: Return the current family subscription entitlement for premium features.
+      operationId: getSubscriptionEntitlement
+      responses:
+        '200':
+          description: Current entitlement derived from StoreKit and backend subscription state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionEntitlement'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /classes:
@@ -292,6 +307,34 @@ components:
           type: boolean
         minClientVersion:
           type: string
+    SubscriptionEntitlement:
+      type: object
+      required: [familyId, status, aiAccessEnabled, source, checkedAt]
+      properties:
+        familyId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+        status:
+          type: string
+          enum: [trial, active, billing_retry, expired, revoked, none]
+        aiAccessEnabled:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        transactionId:
+          type: string
+        source:
+          type: string
+          enum: [storekit_verified, app_store_server_notification, backend_override, local_trial]
+        checkedAt:
+          type: string
+          format: date-time
+        gracePeriodEndsAt:
+          type: string
+          format: date-time
     MutationBatchRequest:
       type: object
       required: [clientId, actorUserId, roleClaim, mutations]

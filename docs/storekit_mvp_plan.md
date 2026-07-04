@@ -1,6 +1,6 @@
 # StoreKit 2 и платежная схема MVP
 
-Статус: рабочий план. В приложении сейчас реализована локальная проверка сценариев покупки, восстановления, истечения подписки и ошибки оплаты, а экран подписки уже запрашивает каталог StoreKit 2 через `Product.products(for:)`. Настоящие транзакции, App Store Connect products и entitlement-проверка еще не подключены.
+Статус: рабочий план. В приложении сейчас реализована локальная проверка сценариев покупки, восстановления, истечения подписки и ошибки оплаты, экран подписки запрашивает каталог StoreKit 2 через `Product.products(for:)` и показывает entitlement-readiness preview. Настоящие транзакции, App Store Connect products и серверная entitlement-проверка еще не подключены.
 
 ## Продукты App Store Connect
 
@@ -20,7 +20,8 @@
 - Проверять `VerificationResult`.
 - Сохранять только entitlement/status, а не платежные данные.
 - Восстанавливать покупки через `AppStore.sync()`.
-- Проверять активные права через `Transaction.currentEntitlements`.
+- [~] Проверять активные права через `Transaction.currentEntitlements`.
+- [~] Показывать entitlement/status и будущий backend endpoint `GET /subscriptions/entitlement`.
 - Обрабатывать состояния: trial, active, expired, billing retry, revoked, purchase cancelled, purchase pending, purchase failed.
 
 ## Состояния UI
@@ -35,6 +36,18 @@
 - истекшую подписку без потери локальных данных;
 - ошибку оплаты с понятным текстом;
 - ограничения AI/расширенных функций без подписки.
+- entitlement state: trial, active, expired, failed;
+- источник проверки: local trial, StoreKit verified transaction, backend entitlement.
+
+## Entitlement contract
+
+Клиент не должен открывать premium-функции только по нажатию кнопки "Купить". Правильная цепочка:
+
+1. StoreKit возвращает verified transaction.
+2. Клиент обновляет локальный entitlement/status, но не хранит платежные данные.
+3. Backend сверяет transaction и семейный доступ.
+4. `GET /subscriptions/entitlement` возвращает `status`, `aiAccessEnabled`, `expiresAt`, `source` и `checkedAt`.
+5. Если entitlement `expired`, `revoked` или `billing_retry`, AI/расширенные функции закрываются, но базовые данные семьи остаются доступны.
 
 ## Сборы класса
 

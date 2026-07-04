@@ -3670,6 +3670,10 @@ private struct SubscriptionSheet: View {
                     }
 
                     DashboardCard {
+                        storeKitEntitlementCard(entitlementPreview)
+                    }
+
+                    DashboardCard {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("StoreKit 2 каталог")
@@ -3783,6 +3787,15 @@ private struct SubscriptionSheet: View {
         storeKitProducts.filter { $0.status == "Найден" }.count
     }
 
+    private var entitlementPreview: StoreKitEntitlementPreview {
+        StoreKitEntitlementPreview.make(
+            planTitle: currentPlan?.title ?? "Пробный период",
+            productID: productId,
+            transactionID: transactionId,
+            expires: subscriptionExpires
+        )
+    }
+
     private func subscriptionPlanRow(_ plan: SubscriptionPlanSummary) -> some View {
         HStack(spacing: 12) {
             IconBadge(
@@ -3865,6 +3878,49 @@ private struct SubscriptionSheet: View {
             }
             Spacer()
         }
+    }
+
+    private func storeKitEntitlementCard(_ entitlement: StoreKitEntitlementPreview) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Entitlement")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: entitlement.state, color: moreColor(for: entitlement.colorName))
+            }
+
+            storeKitRow(
+                icon: "checkmark.seal.fill",
+                color: moreColor(for: entitlement.colorName),
+                title: "Право доступа",
+                detail: entitlement.aiAccess
+            )
+
+            storeKitRow(
+                icon: "point.3.connected.trianglepath.dotted",
+                color: SchoolTheme.accent,
+                title: "Источник проверки",
+                detail: entitlement.verificationSource
+            )
+
+            Text("\(entitlement.serverEndpoint) - \(entitlement.familyScope)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(entitlement.verificationPlan)
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(entitlement.renewalPolicy)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: entitlement.colorName))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func purchaseButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
@@ -4022,6 +4078,74 @@ private struct StoreKitProductSnapshot: Identifiable, Hashable {
             failed.status = "Ошибка"
             return failed
         }
+    }
+}
+
+private struct StoreKitEntitlementPreview: Hashable {
+    var state: String
+    var productID: String
+    var verificationSource: String
+    var serverEndpoint: String
+    var aiAccess: String
+    var familyScope: String
+    var verificationPlan: String
+    var renewalPolicy: String
+    var colorName: String
+
+    static func make(planTitle: String, productID: String, transactionID: String, expires: String) -> StoreKitEntitlementPreview {
+        if transactionID == "ошибка оплаты" {
+            return StoreKitEntitlementPreview(
+                state: "failed",
+                productID: productID,
+                verificationSource: "StoreKit purchase result",
+                serverEndpoint: "GET /subscriptions/entitlement",
+                aiAccess: "AI закрыт, текущий тариф не меняется",
+                familyScope: "family entitlement unchanged",
+                verificationPlan: "Покупка не должна менять локальный доступ, пока StoreKit не вернул verified transaction.",
+                renewalPolicy: "Показать причину ошибки и оставить предыдущий entitlement",
+                colorName: "red"
+            )
+        }
+
+        if expires == "истекла" {
+            return StoreKitEntitlementPreview(
+                state: "expired",
+                productID: productID,
+                verificationSource: "Transaction.currentEntitlements",
+                serverEndpoint: "GET /subscriptions/entitlement",
+                aiAccess: "AI закрыт, данные семьи остаются доступны",
+                familyScope: "family entitlement expired",
+                verificationPlan: "Клиент должен убрать premium-флаг после expired/revoked entitlement и сохранить базовый доступ.",
+                renewalPolicy: "Разрешить восстановление или повторную покупку без потери данных",
+                colorName: "orange"
+            )
+        }
+
+        if transactionID.hasPrefix("local-") || transactionID == "restored-local" {
+            return StoreKitEntitlementPreview(
+                state: "active-local",
+                productID: productID,
+                verificationSource: "StoreKit verified transaction + backend receipt check",
+                serverEndpoint: "GET /subscriptions/entitlement",
+                aiAccess: "AI открыт для текущей семьи",
+                familyScope: planTitle == "Семья+" ? "family + extra child" : "family first child",
+                verificationPlan: "В релизе сохранить только entitlement/status, сверить transaction id на backend и не хранить платежные данные.",
+                renewalPolicy: "Переход в billing retry/expired должен закрыть premium без удаления локальных данных",
+                colorName: "green"
+            )
+        }
+
+        return StoreKitEntitlementPreview(
+            state: "trial-local",
+            productID: productID,
+            verificationSource: "local trial, then StoreKit entitlement",
+            serverEndpoint: "GET /subscriptions/entitlement",
+            aiAccess: "AI открыт в рамках trial-сценария",
+            familyScope: "family trial",
+            verificationPlan: "После подключения StoreKit trial должен сверяться с backend entitlement и App Store Server Notifications.",
+            renewalPolicy: "За 2 дня до окончания показать мягкое продление, без блокировки базовых данных",
+            colorName: "blue"
+        )
     }
 }
 
