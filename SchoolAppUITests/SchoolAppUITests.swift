@@ -37,6 +37,33 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Следующий уровень автоматизации"].exists)
     }
 
+    func testAnnouncementAcknowledgementPersistsAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-class-store",
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-announcement-detail"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
+        XCTAssertTrue(firstLaunch.buttons["Я прочитал"].waitForExistence(timeout: 4))
+        firstLaunch.buttons["Я прочитал"].tap()
+        XCTAssertTrue(firstLaunch.buttons["Прочитано"].waitForExistence(timeout: 4))
+
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-announcement-detail"
+        ])
+
+        XCTAssertTrue(secondLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["Прочтение подтверждено"].exists)
+        XCTAssertTrue(secondLaunch.buttons["Прочитано"].exists)
+        XCTAssertFalse(secondLaunch.buttons["Я прочитал"].exists)
+    }
+
     private func launchApp(arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: bundleIdentifier)
         app.launchArguments = arguments + ["-qa-skip-onboarding"]

@@ -859,17 +859,17 @@ private struct BehavioralQaItem: Identifiable, Hashable {
             title: "Родительские права",
             invariant: "Родитель не создает объявления, сборы, приглашения и не меняет общий финансовый статус.",
             smokeCase: "class-parent-permissions",
-            evidence: "UI показывает read-only состояние и блокирует действия владельца/родкомитета.",
-            status: "Smoke + ручной assert",
+            evidence: "UI-test кликает вкладку сборов под родителем и проверяет отсутствие действия создания.",
+            status: "Smoke + XCTest",
             iconName: "lock.shield.fill",
             colorName: "green"
         ),
         BehavioralQaItem(
             title: "Состояния сохраняются",
             invariant: "Прочтение объявления, выбранный ребенок, ДЗ, сборы, чеки и статусы не сбрасываются при переходах.",
-            smokeCase: "today-main, homework-archive, class-collection-report",
-            evidence: "Локальные store сохраняют состояние между экранами; нужен XCTest на перезапуск приложения.",
-            status: "Частично покрыто",
+            smokeCase: "today-main, homework-archive, class-collection-report, ui-announcement-relaunch",
+            evidence: "UI-test подтверждает прочтение объявления, перезапускает приложение и проверяет сохраненный статус.",
+            status: "Smoke + XCTest",
             iconName: "externaldrive.fill",
             colorName: "orange"
         ),
@@ -877,8 +877,8 @@ private struct BehavioralQaItem: Identifiable, Hashable {
             title: "Детский режим",
             invariant: "Ребенок видит только Сегодня, ДЗ и Календарь без сборов, класса и родительских обсуждений.",
             smokeCase: "child-mode",
-            evidence: "Smoke запускает роль child и проверяет безопасную навигацию скриншотом.",
-            status: "Smoke",
+            evidence: "Smoke и UI-test запускают роль child и проверяют безопасную навигацию.",
+            status: "Smoke + XCTest",
             iconName: "figure.and.child.holdinghands",
             colorName: "green"
         ),
@@ -6583,7 +6583,7 @@ private struct BehavioralQaSheet: View {
     }
 
     private var needsXCTestCount: Int {
-        items.filter { $0.status != "Smoke" }.count
+        items.filter { !$0.status.contains("XCTest") }.count
     }
 
     private func behavioralRow(_ item: BehavioralQaItem) -> some View {

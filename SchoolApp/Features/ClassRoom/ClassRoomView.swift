@@ -1134,11 +1134,11 @@ struct ClassRoomView: View {
             return .addCollection
         }
 
-        if arguments.contains("-qa-collection-detail"), let firstCollection = SampleData.collections.first {
+        if arguments.contains("-qa-collection-detail"), let firstCollection = ClassRoomLocalStore.collections.first {
             return .collectionDetail(firstCollection)
         }
 
-        if arguments.contains("-qa-chat-detail"), let firstThread = SampleData.chatThreads.first {
+        if arguments.contains("-qa-chat-detail"), let firstThread = ClassRoomLocalStore.chatThreads.first {
             return .chatDetail(firstThread)
         }
 
@@ -1146,7 +1146,7 @@ struct ClassRoomView: View {
             return .digestDetail
         }
 
-        if arguments.contains("-qa-announcement-detail"), let firstItem = SampleData.feed.first {
+        if arguments.contains("-qa-announcement-detail"), let firstItem = ClassRoomLocalStore.feedItems.first {
             return .announcementDetail(firstItem)
         }
 
@@ -1166,7 +1166,7 @@ struct ClassRoomView: View {
             || arguments.contains("-qa-photo-viewer")
             || arguments.contains("-qa-class-photo-dialog")
             || arguments.contains("-qa-class-photo-file-importer"),
-           let firstAlbum = PhotoAlbumSummary.sample.first {
+           let firstAlbum = ClassRoomLocalStore.photoAlbums.first {
             return .photoAlbum(firstAlbum)
         }
 
