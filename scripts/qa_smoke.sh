@@ -46,6 +46,33 @@ fi
 echo "Installing $APP_PATH on $SIMULATOR_ID"
 xcrun simctl install "$SIMULATOR_ID" "$APP_PATH"
 
+assert_screenshot() {
+  local name="$1"
+  local path="$SCREENSHOT_DIR/$name.png"
+  local width
+  local height
+  local bytes
+
+  if [[ ! -s "$path" ]]; then
+    echo "Smoke screenshot is missing or empty: $path" >&2
+    exit 1
+  fi
+
+  width="$(sips -g pixelWidth "$path" 2>/dev/null | awk '/pixelWidth/ {print $2; exit}')"
+  height="$(sips -g pixelHeight "$path" 2>/dev/null | awk '/pixelHeight/ {print $2; exit}')"
+  bytes="$(stat -f %z "$path")"
+
+  if [[ -z "$width" || -z "$height" || "$width" -lt 300 || "$height" -lt 600 ]]; then
+    echo "Smoke screenshot has invalid dimensions: $path (${width:-?}x${height:-?})" >&2
+    exit 1
+  fi
+
+  if [[ "$bytes" -lt 10000 ]]; then
+    echo "Smoke screenshot is suspiciously small: $path ($bytes bytes)" >&2
+    exit 1
+  fi
+}
+
 run_case() {
   local name="$1"
   shift
@@ -55,6 +82,7 @@ run_case() {
   xcrun simctl launch "$SIMULATOR_ID" "$BUNDLE_ID" "$@"
   sleep 2
   xcrun simctl io "$SIMULATOR_ID" screenshot "$SCREENSHOT_DIR/$name.png"
+  assert_screenshot "$name"
 }
 
 run_case "onboarding-phone" -qa-onboarding -qa-reset-onboarding -qa-onboarding-phone-verified -qa-onboarding-consent
