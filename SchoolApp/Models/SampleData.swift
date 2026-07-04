@@ -371,6 +371,8 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
     var isImportant: Bool
     var actionTitle: String?
     var createdTask: Bool
+    var isPinned: Bool
+    var reactions: [String: Int]
 
     init(
         id: UUID = UUID(),
@@ -379,7 +381,9 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         timeLabel: String,
         isImportant: Bool = false,
         actionTitle: String? = nil,
-        createdTask: Bool = false
+        createdTask: Bool = false,
+        isPinned: Bool = false,
+        reactions: [String: Int] = [:]
     ) {
         self.id = id
         self.author = author
@@ -388,6 +392,33 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         self.isImportant = isImportant
         self.actionTitle = actionTitle
         self.createdTask = createdTask
+        self.isPinned = isPinned
+        self.reactions = reactions
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case author
+        case text
+        case timeLabel
+        case isImportant
+        case actionTitle
+        case createdTask
+        case isPinned
+        case reactions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        author = try container.decode(String.self, forKey: .author)
+        text = try container.decode(String.self, forKey: .text)
+        timeLabel = try container.decode(String.self, forKey: .timeLabel)
+        isImportant = try container.decodeIfPresent(Bool.self, forKey: .isImportant) ?? false
+        actionTitle = try container.decodeIfPresent(String.self, forKey: .actionTitle)
+        createdTask = try container.decodeIfPresent(Bool.self, forKey: .createdTask) ?? false
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        reactions = try container.decodeIfPresent([String: Int].self, forKey: .reactions) ?? [:]
     }
 }
 
@@ -1327,9 +1358,9 @@ enum SampleData {
             colorName: "green",
             unreadCount: 5,
             messages: [
-                ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь"),
-                ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18"),
-                ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу")
+                ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь", isPinned: true, reactions: ["checkmark.circle.fill": 8, "heart.fill": 3]),
+                ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18", reactions: ["hand.raised.fill": 2]),
+                ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу", reactions: ["checkmark.circle.fill": 4])
             ]
         ),
         ChatThread(
@@ -1340,8 +1371,8 @@ enum SampleData {
             unreadCount: 2,
             isAnnouncementOnly: true,
             messages: [
-                ClassChatMessage(author: "Елена Сергеевна", text: "Завтра на физкультуру нужна форма и сменная обувь.", timeLabel: "Вчера", isImportant: true, actionTitle: "Добавить в Что завтра"),
-                ClassChatMessage(author: "Елена Сергеевна", text: "Проект «Моя семья» сдаем до пятницы.", timeLabel: "Вчера", isImportant: true, actionTitle: "Создать задачу")
+                ClassChatMessage(author: "Елена Сергеевна", text: "Завтра на физкультуру нужна форма и сменная обувь.", timeLabel: "Вчера", isImportant: true, actionTitle: "Добавить в Что завтра", isPinned: true, reactions: ["checkmark.circle.fill": 16]),
+                ClassChatMessage(author: "Елена Сергеевна", text: "Проект «Моя семья» сдаем до пятницы.", timeLabel: "Вчера", isImportant: true, actionTitle: "Создать задачу", reactions: ["bookmark.fill": 7])
             ]
         ),
         ChatThread(

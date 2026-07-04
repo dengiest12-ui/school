@@ -2804,6 +2804,7 @@ private struct ChatDetailSheet: View {
                     )
 
                     summaryCard
+                    pinnedMessagesCard
                     messagesCard
                     replyCard
 
@@ -2843,13 +2844,44 @@ private struct ChatDetailSheet: View {
     private var summaryCard: some View {
         DashboardCard {
             HStack(spacing: 12) {
-                chatMetric(value: "\(messages.count)", title: "сообщения", color: SchoolTheme.accent)
+                chatMetric(value: "\(messages.count)", title: "сообщ.", color: SchoolTheme.accent)
                 Divider()
                 chatMetric(value: "\(messages.filter(\.isImportant).count)", title: "важные", color: SchoolTheme.warning)
                 Divider()
-                chatMetric(value: "\(messages.filter(\.createdTask).count)", title: "в задачах", color: SchoolTheme.success)
+                chatMetric(value: "\(messages.filter(\.isPinned).count)", title: "пины", color: SchoolTheme.teal)
+                Divider()
+                chatMetric(value: "\(reactionTotal)", title: "реакции", color: SchoolTheme.success)
             }
             .frame(height: 62)
+        }
+    }
+
+    @ViewBuilder
+    private var pinnedMessagesCard: some View {
+        let pinnedMessages = messages.filter(\.isPinned)
+        if !pinnedMessages.isEmpty {
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Закреплено", systemImage: "pin.fill")
+                        .font(.headline)
+                        .foregroundStyle(SchoolTheme.graphite)
+
+                    ForEach(pinnedMessages) { message in
+                        HStack(alignment: .top, spacing: 10) {
+                            IconBadge(systemName: "pin.fill", color: SchoolTheme.teal, size: 34)
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(message.author)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(SchoolTheme.graphite)
+                                Text(message.text)
+                                    .font(.caption)
+                                    .foregroundStyle(SchoolTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2904,6 +2936,9 @@ private struct ChatDetailSheet: View {
                     if message.isImportant {
                         StatusBadge(text: "Важно", color: SchoolTheme.warning)
                     }
+                    if message.isPinned {
+                        StatusBadge(text: "Закреплено", color: SchoolTheme.teal)
+                    }
                 }
 
                 Text(message.text)
@@ -2920,6 +2955,28 @@ private struct ChatDetailSheet: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(message.createdTask ? SchoolTheme.success : SchoolTheme.accent)
+                }
+
+                LazyVGrid(columns: reactionColumns, alignment: .leading, spacing: 8) {
+                    Button {
+                        togglePin(for: message)
+                    } label: {
+                        Label(message.isPinned ? "Открепить" : "Закрепить", systemImage: message.isPinned ? "pin.slash.fill" : "pin.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(message.isPinned ? SchoolTheme.teal : SchoolTheme.muted)
+
+                    ForEach(reactionOptions, id: \.self) { iconName in
+                        Button {
+                            toggleReaction(iconName, for: message)
+                        } label: {
+                            Label("\(message.reactions[iconName, default: 0])", systemImage: iconName)
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(reactionColor(for: iconName))
+                    }
                 }
             }
             Spacer()
@@ -2945,6 +3002,22 @@ private struct ChatDetailSheet: View {
         }
 
         messages[index].createdTask.toggle()
+    }
+
+    private func togglePin(for message: ClassChatMessage) {
+        guard let index = messages.firstIndex(where: { $0.id == message.id }) else {
+            return
+        }
+
+        messages[index].isPinned.toggle()
+    }
+
+    private func toggleReaction(_ iconName: String, for message: ClassChatMessage) {
+        guard let index = messages.firstIndex(where: { $0.id == message.id }) else {
+            return
+        }
+
+        messages[index].reactions[iconName, default: 0] += 1
     }
 
     private func sendReply() {
@@ -2975,6 +3048,31 @@ private struct ChatDetailSheet: View {
             SchoolTheme.danger
         default:
             SchoolTheme.accent
+        }
+    }
+
+    private var reactionOptions: [String] {
+        ["checkmark.circle.fill", "heart.fill", "hand.raised.fill"]
+    }
+
+    private var reactionColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 86), spacing: 8)]
+    }
+
+    private var reactionTotal: Int {
+        messages.reduce(0) { total, message in
+            total + message.reactions.values.reduce(0, +)
+        }
+    }
+
+    private func reactionColor(for iconName: String) -> Color {
+        switch iconName {
+        case "heart.fill":
+            SchoolTheme.danger
+        case "hand.raised.fill":
+            SchoolTheme.warning
+        default:
+            SchoolTheme.success
         }
     }
 }

@@ -41,7 +41,7 @@
 | ТЗ изучено | `[x]` | 1 | Основные роли, MVP, AI-функции, монетизация и iOS-требования разобраны. |
 | Граница MVP зафиксирована | `[x]` | 2 | Создан `docs/mvp_scope.md`: главный оффер, MVP / позже / не делать, главный сценарий и North Star Metric. |
 | Дизайн-прототип | `[~]` | 3 | Выбран первый дизайн-референс и перенесен в SwiftUI на 5 главных вкладок и онбординг; нужна ручная визуальная приемка. |
-| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, детский режим, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
+| iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты с закреплениями/реакциями, объявления, семейный доступ, роли, детский режим, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
 | Backend / синхронизация | `[~]` | 3 | Для MVP добавлены локальное хранение, backend-контракты, OpenAPI draft, signed upload contract, экран очереди синхронизации, typed dry-run API-клиента, auth context, storage preflight, metadata release и network readiness gate; настоящий backend, storage и серверные права еще не подключены. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; добавлен APNs/backend readiness gate, настоящий push-сервер еще не подключен. |
@@ -388,14 +388,14 @@
 - [~] Общий чат класса
   - Проверка: сообщения, вложения, фото, документы, голосовые, реакции
   - Уровень: 3
-  - Артефакт: `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-detail-final.png`
-  - Комментарий: есть локальные ветки чатов, сообщения, непрочитанные, быстрый ответ и действия из важных сообщений; вложения, голосовые, реакции и backend не подключены
+  - Артефакт: `.build/screenshots/chats-main-final.png`, `.build/screenshots/chat-detail-final.png`, `.build/screenshots/qa-smoke/class-chat-detail.png`
+  - Комментарий: есть локальные ветки чатов, сообщения, непрочитанные, быстрый ответ, действия из важных сообщений, закрепленные сообщения и реакции со счетчиками; вложения, голосовые и backend не подключены
 
 - [~] Объявления учителя
   - Проверка: отдельный канал объявлений, важные объявления, закрепление
   - Уровень: 3
-  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/announcement-comments-create.png`
-  - Комментарий: есть создание объявления, канал, подтверждение прочтения с сохранением состояния, детальный просмотр и настройка обсуждения; родителю публикация заблокирована локально, закрепление и доставка участникам еще не реализованы
+  - Артефакт: `.build/screenshots/announcement-add-final.png`, `.build/screenshots/announcement-detail-final.png`, `.build/screenshots/bugfix-parent-announcement-blocked.png`, `.build/screenshots/announcement-comments-create.png`, `.build/screenshots/qa-smoke/class-chat-detail.png`
+  - Комментарий: есть создание объявления, канал, подтверждение прочтения с сохранением состояния, детальный просмотр, настройка обсуждения и локальное закрепление сообщений в канале; родителю публикация заблокирована локально, доставка участникам еще не реализована
 
 - [~] Чат родкомитета
   - Проверка: доступен нужным ролям, не смешивается с общим чатом
@@ -1022,3 +1022,4 @@
 | 2026-07-04 | Deletion status and cancel readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-security.png` | Экран безопасности и backend-контракт показывают жизненный цикл заявки удаления: `GET /me/deletion-requests/{requestId}`, `POST /me/deletion-requests/{requestId}/cancel`, `canCancel`, re-auth и AuditLog для отмены; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
 | 2026-07-04 | Local deletion lifecycle UX | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-security-lifecycle.png`, `docs/project_checklist.md` | Экран безопасности хранит локальный requestId, grace period, статус `canCancel`, re-auth код `1234`, кнопку отмены и AuditLog-события создания/отмены заявки; smoke получил отдельный кадр нижнего lifecycle-блока; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
 | 2026-07-04 | APNs backend readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `.build/screenshots/qa-smoke/more-notifications.png` | Экран уведомлений показывает APNs readiness gate: `POST /devices/push-token`, `POST /notifications/dispatch-preview`, quiet hours, time-sensitive urgent и role/child/class routing; OpenAPI получил push token и dispatch preview schemas; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана уведомлений прошли |
+| 2026-07-04 | Закрепления и реакции в чатах | Пройдено | 3 | `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/class-chat-detail.png` | Детальный экран чата получил блок закрепленных сообщений, счетчики закреплений/реакций, локальные кнопки закрепить/открепить и реакции с сохранением в `ClassRoomLocalStore`; `ClassChatMessage` читает старые сохраненные данные без новых полей; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана чата прошли |
