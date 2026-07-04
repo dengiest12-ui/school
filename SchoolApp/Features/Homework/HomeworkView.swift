@@ -98,6 +98,8 @@ struct HomeworkView: View {
                 }
             case .paywall:
                 HomeworkPaywallSheet()
+            case .archive:
+                HomeworkArchiveSheet(items: doneHomeworkItems)
             }
         }
     }
@@ -114,6 +116,11 @@ struct HomeworkView: View {
             }
 
             Spacer()
+
+            HeaderIconButton(systemName: "archivebox.fill") {
+                activeSheet = .archive
+            }
+            .accessibilityLabel("Архив выполненных ДЗ")
 
             HeaderIconButton(systemName: "camera.viewfinder") {
                 openParse(.photo)
@@ -296,6 +303,10 @@ struct HomeworkView: View {
 
     private var doneCount: Int {
         homeworkItems.filter { $0.status == .done }.count
+    }
+
+    private var doneHomeworkItems: [HomeworkItem] {
+        homeworkItems.filter { $0.status == .done }
     }
 
     private var childFilterValues: [String] {
@@ -571,6 +582,10 @@ struct HomeworkView: View {
 
         if arguments.contains("-qa-homework-paywall") || arguments.contains("-qa-no-subscription") {
             return .paywall
+        }
+
+        if arguments.contains("-qa-homework-archive") {
+            return .archive
         }
 
         if arguments.contains("-qa-homework-file-importer") {
@@ -1247,6 +1262,7 @@ private enum HomeworkSheet: Identifiable, Hashable {
     case add
     case parse(HomeworkInputKind)
     case paywall
+    case archive
 
     var id: String {
         switch self {
@@ -1256,8 +1272,156 @@ private enum HomeworkSheet: Identifiable, Hashable {
             "parse-\(inputKind.rawValue)"
         case .paywall:
             "paywall"
+        case .archive:
+            "archive"
         }
     }
+}
+
+private struct HomeworkArchiveSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let items: [HomeworkItem]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    sheetHeader(
+                        icon: "archivebox.fill",
+                        color: SchoolTheme.success,
+                        title: "Архив ДЗ",
+                        subtitle: "Выполненные задания по срокам и детям"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            archiveMetric(value: "\(items.count)", title: "готово", color: SchoolTheme.success)
+                            Divider()
+                            archiveMetric(value: "\(groups.count)", title: "сроков", color: SchoolTheme.accent)
+                            Divider()
+                            archiveMetric(value: "\(childrenCount)", title: "детей", color: SchoolTheme.warning)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    if items.isEmpty {
+                        emptyArchive
+                    } else {
+                        ForEach(groups) { group in
+                            archiveGroupCard(group)
+                        }
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Архив")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var groups: [HomeworkArchiveGroup] {
+        let grouped = Dictionary(grouping: items, by: \.dueLabel)
+        return grouped
+            .map { HomeworkArchiveGroup(dueLabel: $0.key, items: $0.value.sorted { $0.subject < $1.subject }) }
+            .sorted { $0.dueLabel < $1.dueLabel }
+    }
+
+    private var childrenCount: Int {
+        Set(items.map(\.childName)).count
+    }
+
+    private var emptyArchive: some View {
+        DashboardCard {
+            VStack(spacing: 12) {
+                IconBadge(systemName: "tray.fill", color: SchoolTheme.muted, size: 52)
+                Text("Архив пока пуст")
+                    .font(.headline)
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text("Когда задание отмечают как готовое, оно появляется здесь по сроку и ребенку.")
+                    .font(.subheadline)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func archiveGroupCard(_ group: HomeworkArchiveGroup) -> some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    IconBadge(systemName: "calendar.badge.checkmark", color: SchoolTheme.success, size: 42)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(group.dueLabel.capitalized)
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text("\(group.items.count) выполнено")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                    Spacer()
+                }
+
+                ForEach(group.items) { item in
+                    archiveItemRow(item)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func archiveItemRow(_ item: HomeworkItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(SchoolTheme.success)
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.subject)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(item.title)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Label(item.childName, systemImage: "figure.child")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.accent)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func archiveMetric(value: String, title: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct HomeworkArchiveGroup: Identifiable {
+    let dueLabel: String
+    let items: [HomeworkItem]
+
+    var id: String { dueLabel }
 }
 
 private struct HomeworkPaywallSheet: View {

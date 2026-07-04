@@ -1211,6 +1211,24 @@ enum SampleData {
             status: .pending,
             bring: "картон и клей",
             childName: "Соня"
+        ),
+        HomeworkItem(
+            subject: "Литература",
+            title: "Прочитать рассказ и отметить непонятные слова",
+            dueLabel: "вчера",
+            source: "Учитель",
+            status: .done,
+            bring: nil,
+            childName: "Миша"
+        ),
+        HomeworkItem(
+            subject: "Английский язык",
+            title: "Повторить слова из unit 4",
+            dueLabel: "понедельник",
+            source: "Родитель",
+            status: .done,
+            bring: nil,
+            childName: "Соня"
         )
     ]
 

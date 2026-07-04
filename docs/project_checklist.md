@@ -368,8 +368,8 @@
 - [~] История ДЗ
   - Проверка: старые задания доступны и не теряются после срока
   - Уровень: 3
-  - Артефакт: `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-add-attachments.png`
-  - Комментарий: выполненные задания остаются во вкладке "Выполнено", а локальное хранилище не сбрасывает ДЗ между перезапусками; календарная архивная история по датам еще не сделана
+  - Артефакт: `.build/screenshots/homework-persistence-main.png`, `.build/screenshots/homework-add-attachments.png`, `.build/screenshots/qa-smoke/homework-archive.png`
+  - Комментарий: выполненные задания остаются во вкладке "Выполнено", локальное хранилище не сбрасывает ДЗ между перезапусками, а отдельный экран "Архив ДЗ" группирует готовые задания по срокам и детям; серверная история по календарным датам еще не подключена
 
 - [~] ДЗ по фото
   - Проверка: съемка, распознавание, правка текста, разбиение по предметам, сохранение
@@ -1028,3 +1028,4 @@
 | 2026-07-04 | Beta/TestFlight readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-beta.png` | В разделе `Еще` добавлен экран подготовки к бете: готовые пункты, блокеры, группы тестеров, сценарии приемки и следующий шаг с реальным iPhone; smoke получил отдельный кадр beta readiness; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана прошли |
 | 2026-07-04 | Assert-валидация smoke-скриншотов | Пройдено | 3 | `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/` | Smoke-прогон теперь проверяет каждый снятый экран: файл должен существовать, быть непустым PNG с валидной шириной/высотой и не быть подозрительно маленьким; полный `xcodebuild clean build` и smoke-прогон проходят |
 | 2026-07-04 | Smoke summary manifest | Пройдено | 3 | `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/summary.txt` | Smoke-сценарии перенесены в единый manifest внутри скрипта, после успешного прогона создается summary с проектом, схемой, Simulator ID, числом прошедших сценариев и списком PNG-артефактов; `bash -n`, `xcodebuild clean build` и полный smoke-прогон проходят |
+| 2026-07-04 | Архив выполненных ДЗ | Пройдено | 3 | `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/qa-smoke/homework-archive.png` | В шапке ДЗ добавлена кнопка архива; экран показывает число выполненных заданий, количество сроков и детей, группирует готовые ДЗ по срокам и отображает предмет, задание и ребенка; smoke получил отдельный сценарий `homework-archive`; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана прошли |

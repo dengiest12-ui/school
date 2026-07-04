@@ -134,6 +134,7 @@ homework-ai-report|-qa-tab homework -qa-homework-parse -qa-homework-ai-report
 homework-paywall|-qa-tab homework -qa-no-subscription -qa-homework-paywall
 homework-filters|-qa-tab homework -qa-homework-filters
 homework-empty|-qa-tab homework -qa-homework-empty
+homework-archive|-qa-tab homework -qa-homework-archive
 calendar-add|-qa-tab calendar -qa-calendar-add
 calendar-detail|-qa-tab calendar -qa-calendar-detail
 more-profile|-qa-tab more -qa-more-profile
