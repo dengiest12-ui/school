@@ -5340,6 +5340,18 @@ private struct SecuritySettingsSheet: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
+            Text(readiness.statusEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(readiness.cancelEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
             Text(readiness.auditRule)
                 .font(.caption2)
                 .foregroundStyle(SchoolTheme.muted)
@@ -5393,6 +5405,8 @@ private struct ServerDeletionReadiness: Hashable {
     var status: String
     var exportEndpoint: String
     var deleteEndpoint: String
+    var statusEndpoint: String
+    var cancelEndpoint: String
     var auditRule: String
     var gracePeriod: String
 
@@ -5415,7 +5429,9 @@ private struct ServerDeletionReadiness: Hashable {
             status: "backend gate",
             exportEndpoint: "GET /me/export?scope=\(serverScope)",
             deleteEndpoint: "POST /me/deletion-requests",
-            auditRule: "Backend must verify password/session, write AuditLog and revoke class/family access by scope.",
+            statusEndpoint: "GET /me/deletion-requests/{requestId}",
+            cancelEndpoint: "POST /me/deletion-requests/{requestId}/cancel",
+            auditRule: "Backend must verify session, write AuditLog for create/cancel and revoke or restore class/family access by scope.",
             gracePeriod: "7 day grace period for account deletion; files and child data stay hidden immediately."
         )
     }

@@ -138,6 +138,50 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /me/deletion-requests/{requestId}:
+    get:
+      tags: [Privacy]
+      summary: Return the latest status of a deletion request.
+      operationId: getDeletionRequest
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Current deletion request status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /me/deletion-requests/{requestId}/cancel:
+    post:
+      tags: [Privacy]
+      summary: Cancel a deletion request before the grace period ends.
+      operationId: cancelDeletionRequest
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelDeletionRequest'
+      responses:
+        '200':
+          description: Deletion request cancelled and access restored by scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /classes:
     post:
       tags: [Classes]
@@ -306,6 +350,13 @@ components:
       schema:
         type: string
         format: uuid
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     Unauthorized:
       description: Missing or invalid user session.
@@ -420,6 +471,15 @@ components:
           format: uuid
         reason:
           type: string
+    CancelDeletionRequest:
+      type: object
+      required: [reauthToken]
+      properties:
+        reauthToken:
+          type: string
+          description: Fresh re-authentication token proving the actor can cancel the request.
+        reason:
+          type: string
     DeletionRequest:
       type: object
       required: [requestId, scope, status, auditId, requestedAt]
@@ -444,6 +504,11 @@ components:
           format: date-time
         visibleToUser:
           type: boolean
+        canCancel:
+          type: boolean
+        cancelledAt:
+          type: string
+          format: date-time
     MutationBatchRequest:
       type: object
       required: [clientId, actorUserId, roleClaim, mutations]

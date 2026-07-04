@@ -87,6 +87,8 @@ MVP-иконка лежит в `SchoolApp/Assets.xcassets/AppIcon.appiconset/App
 Минимальный release gate для удаления:
 - `GET /me/export` готовит экспорт до удаления;
 - `POST /me/deletion-requests` создает серверную заявку с audit id;
+- `GET /me/deletion-requests/{requestId}` показывает статус и возможность отмены;
+- `POST /me/deletion-requests/{requestId}/cancel` отменяет заявку после повторной авторизации;
 - данные по выбранному scope скрываются сразу;
 - для удаления аккаунта действует 7-дневный grace period;
 - отмена требует повторной авторизации.
