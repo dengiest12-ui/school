@@ -669,6 +669,7 @@ private struct SyncDryRunResult: Hashable {
     var requestPreview: SyncRequestPreview
     var clientPreview: SyncClientPreview
     var authContext: SyncAuthContext
+    var storagePreflight: SyncStoragePreflight
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let suffix = UUID().uuidString.prefix(8).uppercased()
@@ -677,7 +678,14 @@ private struct SyncDryRunResult: Hashable {
         }
         let requestID = "dry-\(suffix)"
         let authContext = SyncAuthContext.make(environment: environment)
-        let clientProbe = SchoolSyncClient.dryRun(environment: environment, requestID: requestID, authContext: authContext, mutations: mutations)
+        let storagePreflight = SyncStoragePreflight.make(environment: environment, mutations: mutations)
+        let clientProbe = SchoolSyncClient.dryRun(
+            environment: environment,
+            requestID: requestID,
+            authContext: authContext,
+            storagePreflight: storagePreflight,
+            mutations: mutations
+        )
 
         return SyncDryRunResult(
             environment: environment,
@@ -689,7 +697,8 @@ private struct SyncDryRunResult: Hashable {
             mutations: mutations,
             requestPreview: clientProbe.requestPreview,
             clientPreview: SyncClientPreview.make(environment: environment, probe: clientProbe),
-            authContext: authContext
+            authContext: authContext,
+            storagePreflight: storagePreflight
         )
     }
 }
@@ -703,6 +712,15 @@ private struct SyncMutationPreview: Identifiable, Hashable {
     var baseVersion: Int
     var payloadPreview: String
     var status: String
+
+    var requiresStoragePreflight: Bool {
+        let searchable = "\(endpoint) \(entity) \(payloadPreview)".lowercased()
+        return searchable.contains("receipt")
+            || searchable.contains("photo")
+            || searchable.contains("file")
+            || searchable.contains("document")
+            || status == "blocked" && searchable.contains("storage")
+    }
 
     static func make(environment: BackendEnvironment, operation: SyncOperationSummary, index: Int) -> SyncMutationPreview {
         let status: String
@@ -785,8 +803,43 @@ private struct SyncAuthContext: Hashable {
     }
 }
 
+private struct SyncStoragePreflight: Hashable {
+    var bucket: String
+    var pendingUploads: Int
+    var metadataReady: Int
+    var requiredBeforeMutationIDs: [String]
+    var signedURLPlan: String
+    var privacyRule: String
+    var blockedReason: String
+
+    static func make(environment: BackendEnvironment, mutations: [SyncMutationPreview]) -> SyncStoragePreflight {
+        let uploadMutations = mutations.filter { mutation in
+            mutation.requiresStoragePreflight
+        }
+        let bucketPrefix: String
+        switch environment {
+        case .development:
+            bucketPrefix = "dev"
+        case .staging:
+            bucketPrefix = "staging"
+        case .production:
+            bucketPrefix = "prod"
+        }
+
+        return SyncStoragePreflight(
+            bucket: "school-class-\(bucketPrefix)-private",
+            pendingUploads: uploadMutations.count,
+            metadataReady: max(0, mutations.count - uploadMutations.count),
+            requiredBeforeMutationIDs: uploadMutations.map(\.mutationID),
+            signedURLPlan: "Request signed upload URL, upload binary, receive fileId, then send metadata mutation",
+            privacyRule: "Private by class/family membership; teacher/committee moderation for class photos",
+            blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_required_before_metadata"
+        )
+    }
+}
+
 private struct SchoolSyncClient {
-    static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
+    static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, storagePreflight: SyncStoragePreflight, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
             return SyncClientProbeResult.failed(environment: environment, requestID: requestID, reason: "Invalid environment URL")
         }
@@ -796,6 +849,12 @@ private struct SchoolSyncClient {
             environment: environment.rawValue,
             actorUserId: authContext.userID,
             roleClaim: authContext.roleClaim,
+            storagePreflight: StoragePreflightRequest(
+                privateBucket: storagePreflight.bucket,
+                pendingUploads: storagePreflight.pendingUploads,
+                requiredBeforeMutationIds: storagePreflight.requiredBeforeMutationIDs,
+                policy: storagePreflight.privacyRule
+            ),
             mutations: mutations.map { mutation in
                 MutationRequestItem(
                     mutationId: mutation.mutationID,
@@ -893,7 +952,15 @@ private struct MutationBatchRequest: Codable, Hashable {
     var environment: String
     var actorUserId: String
     var roleClaim: String
+    var storagePreflight: StoragePreflightRequest
     var mutations: [MutationRequestItem]
+}
+
+private struct StoragePreflightRequest: Codable, Hashable {
+    var privateBucket: String
+    var pendingUploads: Int
+    var requiredBeforeMutationIds: [String]
+    var policy: String
 }
 
 private struct MutationRequestItem: Codable, Hashable {
@@ -1012,9 +1079,9 @@ private struct ApiReadinessItem: Identifiable, Hashable {
         ),
         ApiReadinessItem(
             title: "File storage",
-            artifact: "Private uploads",
+            artifact: "Storage preflight + Private uploads",
             status: "Блокер",
-            detail: "Фото, документы и чеки должны загружаться в приватное хранилище до отправки метаданных.",
+            detail: "iOS уже готовит preflight для фото, документов и чеков, но реальный private storage и signed upload URL еще должны появиться на backend.",
             iconName: "externaldrive.badge.icloud.fill",
             colorName: "red"
         )
@@ -5933,6 +6000,12 @@ private struct SyncCenterSheet: View {
                                 detail: "Dry-run добавляет user id, class role claim, bearer preview и refresh-план; backend обязан повторно проверить роль"
                             )
                             syncStateRow(
+                                icon: "externaldrive.badge.checkmark",
+                                color: SchoolTheme.warning,
+                                title: "Storage preflight",
+                                detail: "Dry-run отделяет фото, чеки и документы от обычных мутаций: сначала private upload и fileId, потом metadata в API"
+                            )
+                            syncStateRow(
                                 icon: "externaldrive.connected.to.line.below",
                                 color: SchoolTheme.warning,
                                 title: "Локальное хранилище",
@@ -6351,6 +6424,7 @@ private struct SyncCenterSheet: View {
 
             syncRequestPreviewCard(result.requestPreview)
             syncAuthPreviewCard(result.authContext)
+            syncStoragePreviewCard(result.storagePreflight)
             syncClientPreviewCard(result.clientPreview)
 
             HStack(spacing: 10) {
@@ -6461,6 +6535,50 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.muted)
                 .lineLimit(2)
                 .minimumScaleFactor(0.76)
+        }
+        .padding(10)
+        .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func syncStoragePreviewCard(_ storage: SyncStoragePreflight) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Storage preflight", systemImage: "externaldrive.badge.checkmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: storage.pendingUploads == 0 ? "clear" : "blocked", color: storage.pendingUploads == 0 ? SchoolTheme.success : SchoolTheme.warning)
+            }
+
+            Text(storage.bucket)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text("\(storage.pendingUploads) upload before metadata, \(storage.metadataReady) metadata-ready")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+
+            Text(storage.signedURLPlan)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(storage.privacyRule)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.76)
+
+            Text(storage.blockedReason)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(storage.pendingUploads == 0 ? SchoolTheme.success : SchoolTheme.warning)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
