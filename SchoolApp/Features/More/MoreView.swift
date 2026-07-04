@@ -819,6 +819,7 @@ private struct SyncStoragePreflight: Hashable {
     var pendingUploads: Int
     var metadataReady: Int
     var requiredBeforeMutationIDs: [String]
+    var uploadIntents: [SyncUploadIntentPreview]
     var signedURLPlan: String
     var privacyRule: String
     var blockedReason: String
@@ -826,6 +827,9 @@ private struct SyncStoragePreflight: Hashable {
     static func make(environment: BackendEnvironment, mutations: [SyncMutationPreview]) -> SyncStoragePreflight {
         let uploadMutations = mutations.filter { mutation in
             mutation.requiresStoragePreflight
+        }
+        let uploadIntents = uploadMutations.enumerated().map { index, mutation in
+            SyncUploadIntentPreview.make(environment: environment, mutation: mutation, index: index)
         }
         let bucketPrefix: String
         switch environment {
@@ -842,9 +846,63 @@ private struct SyncStoragePreflight: Hashable {
             pendingUploads: uploadMutations.count,
             metadataReady: max(0, mutations.count - uploadMutations.count),
             requiredBeforeMutationIDs: uploadMutations.map(\.mutationID),
+            uploadIntents: uploadIntents,
             signedURLPlan: "Request signed upload URL, upload binary, receive fileId, then send metadata mutation",
             privacyRule: "Private by class/family membership; teacher/committee moderation for class photos",
             blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_required_before_metadata"
+        )
+    }
+}
+
+private struct SyncUploadIntentPreview: Identifiable, Hashable {
+    var id: String { uploadID }
+    var uploadID: String
+    var mutationID: String
+    var endpoint: String
+    var kind: String
+    var fileName: String
+    var mimeType: String
+    var sizeBytes: Int
+    var checksumPreview: String
+    var metadataPlan: String
+
+    static func make(environment: BackendEnvironment, mutation: SyncMutationPreview, index: Int) -> SyncUploadIntentPreview {
+        let kind: String
+        let fileName: String
+        let mimeType: String
+        let sizeBytes: Int
+        let metadataPlan: String
+
+        if mutation.endpoint.contains("receipts") || mutation.entity.contains("receipt") {
+            kind = "receipt"
+            fileName = "receipt-\(index + 1)-\(environment.rawValue).png"
+            mimeType = "image/png"
+            sizeBytes = 842_120
+            metadataPlan = "Attach returned fileId to collection receipt metadata"
+        } else if mutation.endpoint.contains("photos") || mutation.entity.contains("photo") {
+            kind = "photo"
+            fileName = "album-photo-\(index + 1)-\(environment.rawValue).jpg"
+            mimeType = "image/jpeg"
+            sizeBytes = 1_842_440
+            metadataPlan = "Attach returned fileId to album photo metadata"
+        } else {
+            kind = "class_document"
+            fileName = "class-document-\(index + 1)-\(environment.rawValue).pdf"
+            mimeType = "application/pdf"
+            sizeBytes = 420_240
+            metadataPlan = "Attach returned fileId to document metadata"
+        }
+
+        return SyncUploadIntentPreview(
+            uploadID: "\(environment.rawValue)-upload-\(index + 1)-\(mutation.mutationID.prefix(6))",
+            mutationID: mutation.mutationID,
+            endpoint: "POST /files/upload-url",
+            kind: kind,
+            fileName: fileName,
+            mimeType: mimeType,
+            sizeBytes: sizeBytes,
+            checksumPreview: "sha256:\(mutation.mutationID.prefix(12))",
+            metadataPlan: metadataPlan
         )
     }
 }
@@ -864,6 +922,18 @@ private struct SchoolSyncClient {
                 privateBucket: storagePreflight.bucket,
                 pendingUploads: storagePreflight.pendingUploads,
                 requiredBeforeMutationIds: storagePreflight.requiredBeforeMutationIDs,
+                uploadIntents: storagePreflight.uploadIntents.map { intent in
+                    UploadIntentRequest(
+                        uploadId: intent.uploadID,
+                        mutationId: intent.mutationID,
+                        endpoint: intent.endpoint,
+                        kind: intent.kind,
+                        fileName: intent.fileName,
+                        mimeType: intent.mimeType,
+                        sizeBytes: intent.sizeBytes,
+                        checksumSha256: intent.checksumPreview
+                    )
+                },
                 policy: storagePreflight.privacyRule
             ),
             mutations: mutations.map { mutation in
@@ -971,7 +1041,19 @@ private struct StoragePreflightRequest: Codable, Hashable {
     var privateBucket: String
     var pendingUploads: Int
     var requiredBeforeMutationIds: [String]
+    var uploadIntents: [UploadIntentRequest]
     var policy: String
+}
+
+private struct UploadIntentRequest: Codable, Hashable {
+    var uploadId: String
+    var mutationId: String
+    var endpoint: String
+    var kind: String
+    var fileName: String
+    var mimeType: String
+    var sizeBytes: Int
+    var checksumSha256: String
 }
 
 private struct MutationRequestItem: Codable, Hashable {
@@ -6590,9 +6672,45 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(storage.pendingUploads == 0 ? SchoolTheme.success : SchoolTheme.warning)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
+
+            ForEach(storage.uploadIntents.prefix(2)) { intent in
+                uploadIntentRow(intent)
+            }
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func uploadIntentRow(_ intent: SyncUploadIntentPreview) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                StatusBadge(text: intent.kind, color: SchoolTheme.accent)
+                Text(intent.fileName)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer()
+            }
+
+            Text("\(intent.endpoint) - \(intent.mimeType), \(formattedBytes(intent.sizeBytes))")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text("\(intent.checksumPreview) - \(intent.metadataPlan)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+        }
+        .padding(8)
+        .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func formattedBytes(_ bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     private func syncRequestPreviewCard(_ request: SyncRequestPreview) -> some View {
