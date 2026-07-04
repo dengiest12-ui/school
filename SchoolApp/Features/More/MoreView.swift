@@ -832,6 +832,7 @@ private struct SyncStoragePreflight: Hashable {
     var requiredBeforeMutationIDs: [String]
     var uploadIntents: [SyncUploadIntentPreview]
     var signedResponses: [SyncSignedUploadResponsePreview]
+    var scanGates: [SyncFileScanGatePreview]
     var signedURLPlan: String
     var privacyRule: String
     var blockedReason: String
@@ -847,6 +848,9 @@ private struct SyncStoragePreflight: Hashable {
         let signedResponses = uploadIntents.map { intent in
             SyncSignedUploadResponsePreview.make(environment: environment, bucket: bucket, intent: intent)
         }
+        let scanGates = zip(uploadIntents, signedResponses).map { intent, response in
+            SyncFileScanGatePreview.make(intent: intent, response: response)
+        }
 
         return SyncStoragePreflight(
             bucket: bucket,
@@ -855,9 +859,10 @@ private struct SyncStoragePreflight: Hashable {
             requiredBeforeMutationIDs: uploadMutations.map(\.mutationID),
             uploadIntents: uploadIntents,
             signedResponses: signedResponses,
+            scanGates: scanGates,
             signedURLPlan: "Request signed upload URL, upload binary, receive fileId, then send metadata mutation",
             privacyRule: "Private by class/family membership; teacher/committee moderation for class photos",
-            blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_required_before_metadata"
+            blockedReason: uploadMutations.isEmpty ? "No file upload required in this batch" : "storage_scan_required_before_metadata"
         )
     }
 }
@@ -945,6 +950,37 @@ private struct SyncSignedUploadResponsePreview: Identifiable, Hashable, Codable 
     }
 }
 
+private struct SyncFileScanGatePreview: Identifiable, Hashable, Codable {
+    var id: String { scanID }
+    var scanID: String
+    var fileID: String
+    var status: String
+    var queue: String
+    var moderationRule: String
+    var metadataGate: String
+
+    static func make(intent: SyncUploadIntentPreview, response: SyncSignedUploadResponsePreview) -> SyncFileScanGatePreview {
+        let moderationRule: String
+        switch intent.kind {
+        case "photo":
+            moderationRule = "Teacher or committee can publish after safe scan"
+        case "receipt":
+            moderationRule = "Committee can attach after malware scan"
+        default:
+            moderationRule = "Class admins can publish after malware scan"
+        }
+
+        return SyncFileScanGatePreview(
+            scanID: "scan-\(response.fileID)",
+            fileID: response.fileID,
+            status: "pending_scan",
+            queue: "storage-scan",
+            moderationRule: moderationRule,
+            metadataGate: "Block metadata mutation until scanStatus is clean"
+        )
+    }
+}
+
 private struct SchoolSyncClient {
     static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, storagePreflight: SyncStoragePreflight, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
@@ -982,6 +1018,16 @@ private struct SchoolSyncClient {
                         privateBucket: response.privateBucket,
                         storageKey: response.storageKey,
                         visibility: response.visibility
+                    )
+                },
+                scanGates: storagePreflight.scanGates.map { gate in
+                    FileScanGateRequest(
+                        scanId: gate.scanID,
+                        fileId: gate.fileID,
+                        status: gate.status,
+                        queue: gate.queue,
+                        moderationRule: gate.moderationRule,
+                        metadataGate: gate.metadataGate
                     )
                 },
                 policy: storagePreflight.privacyRule
@@ -1093,6 +1139,7 @@ private struct StoragePreflightRequest: Codable, Hashable {
     var requiredBeforeMutationIds: [String]
     var uploadIntents: [UploadIntentRequest]
     var signedResponses: [SignedUploadResponsePreviewRequest]
+    var scanGates: [FileScanGateRequest]
     var policy: String
 }
 
@@ -1116,6 +1163,15 @@ private struct SignedUploadResponsePreviewRequest: Codable, Hashable {
     var privateBucket: String
     var storageKey: String
     var visibility: String
+}
+
+private struct FileScanGateRequest: Codable, Hashable {
+    var scanId: String
+    var fileId: String
+    var status: String
+    var queue: String
+    var moderationRule: String
+    var metadataGate: String
 }
 
 private struct MutationRequestItem: Codable, Hashable {
@@ -6742,6 +6798,10 @@ private struct SyncCenterSheet: View {
             ForEach(storage.signedResponses.prefix(2)) { response in
                 signedUploadResponseRow(response)
             }
+
+            ForEach(storage.scanGates.prefix(2)) { gate in
+                fileScanGateRow(gate)
+            }
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -6810,6 +6870,34 @@ private struct SyncCenterSheet: View {
         }
         .padding(8)
         .background(SchoolTheme.success.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func fileScanGateRow(_ gate: SyncFileScanGatePreview) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                StatusBadge(text: gate.status, color: SchoolTheme.warning)
+                Text(gate.fileID)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer()
+            }
+
+            Text("\(gate.queue) - \(gate.moderationRule)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(gate.metadataGate)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.warning)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(8)
+        .background(SchoolTheme.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func formattedBytes(_ bytes: Int) -> String {
