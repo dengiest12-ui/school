@@ -95,6 +95,33 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Следующий уровень автоматизации"].exists)
     }
 
+    func testMvpMetricsEventPersistsAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-more-store",
+            "-qa-tab", "more",
+            "-qa-more-metrics"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Метрики"].waitForExistence(timeout: 4))
+        XCTAssertTrue(firstLaunch.staticTexts["Главные метрики"].exists)
+        XCTAssertTrue(firstLaunch.staticTexts["Активация класса"].exists)
+        XCTAssertTrue(firstLaunch.staticTexts["Retention 30 дней"].exists)
+
+        firstLaunch.buttons["Добавить тестовое событие"].tap()
+        XCTAssertTrue(firstLaunch.staticTexts["qa_smoke_passed"].waitForExistence(timeout: 4))
+        firstLaunch.navigationBars["Метрики"].buttons["Закрыть"].tap()
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-tab", "more",
+            "-qa-more-metrics"
+        ])
+
+        XCTAssertTrue(secondLaunch.navigationBars["Метрики"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["qa_smoke_passed"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["Локальная проверка ключевого сценария"].exists)
+    }
+
     func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",
@@ -103,8 +130,7 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(app.staticTexts["Миша, 3Б"].waitForExistence(timeout: 4))
-        app.buttons["today.child.selector"].tap()
-        app.buttons["today.child.option.Аня.4А"].tap()
+        selectChild(named: "Аня", className: "4А", in: app)
 
         app.buttons["tab.classRoom"].tap()
 
@@ -126,7 +152,8 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(firstLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
         XCTAssertTrue(firstLaunch.buttons["announcement.acknowledge"].waitForExistence(timeout: 4))
         firstLaunch.buttons["announcement.acknowledge"].tap()
-        XCTAssertTrue(firstLaunch.buttons["announcement.acknowledged"].waitForExistence(timeout: 4))
+        XCTAssertTrue(firstLaunch.staticTexts["Прочитано"].waitForExistence(timeout: 4))
+        XCTAssertFalse(firstLaunch.buttons["announcement.acknowledge"].exists)
 
         firstLaunch.terminate()
 
@@ -137,8 +164,8 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(secondLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
-        XCTAssertTrue(secondLaunch.staticTexts["Прочтение подтверждено"].exists)
-        XCTAssertTrue(secondLaunch.buttons["announcement.acknowledged"].exists)
+        XCTAssertTrue(findStaticText("Прочтение подтверждено", in: secondLaunch))
+        XCTAssertTrue(findStaticText("Прочитано", in: secondLaunch))
         XCTAssertFalse(secondLaunch.buttons["announcement.acknowledge"].exists)
     }
 
@@ -229,5 +256,36 @@ final class SchoolAppUITests: XCTestCase {
         for _ in 0..<attempts where !element.isHittable {
             app.swipeUp()
         }
+    }
+
+    private func findStaticText(_ label: String, in app: XCUIApplication, attempts: Int = 4) -> Bool {
+        let text = app.staticTexts[label]
+        if text.exists {
+            return true
+        }
+
+        for _ in 0..<attempts {
+            app.swipeUp()
+            if text.exists {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func selectChild(named name: String, className: String, in app: XCUIApplication) {
+        let selector = app.buttons["today.child.selector"]
+        let option = app.buttons["today.child.option.\(name).\(className)"].firstMatch
+
+        XCTAssertTrue(selector.waitForExistence(timeout: 4))
+        selector.tap()
+
+        if !option.waitForExistence(timeout: 2) {
+            selector.tap()
+        }
+
+        XCTAssertTrue(option.waitForExistence(timeout: 4))
+        option.tap()
     }
 }

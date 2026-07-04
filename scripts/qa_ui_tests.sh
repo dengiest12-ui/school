@@ -15,6 +15,7 @@ TESTS=(
   "testParentCannotInviteClassMembers"
   "testParentCannotDeleteClassPhotos"
   "testBehaviorQAGateListsCriticalInvariants"
+  "testMvpMetricsEventPersistsAfterRelaunch"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"

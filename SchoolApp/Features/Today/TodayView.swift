@@ -236,6 +236,7 @@ struct TodayView: View {
     @State private var personalCircles: [PersonalCircle]
     @State private var selectedScheduleDay = "Чт"
     @State private var activeSheet: TodaySheet?
+    @State private var isChildSelectorPresented = false
 
     init(userRole: AppUserRole = .parent) {
         self.userRole = userRole
@@ -474,18 +475,8 @@ struct TodayView: View {
     }
 
     private var childCard: some View {
-        Menu {
-            ForEach(children) { child in
-                Button("\(child.name), \(child.className)") {
-                    selectedChildID = child.id.uuidString
-                    AppChildStore.select(child)
-                }
-                .accessibilityIdentifier("today.child.option.\(child.name).\(child.className)")
-            }
-            Divider()
-            Button("Добавить ребенка") {
-                activeSheet = .addChild
-            }
+        Button {
+            isChildSelectorPresented = true
         } label: {
             DashboardCard(padding: 0) {
                 HStack(spacing: 14) {
@@ -512,6 +503,22 @@ struct TodayView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("today.child.selector")
+        .confirmationDialog("Выберите ребенка", isPresented: $isChildSelectorPresented, titleVisibility: .visible) {
+            ForEach(children) { child in
+                Button("\(child.name), \(child.className)") {
+                    selectedChildID = child.id.uuidString
+                    AppChildStore.select(child)
+                }
+                .accessibilityIdentifier("today.child.option.\(child.name).\(child.className)")
+            }
+
+            Button("Добавить ребенка") {
+                activeSheet = .addChild
+            }
+            .accessibilityIdentifier("today.child.add")
+
+            Button("Отмена", role: .cancel) {}
+        }
     }
 
     private var tomorrowCard: some View {
