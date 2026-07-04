@@ -17,6 +17,7 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: System
   - name: Classes
   - name: Homework
   - name: Announcements
@@ -25,6 +26,19 @@ tags:
   - name: Files
   - name: Sync
 paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Check that the selected API environment is reachable before live sync.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: API environment is reachable and ready for authenticated calls.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
   /files/upload-url:
     post:
       tags: [Files]
@@ -259,6 +273,25 @@ components:
           schema:
             $ref: '#/components/schemas/ConflictError'
   schemas:
+    HealthCheck:
+      type: object
+      required: [environment, status, serverTime, liveSyncEnabled, storageEnabled]
+      properties:
+        environment:
+          type: string
+          enum: [development, staging, production]
+        status:
+          type: string
+          enum: [ok, degraded, maintenance]
+        serverTime:
+          type: string
+          format: date-time
+        liveSyncEnabled:
+          type: boolean
+        storageEnabled:
+          type: boolean
+        minClientVersion:
+          type: string
     MutationBatchRequest:
       type: object
       required: [clientId, actorUserId, roleClaim, mutations]

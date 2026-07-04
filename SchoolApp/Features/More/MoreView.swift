@@ -692,6 +692,7 @@ private struct SyncDryRunResult: Hashable {
     var clientPreview: SyncClientPreview
     var authContext: SyncAuthContext
     var storagePreflight: SyncStoragePreflight
+    var networkReadiness: SyncNetworkReadiness
 
     static func make(environment: BackendEnvironment, operations: [SyncOperationSummary]) -> SyncDryRunResult {
         let suffix = UUID().uuidString.prefix(8).uppercased()
@@ -720,7 +721,8 @@ private struct SyncDryRunResult: Hashable {
             requestPreview: clientProbe.requestPreview,
             clientPreview: SyncClientPreview.make(environment: environment, probe: clientProbe),
             authContext: authContext,
-            storagePreflight: storagePreflight
+            storagePreflight: storagePreflight,
+            networkReadiness: SyncNetworkReadiness.make(environment: environment, probe: clientProbe)
         )
     }
 }
@@ -1001,6 +1003,51 @@ private struct SyncMetadataReleasePreview: Identifiable, Hashable, Codable {
             releaseStatus: "waiting_for_clean_scan",
             payloadPatch: #"{"fileId":"\#(gate.fileID)","scanStatus":"clean"}"#,
             unlockRule: "Send metadata only after \(gate.scanID) returns clean"
+        )
+    }
+}
+
+private struct SyncNetworkReadiness: Hashable {
+    var mode: String
+    var baseURL: String
+    var healthcheckPath: String
+    var timeoutPolicy: String
+    var retryPolicy: String
+    var authFailurePolicy: String
+    var releaseGate: String
+    var status: String
+    var statusColorName: String
+
+    static func make(environment: BackendEnvironment, probe: SyncClientProbeResult) -> SyncNetworkReadiness {
+        let status: String
+        let statusColorName: String
+        let releaseGate: String
+
+        switch environment {
+        case .development:
+            status = "sandbox"
+            statusColorName = "blue"
+            releaseGate = "Use for local API once dev backend has /health and seeded class data"
+        case .staging:
+            status = probe.blockedCount > 0 ? "backend gate" : "ready for staging"
+            statusColorName = probe.blockedCount > 0 ? "orange" : "green"
+            releaseGate = "TestFlight allowed only after /health, auth refresh and storage scan pass on staging"
+        case .production:
+            status = "release locked"
+            statusColorName = "red"
+            releaseGate = "Production stays locked until legal docs, monitoring, backups and App Review checklist are complete"
+        }
+
+        return SyncNetworkReadiness(
+            mode: "Dry-run now, URLSession live mode after backend flag",
+            baseURL: environment.baseURL,
+            healthcheckPath: "GET /health",
+            timeoutPolicy: "8s request timeout, 30s upload timeout",
+            retryPolicy: "Exponential backoff for 5xx/network, no retry for 401/403/validation",
+            authFailurePolicy: "401 refreshes token once; 403 becomes role blocker with no local override",
+            releaseGate: releaseGate,
+            status: status,
+            statusColorName: statusColorName
         )
     }
 }
@@ -1320,6 +1367,14 @@ private struct ApiReadinessItem: Identifiable, Hashable {
             status: "Частично",
             detail: "Есть типизированный batch request/response, mapping accepted/queued/blocked и план сохранения server version; настоящая сеть, auth и refresh token еще впереди.",
             iconName: "curlybraces.square.fill",
+            colorName: "orange"
+        ),
+        ApiReadinessItem(
+            title: "Network readiness",
+            artifact: "GET /health + retry policy",
+            status: "Частично",
+            detail: "Dry-run фиксирует live-mode gate: healthcheck, timeout, retry/backoff, auth refresh и запрет локального обхода 403 до TestFlight.",
+            iconName: "network",
             colorName: "orange"
         ),
         ApiReadinessItem(
@@ -6247,6 +6302,12 @@ private struct SyncCenterSheet: View {
                                 detail: "Dry-run проходит через типизированный Codable-клиент: URLSession request, JSON body, mock response decode и mapping accepted/queued/blocked"
                             )
                             syncStateRow(
+                                icon: "network",
+                                color: SchoolTheme.warning,
+                                title: "Network readiness",
+                                detail: "Перед live-режимом клиент должен пройти /health, timeout/retry policy, auth refresh и запрет локального обхода 403"
+                            )
+                            syncStateRow(
                                 icon: "person.badge.key.fill",
                                 color: SchoolTheme.success,
                                 title: "Auth context",
@@ -6678,6 +6739,7 @@ private struct SyncCenterSheet: View {
             syncRequestPreviewCard(result.requestPreview)
             syncAuthPreviewCard(result.authContext)
             syncStoragePreviewCard(result.storagePreflight)
+            syncNetworkReadinessCard(result.networkReadiness)
             syncClientPreviewCard(result.clientPreview)
 
             HStack(spacing: 10) {
@@ -6753,6 +6815,56 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func syncNetworkReadinessCard(_ readiness: SyncNetworkReadiness) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Network readiness", systemImage: "network")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: readiness.status, color: moreColor(for: readiness.statusColorName))
+            }
+
+            Text(readiness.mode)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text("\(readiness.healthcheckPath) - \(readiness.baseURL)")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(readiness.timeoutPolicy)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+
+            Text(readiness.retryPolicy)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+
+            Text(readiness.authFailurePolicy)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+
+            Text(readiness.releaseGate)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: readiness.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .background(moreColor(for: readiness.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncAuthPreviewCard(_ auth: SyncAuthContext) -> some View {
