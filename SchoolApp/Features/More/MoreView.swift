@@ -6620,6 +6620,8 @@ private struct BehavioralQaSheet: View {
         }
         .padding(12)
         .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("behaviorQA.\(item.title)")
     }
 }
 

@@ -165,6 +165,7 @@ private struct CustomTabBar: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
+                .accessibilityIdentifier("tab.\(tab.rawValue)")
                 .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }

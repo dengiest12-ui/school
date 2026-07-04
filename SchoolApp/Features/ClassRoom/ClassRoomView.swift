@@ -420,6 +420,7 @@ struct ClassRoomView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("class.section.\(section.rawValue)")
                 }
             }
             .padding(4)
@@ -791,6 +792,8 @@ struct ClassRoomView: View {
                 Spacer()
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("roleRestriction.\(title)")
     }
 
     private func collectionMetric(value: String, title: String, color: Color) -> some View {

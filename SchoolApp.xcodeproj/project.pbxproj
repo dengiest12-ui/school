@@ -21,7 +21,18 @@
 		BBBB0000000000000000000C /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000C /* MoreView.swift */; };
 		BBBB0000000000000000000D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000E /* OnboardingView.swift */; };
 		BBBB0000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCCC0000000000000000000F /* Assets.xcassets */; };
+		BBBB0000000000000000000F /* SchoolAppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC00000000000000000011 /* SchoolAppUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		GGGG00000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAAABBBBCCCC000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAAABBBBCCCC000000000001;
+			remoteInfo = SchoolApp;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		CCCC00000000000000000001 /* SchoolAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolAppApp.swift; sourceTree = "<group>"; };
@@ -39,10 +50,19 @@
 		CCCC0000000000000000000D /* SchoolApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SchoolApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCCC0000000000000000000E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		CCCC0000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CCCC00000000000000000010 /* SchoolAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SchoolAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCCC00000000000000000011 /* SchoolAppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolAppUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		DDDD00000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DDDD00000000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -56,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				EEEE00000000000000000002 /* SchoolApp */,
+				EEEE0000000000000000000F /* SchoolAppUITests */,
 				EEEE0000000000000000000C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -157,6 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				CCCC0000000000000000000D /* SchoolApp.app */,
+				CCCC00000000000000000010 /* SchoolAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -175,6 +197,14 @@
 				CCCC0000000000000000000E /* OnboardingView.swift */,
 			);
 			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		EEEE0000000000000000000F /* SchoolAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				CCCC00000000000000000011 /* SchoolAppUITests.swift */,
+			);
+			path = SchoolAppUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -197,6 +227,24 @@
 			productReference = CCCC0000000000000000000D /* SchoolApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AAAABBBBCCCC000000000002 /* SchoolAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FFFF0000000000000000000D /* Build configuration list for PBXNativeTarget "SchoolAppUITests" */;
+			buildPhases = (
+				FFFF00000000000000000009 /* Sources */,
+				DDDD00000000000000000002 /* Frameworks */,
+				FFFF0000000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				GGGG00000000000000000002 /* PBXTargetDependency */,
+			);
+			name = SchoolAppUITests;
+			productName = SchoolAppUITests;
+			productReference = CCCC00000000000000000010 /* SchoolAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -209,6 +257,10 @@
 				TargetAttributes = {
 					AAAABBBBCCCC000000000001 = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					AAAABBBBCCCC000000000002 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = AAAABBBBCCCC000000000001;
 					};
 				};
 			};
@@ -227,6 +279,7 @@
 			projectRoot = "";
 			targets = (
 				AAAABBBBCCCC000000000001 /* SchoolApp */,
+				AAAABBBBCCCC000000000002 /* SchoolAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -237,6 +290,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				BBBB0000000000000000000E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FFFF0000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,7 +323,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FFFF00000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BBBB0000000000000000000F /* SchoolAppUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		GGGG00000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAAABBBBCCCC000000000001 /* SchoolApp */;
+			targetProxy = GGGG00000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		FFFF00000000000000000005 /* Debug */ = {
@@ -390,7 +466,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = L9N8G9KX6L;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Школьный класс";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
@@ -400,7 +476,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ru.codex.schoolclass";
+				PRODUCT_BUNDLE_IDENTIFIER = ru.codex.schoolclass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -418,7 +494,7 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = L9N8G9KX6L;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Школьный класс";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
@@ -428,7 +504,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ru.codex.schoolclass";
+				PRODUCT_BUNDLE_IDENTIFIER = ru.codex.schoolclass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -436,6 +512,46 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		FFFF0000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = L9N8G9KX6L;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.codex.schoolclass.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = SchoolApp;
+			};
+			name = Debug;
+		};
+		FFFF0000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = L9N8G9KX6L;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.codex.schoolclass.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = SchoolApp;
 			};
 			name = Release;
 		};
@@ -456,6 +572,15 @@
 			buildConfigurations = (
 				FFFF00000000000000000005 /* Debug */,
 				FFFF00000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FFFF0000000000000000000D /* Build configuration list for PBXNativeTarget "SchoolAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FFFF0000000000000000000B /* Debug */,
+				FFFF0000000000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
