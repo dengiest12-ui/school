@@ -373,6 +373,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
     var createdTask: Bool
     var isPinned: Bool
     var reactions: [String: Int]
+    var attachment: String?
 
     init(
         id: UUID = UUID(),
@@ -383,7 +384,8 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         actionTitle: String? = nil,
         createdTask: Bool = false,
         isPinned: Bool = false,
-        reactions: [String: Int] = [:]
+        reactions: [String: Int] = [:],
+        attachment: String? = nil
     ) {
         self.id = id
         self.author = author
@@ -394,6 +396,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         self.createdTask = createdTask
         self.isPinned = isPinned
         self.reactions = reactions
+        self.attachment = attachment
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -406,6 +409,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         case createdTask
         case isPinned
         case reactions
+        case attachment
     }
 
     init(from decoder: Decoder) throws {
@@ -419,6 +423,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         createdTask = try container.decodeIfPresent(Bool.self, forKey: .createdTask) ?? false
         isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         reactions = try container.decodeIfPresent([String: Int].self, forKey: .reactions) ?? [:]
+        attachment = try container.decodeIfPresent(String.self, forKey: .attachment)
     }
 }
 
@@ -1358,8 +1363,8 @@ enum SampleData {
             colorName: "green",
             unreadCount: 5,
             messages: [
-                ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь", isPinned: true, reactions: ["checkmark.circle.fill": 8, "heart.fill": 3]),
-                ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18", reactions: ["hand.raised.fill": 2]),
+                ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь", isPinned: true, reactions: ["checkmark.circle.fill": 8, "heart.fill": 3], attachment: "Согласие на экскурсию.pdf"),
+                ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18", reactions: ["hand.raised.fill": 2], attachment: "Фото списка вещей.jpg"),
                 ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу", reactions: ["checkmark.circle.fill": 4])
             ]
         ),
@@ -1372,7 +1377,7 @@ enum SampleData {
             isAnnouncementOnly: true,
             messages: [
                 ClassChatMessage(author: "Елена Сергеевна", text: "Завтра на физкультуру нужна форма и сменная обувь.", timeLabel: "Вчера", isImportant: true, actionTitle: "Добавить в Что завтра", isPinned: true, reactions: ["checkmark.circle.fill": 16]),
-                ClassChatMessage(author: "Елена Сергеевна", text: "Проект «Моя семья» сдаем до пятницы.", timeLabel: "Вчера", isImportant: true, actionTitle: "Создать задачу", reactions: ["bookmark.fill": 7])
+                ClassChatMessage(author: "Елена Сергеевна", text: "Проект «Моя семья» сдаем до пятницы.", timeLabel: "Вчера", isImportant: true, actionTitle: "Создать задачу", reactions: ["bookmark.fill": 7], attachment: "Памятка проекта.pdf")
             ]
         ),
         ChatThread(

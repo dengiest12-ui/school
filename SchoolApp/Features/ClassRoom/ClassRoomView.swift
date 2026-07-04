@@ -2775,6 +2775,12 @@ private extension Date {
         formatter.dateFormat = "dd.MM HH:mm"
         return formatter.string(from: self)
     }
+
+    var chatAttachmentTimestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "ddMM-HHmm"
+        return formatter.string(from: self)
+    }
 }
 
 private struct ChatDetailSheet: View {
@@ -2785,6 +2791,8 @@ private struct ChatDetailSheet: View {
 
     @State private var messages: [ClassChatMessage]
     @State private var replyText = "Спасибо, увидел"
+    @State private var pendingAttachment: String?
+    @State private var isFileImporterPresented = false
 
     init(thread: ChatThread, onSave: @escaping (ChatThread) -> Void) {
         self.thread = thread
@@ -2825,6 +2833,11 @@ private struct ChatDetailSheet: View {
             .background(SchoolTheme.page.ignoresSafeArea())
             .navigationTitle("Чат")
             .navigationBarTitleDisplayMode(.inline)
+            .fileImporter(isPresented: $isFileImporterPresented, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+                if case .success(let urls) = result, let url = urls.first {
+                    pendingAttachment = "Файл: \(url.lastPathComponent)"
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Закрыть") {
@@ -2850,7 +2863,7 @@ private struct ChatDetailSheet: View {
                 Divider()
                 chatMetric(value: "\(messages.filter(\.isPinned).count)", title: "пины", color: SchoolTheme.teal)
                 Divider()
-                chatMetric(value: "\(reactionTotal)", title: "реакции", color: SchoolTheme.success)
+                chatMetric(value: "\(attachmentCount)", title: "файлы", color: SchoolTheme.success)
             }
             .frame(height: 62)
         }
@@ -2908,6 +2921,40 @@ private struct ChatDetailSheet: View {
 
                 CollectionTextField(title: "Сообщение", iconName: "bubble.left.and.text.bubble.right", color: SchoolTheme.teal, text: $replyText)
 
+                if let pendingAttachment {
+                    HStack(spacing: 8) {
+                        attachmentChip(pendingAttachment)
+                        Spacer()
+                        Button {
+                            self.pendingAttachment = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(SchoolTheme.muted)
+                    }
+                }
+
+                LazyVGrid(columns: reactionColumns, alignment: .leading, spacing: 8) {
+                    Button {
+                        pendingAttachment = "Фото: чат-\(Date.now.chatAttachmentTimestamp).jpg"
+                    } label: {
+                        Label("Фото", systemImage: "photo.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SchoolTheme.accent)
+
+                    Button {
+                        isFileImporterPresented = true
+                    } label: {
+                        Label("Файл", systemImage: "paperclip")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SchoolTheme.teal)
+                }
+
                 Button {
                     sendReply()
                 } label: {
@@ -2945,6 +2992,10 @@ private struct ChatDetailSheet: View {
                     .font(.subheadline)
                     .foregroundStyle(SchoolTheme.graphite)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let attachment = message.attachment {
+                    attachmentChip(attachment)
+                }
 
                 if let actionTitle = message.actionTitle {
                     Button {
@@ -2996,6 +3047,18 @@ private struct ChatDetailSheet: View {
         .frame(maxWidth: .infinity)
     }
 
+    private func attachmentChip(_ attachment: String) -> some View {
+        Label(attachment, systemImage: attachmentIcon(for: attachment))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(SchoolTheme.graphite)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SchoolTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func toggleTask(for message: ClassChatMessage) {
         guard let index = messages.firstIndex(where: { $0.id == message.id }) else {
             return
@@ -3024,10 +3087,12 @@ private struct ChatDetailSheet: View {
         let message = ClassChatMessage(
             author: "Вы",
             text: replyText.trimmed,
-            timeLabel: "сейчас"
+            timeLabel: "сейчас",
+            attachment: pendingAttachment
         )
         messages.append(message)
         replyText = ""
+        pendingAttachment = nil
     }
 
     private func save() {
@@ -3059,10 +3124,8 @@ private struct ChatDetailSheet: View {
         [GridItem(.adaptive(minimum: 86), spacing: 8)]
     }
 
-    private var reactionTotal: Int {
-        messages.reduce(0) { total, message in
-            total + message.reactions.values.reduce(0, +)
-        }
+    private var attachmentCount: Int {
+        messages.filter { $0.attachment != nil }.count
     }
 
     private func reactionColor(for iconName: String) -> Color {
@@ -3074,6 +3137,16 @@ private struct ChatDetailSheet: View {
         default:
             SchoolTheme.success
         }
+    }
+
+    private func attachmentIcon(for attachment: String) -> String {
+        if attachment.localizedCaseInsensitiveContains("фото")
+            || attachment.localizedCaseInsensitiveContains(".jpg")
+            || attachment.localizedCaseInsensitiveContains(".png") {
+            return "photo.fill"
+        }
+
+        return "doc.fill"
     }
 }
 
