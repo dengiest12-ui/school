@@ -16,6 +16,7 @@ TESTS=(
   "testParentCannotDeleteClassPhotos"
   "testBehaviorQAGateListsCriticalInvariants"
   "testMvpMetricsEventPersistsAfterRelaunch"
+  "testSyncNetworkErrorKeepsQueuedMutation"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"

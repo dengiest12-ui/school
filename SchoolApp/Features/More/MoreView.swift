@@ -533,6 +533,50 @@ private struct SyncOperationSummary: Identifiable, Hashable, Codable {
     ]
 }
 
+private struct SyncNetworkFailureScenario: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let detail: String
+    let userMessage: String
+    let queuePolicy: String
+    let retryPlan: String
+    let badge: String
+    let colorName: String
+
+    static let sample = [
+        SyncNetworkFailureScenario(
+            id: "timeout",
+            title: "Timeout 8 секунд",
+            detail: "POST /sync/mutations не успел ответить",
+            userMessage: "Действие сохранено локально и повторится само.",
+            queuePolicy: "Мутация остается в очереди, форма не сбрасывается",
+            retryPlan: "Retry 1/5: 15s, 45s, 2m, 5m, 15m",
+            badge: "retry",
+            colorName: "orange"
+        ),
+        SyncNetworkFailureScenario(
+            id: "offline",
+            title: "Нет сети",
+            detail: "Система вернула offline до отправки запроса",
+            userMessage: "Пользовательские данные не теряются.",
+            queuePolicy: "Отправка возобновится после восстановления сети",
+            retryPlan: "Ждать network reachable, затем один dry-run",
+            badge: "queue",
+            colorName: "blue"
+        ),
+        SyncNetworkFailureScenario(
+            id: "server",
+            title: "5xx backend",
+            detail: "Сервер временно не принял batch",
+            userMessage: "Показываем понятный статус без дублей записей.",
+            queuePolicy: "Idempotency key не меняется до успешного ответа",
+            retryPlan: "Exponential backoff, затем ручная проверка",
+            badge: "5xx",
+            colorName: "red"
+        )
+    ]
+}
+
 private enum BackendEnvironment: String, CaseIterable, Identifiable, Codable {
     case development
     case staging
@@ -7777,11 +7821,21 @@ private struct SyncCenterSheet: View {
             launchOperations[0].status = "Offline"
             launchOperations[0].colorName = "orange"
         }
+        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error"), !launchOperations.isEmpty {
+            launchOperations[0].status = "Retry 1/5"
+            launchOperations[0].colorName = "orange"
+            launchOperations[0].retryPolicy = "Timeout: сохранить mutationId, повторить через 15 секунд"
+            launchOperations[0].conflictRule = "Пользовательские данные не теряются; idempotency key не меняется"
+        }
 
         _operations = State(initialValue: launchOperations)
         if ProcessInfo.processInfo.arguments.contains("-qa-more-sync") {
             _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: launchOperations))
-            _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
+            if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error") {
+                _syncStatus = State(initialValue: "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован.")
+            } else {
+                _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
+            }
         }
     }
 
@@ -7890,6 +7944,10 @@ private struct SyncCenterSheet: View {
                     }
 
                     DashboardCard {
+                        networkFailureDrillCard
+                    }
+
+                    DashboardCard {
                         backendPermissionSummary
                     }
 
@@ -7963,7 +8021,7 @@ private struct SyncCenterSheet: View {
                                 .foregroundStyle(SchoolTheme.muted)
                                 .fixedSize(horizontal: false, vertical: true)
 
-                            HStack(spacing: 8) {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                 syncActionButton("Dry-run", icon: "play.circle.fill", color: SchoolTheme.accent) {
                                     runDrySync()
                                 }
@@ -7976,6 +8034,10 @@ private struct SyncCenterSheet: View {
                                 syncActionButton("Конфликт", icon: "exclamationmark.arrow.triangle.2.circlepath", color: SchoolTheme.danger) {
                                     simulateConflict()
                                 }
+                                syncActionButton("Сбой сети", icon: "antenna.radiowaves.left.and.right.slash", color: SchoolTheme.warning) {
+                                    simulateNetworkError()
+                                }
+                                .accessibilityIdentifier("sync.simulate-network-error")
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -8012,7 +8074,7 @@ private struct SyncCenterSheet: View {
     }
 
     private var pendingCount: Int {
-        operations.filter { $0.status == "В очереди" || $0.status == "Локально" || $0.status == "Offline" }.count
+        operations.filter { $0.status == "В очереди" || $0.status == "Локально" || $0.status == "Offline" || $0.status.hasPrefix("Retry") }.count
     }
 
     private var storageCount: Int {
@@ -8088,6 +8150,44 @@ private struct SyncCenterSheet: View {
 
             ForEach(ApiReadinessItem.sample) { item in
                 apiReadinessRow(item)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var networkFailureDrillCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Ошибки сети и повтор", systemImage: "wifi.exclamationmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: "queue safe", color: SchoolTheme.warning)
+            }
+
+            Text("Пользовательские данные не теряются: локальная операция остается в очереди, повтор идет с backoff, а 401/403 не обходятся на устройстве.")
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                MoreMetric(value: "\(SyncNetworkFailureScenario.sample.count)", title: "сценария", color: SchoolTheme.warning)
+                Divider()
+                MoreMetric(value: "\(operations.filter { $0.status.hasPrefix("Retry") || $0.status == "Offline" }.count)", title: "в очереди", color: SchoolTheme.accent)
+                Divider()
+                MoreMetric(value: "0", title: "потерь", color: SchoolTheme.success)
+            }
+            .frame(height: 54)
+
+            syncActionButton("Сымитировать сбой сети", icon: "antenna.radiowaves.left.and.right.slash", color: SchoolTheme.warning) {
+                simulateNetworkError()
+            }
+            .accessibilityIdentifier("sync.simulate-network-error")
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(SyncNetworkFailureScenario.sample) { scenario in
+                    networkFailureScenarioRow(scenario)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -8303,6 +8403,43 @@ private struct SyncCenterSheet: View {
         }
         .padding(12)
         .background(SchoolTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func networkFailureScenarioRow(_ scenario: SyncNetworkFailureScenario) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            IconBadge(systemName: "arrow.triangle.2.circlepath", color: moreColor(for: scenario.colorName), size: 34)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(scenario.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+                    Spacer()
+                    StatusBadge(text: scenario.badge, color: moreColor(for: scenario.colorName))
+                }
+
+                Text(scenario.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+
+                Text(scenario.userMessage)
+                    .font(.caption2)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+
+                Text("\(scenario.queuePolicy) - \(scenario.retryPlan)")
+                    .font(.caption2)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(8)
+        .background(moreColor(for: scenario.colorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
@@ -8718,7 +8855,7 @@ private struct SyncCenterSheet: View {
         case "Конфликт", "Блокер":
             SchoolTheme.danger
         default:
-            SchoolTheme.accent
+            status.hasPrefix("Retry") ? SchoolTheme.warning : SchoolTheme.accent
         }
     }
 
@@ -8801,6 +8938,19 @@ private struct SyncCenterSheet: View {
         operations[0].status = "Конфликт"
         operations[0].colorName = "red"
         syncStatus = "Конфликт: нужна серверная версия, правило merge и запись в AuditLog."
+    }
+
+    private func simulateNetworkError() {
+        guard !operations.isEmpty else {
+            return
+        }
+
+        operations[0].status = "Retry 1/5"
+        operations[0].colorName = "orange"
+        operations[0].retryPolicy = "Timeout: сохранить mutationId, повторить через 15 секунд"
+        operations[0].conflictRule = "Пользовательские данные не теряются; idempotency key не меняется"
+        dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
+        syncStatus = "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован."
     }
 
     private func save() {

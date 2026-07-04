@@ -122,6 +122,28 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(secondLaunch.staticTexts["Локальная проверка ключевого сценария"].exists)
     }
 
+    func testSyncNetworkErrorKeepsQueuedMutation() {
+        let app = launchApp(arguments: [
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-network-error"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Ошибки сети и повтор", in: app))
+        XCTAssertTrue(findStaticText(containing: "Пользовательские данные не теряются", in: app))
+        XCTAssertTrue(findStaticText("Retry 1/5", in: app))
+        XCTAssertTrue(findStaticText(containing: "Timeout-сценарий", in: app))
+
+        let networkErrorButton = app.buttons["sync.simulate-network-error"]
+        scrollUntilVisible(networkErrorButton, in: app)
+        XCTAssertTrue(networkErrorButton.waitForExistence(timeout: 4))
+        networkErrorButton.tap()
+
+        XCTAssertTrue(findStaticText("Retry 1/5", in: app))
+        XCTAssertTrue(findStaticText(containing: "данные сохранены локально", in: app))
+    }
+
     func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",
@@ -267,6 +289,22 @@ final class SchoolAppUITests: XCTestCase {
         for _ in 0..<attempts {
             app.swipeUp()
             if text.exists {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func findStaticText(containing text: String, in app: XCUIApplication, attempts: Int = 4) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS[c] %@", text)
+        if app.staticTexts.containing(predicate).firstMatch.exists {
+            return true
+        }
+
+        for _ in 0..<attempts {
+            app.swipeUp()
+            if app.staticTexts.containing(predicate).firstMatch.exists {
                 return true
             }
         }
