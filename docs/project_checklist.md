@@ -47,7 +47,7 @@
 | Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; добавлен APNs/backend readiness gate, настоящий push-сервер еще не подключен. |
 | Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP, восстановления покупок, StoreKit 2 каталога и entitlement-readiness проверен в Simulator; настоящие покупки и App Store Connect еще не подключены. |
 | Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, управление участниками, маскирование финансов, подтверждение входов, подготовка удаления данных, request lifecycle, локальная отмена через re-auth и server deletion readiness; юридическая часть и серверная защита еще впереди. |
-| Релизная готовность | `[~]` | 3 | Добавлены локальные экраны поддержки, отчета о проблеме и выхода; App Store, политика, аналитика и TestFlight еще не готовы. |
+| Релизная готовность | `[~]` | 3 | Добавлены локальные экраны поддержки, отчета о проблеме, выхода и beta/TestFlight readiness; App Store, политика, аналитика, реальный iPhone и загрузка TestFlight еще не готовы. |
 
 ## 1. Продуктовая рамка MVP
 
@@ -831,7 +831,7 @@
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
   - Уровень: 2
   - Артефакт: `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/`
-  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management/photo viewer, Homework add/filters, Calendar add/detail, More security/privacy и QA states; нужны XCTest/UI-тесты с assert-ами перед релизом
+  - Комментарий: добавлен запускаемый smoke-скрипт: сборка, установка в Simulator, перезапуск приложения между сценариями и снимки Today, Today notifications/profile/urgent/homework/chats/add child, Child mode, Class parent/committee/member management/photo viewer, Homework add/filters, Calendar add/detail, More security/privacy, QA states и beta readiness; нужны XCTest/UI-тесты с assert-ами перед релизом
 
 ## 21. Релиз
 
@@ -865,11 +865,11 @@
   - Артефакт: `.build/screenshots/more-support-screen.png`, `.build/screenshots/more-problem-screen.png`, `.build/screenshots/more-support-history.png`, `.build/screenshots/more-problem-history.png`, `.build/screenshots/qa-smoke/more-support.png`, `.build/screenshots/qa-smoke/more-problem.png`, `.build/screenshots/more-logout-screen.png`
   - Комментарий: добавлены локальные формы поддержки, отчета о проблеме, история последних обращений, системная отправка текста через iOS Share Sheet и экран выхода/подготовки переноса; backend helpdesk еще не подключен
 
-- [ ] Beta / TestFlight
+- [~] Beta / TestFlight
   - Проверка: собрана тестовая версия, есть список тестеров и сценарии проверки
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 3
+  - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-beta.png`
+  - Комментарий: добавлен локальный экран beta/TestFlight readiness: release gate, блокеры, группы тестеров и сценарии приемки; smoke-сценарий проверяет экран в Simulator. Настоящая Archive/TestFlight-загрузка еще не выполнена, нужна проверка на реальном iPhone и App Store Connect setup
 
 - [ ] Первый публичный релиз
   - Проверка: критичные сценарии пройдены, юридические документы готовы, аналитика работает
@@ -1025,3 +1025,4 @@
 | 2026-07-04 | Закрепления и реакции в чатах | Пройдено | 3 | `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Models/SampleData.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/class-chat-detail.png` | Детальный экран чата получил блок закрепленных сообщений, счетчики закреплений/реакций, локальные кнопки закрепить/открепить и реакции с сохранением в `ClassRoomLocalStore`; `ClassChatMessage` читает старые сохраненные данные без новых полей; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана чата прошли |
 | 2026-07-04 | Локальные вложения в чатах | Пройдено | 3 | `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/qa-smoke/class-chat-detail.png` | `ClassChatMessage` получил совместимое поле `attachment`; детальный экран чата показывает вложения в сообщениях, счетчик файлов, кнопки `Фото` и `Файл`, системный file picker и очистку выбранного вложения перед отправкой; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана чата прошли |
 | 2026-07-04 | Локальные голосовые в чатах | Пройдено | 3 | `SchoolApp/Features/ClassRoom/ClassRoomView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/qa-smoke/class-chat-detail.png` | `ClassChatMessage` получил совместимое поле `voiceDuration`; детальный экран чата показывает voice-note с waveform, длительность, кнопку `Голос`, очистку выбранного voice-note и общий счетчик медиа; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана чата прошли |
+| 2026-07-04 | Beta/TestFlight readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-beta.png` | В разделе `Еще` добавлен экран подготовки к бете: готовые пункты, блокеры, группы тестеров, сценарии приемки и следующий шаг с реальным iPhone; smoke получил отдельный кадр beta readiness; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана прошли |

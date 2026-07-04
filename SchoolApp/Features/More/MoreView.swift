@@ -585,6 +585,85 @@ private enum BackendEnvironment: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+private struct BetaReadinessItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var status: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [BetaReadinessItem] = [
+        BetaReadinessItem(
+            title: "Сборка Debug",
+            detail: "Проект собирается в Simulator и проходит полный smoke-прогон.",
+            status: "Готово",
+            iconName: "hammer.fill",
+            colorName: "green"
+        ),
+        BetaReadinessItem(
+            title: "Критичные сценарии",
+            detail: "Онбординг, дети, роли, ДЗ, календарь, сборы, объявления, чаты и настройки покрыты скриншотами.",
+            status: "Готово",
+            iconName: "checkmark.seal.fill",
+            colorName: "green"
+        ),
+        BetaReadinessItem(
+            title: "Реальный iPhone",
+            detail: "Нужно вручную проверить камеру, уведомления, шаринг файлов, производительность и подпись на устройстве.",
+            status: "Нужна проверка",
+            iconName: "iphone",
+            colorName: "orange"
+        ),
+        BetaReadinessItem(
+            title: "App Store Connect",
+            detail: "Нужны bundle id, команда разработчика, StoreKit products, группа тестеров и сборка Archive.",
+            status: "Блокер",
+            iconName: "icloud.and.arrow.up.fill",
+            colorName: "red"
+        ),
+        BetaReadinessItem(
+            title: "Юридические материалы",
+            detail: "Черновики политики и условий есть, но перед внешними тестерами нужен финальный владелец и юридический обзор.",
+            status: "Блокер",
+            iconName: "doc.text.fill",
+            colorName: "red"
+        )
+    ]
+}
+
+private struct BetaTesterGroup: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var count: String
+    var colorName: String
+
+    static let sample: [BetaTesterGroup] = [
+        BetaTesterGroup(title: "Внутренний тест", detail: "Владелец, родитель, родкомитет: проверка прав и данных.", count: "3-5", colorName: "blue"),
+        BetaTesterGroup(title: "Пилотный класс", detail: "Родители с 2-3 детьми и разными ролями в классах.", count: "10-20", colorName: "green"),
+        BetaTesterGroup(title: "Учитель/админ", detail: "Проверка объявлений, фото, участников и сценариев без оплаты.", count: "2-3", colorName: "orange")
+    ]
+}
+
+private struct BetaScenario: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var expected: String
+    var status: String
+    var colorName: String
+
+    static let sample: [BetaScenario] = [
+        BetaScenario(title: "Первый запуск", detail: "Вход, роль, код класса, ребенок, согласия.", expected: "Пользователь попадает в правильный класс", status: "Smoke passed", colorName: "green"),
+        BetaScenario(title: "Родитель без прав", detail: "Пробует создать объявление, сбор, чек и менять оплаты.", expected: "Действия заблокированы интерфейсом", status: "Smoke passed", colorName: "green"),
+        BetaScenario(title: "Родкомитет", detail: "Создает сбор, добавляет расход, чек и отчет.", expected: "Данные сохраняются локально", status: "Smoke passed", colorName: "green"),
+        BetaScenario(title: "Несколько детей", detail: "Добавляет ребенка в другой класс и переключает вкладки.", expected: "Выбранный ребенок и класс сохраняются", status: "Smoke passed", colorName: "green"),
+        BetaScenario(title: "Файлы и медиа", detail: "Прикрепляет фото/файл/voice-note в ДЗ, сборах и чатах.", expected: "Вложения видны после сохранения", status: "Smoke passed", colorName: "green"),
+        BetaScenario(title: "Устройство", detail: "Камера, push permission, Share Sheet и установка на iPhone.", expected: "Работает вне Simulator", status: "Нужен iPhone", colorName: "orange")
+    ]
+}
+
 private enum SyncEndpointKind: String, CaseIterable, Identifiable {
     case signedUpload
     case classRoom
@@ -2134,6 +2213,8 @@ struct MoreView: View {
                         colorName: "blue"
                     )
                 }
+            case .betaReadiness:
+                BetaReadinessSheet()
             case .support:
                 SupportMessageSheet(kind: .support)
             case .problem:
@@ -2309,6 +2390,7 @@ struct MoreView: View {
             MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
             MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
             MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
+            MoreMenuItem(title: "Бета / TestFlight", subtitle: "Release gate, тестеры и сценарии приемки", icon: "testtube.2", color: SchoolTheme.accent, sheet: .betaReadiness),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
             MoreMenuItem(title: "Проблема", subtitle: "Сообщить об ошибке", icon: "exclamationmark.bubble.fill", color: SchoolTheme.danger, sheet: .problem),
             MoreMenuItem(title: "Выйти", subtitle: "Локальный выход и перенос данных", icon: "rectangle.portrait.and.arrow.right", color: SchoolTheme.warning, sheet: .logout)
@@ -2402,6 +2484,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-sync") {
             return .syncCenter
+        }
+
+        if arguments.contains("-qa-more-beta") {
+            return .betaReadiness
         }
 
         if arguments.contains("-qa-more-support") {
@@ -6246,6 +6332,176 @@ private struct MvpMetricsSheet: View {
     }
 }
 
+private struct BetaReadinessSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let readinessItems = BetaReadinessItem.sample
+    private let testerGroups = BetaTesterGroup.sample
+    private let scenarios = BetaScenario.sample
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "testtube.2",
+                        color: SchoolTheme.accent,
+                        title: "Бета / TestFlight",
+                        subtitle: "Что готово для тестовой сборки и что еще блокирует внешних тестеров"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(readyCount)", title: "готово", color: SchoolTheme.success)
+                            Divider()
+                            MoreMetric(value: "\(needsCheckCount)", title: "проверить", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(blockerCount)", title: "блокеры", color: SchoolTheme.danger)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Release gate")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(readinessItems) { item in
+                                readinessRow(item)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Группы тестеров")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(testerGroups) { group in
+                                testerGroupRow(group)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Сценарии приемки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(scenarios) { scenario in
+                                betaScenarioRow(scenario)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Следующий реальный шаг", systemImage: "iphone.gen3")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Перед TestFlight нужно поставить приложение на реальный iPhone, пройти камеру, уведомления, файлы, выход из аккаунта и роли. После этого можно делать Archive, загружать сборку в App Store Connect и приглашать внутреннюю группу.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Бета")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var readyCount: Int {
+        readinessItems.filter { $0.status == "Готово" }.count
+    }
+
+    private var needsCheckCount: Int {
+        readinessItems.filter { $0.status == "Нужна проверка" }.count
+    }
+
+    private var blockerCount: Int {
+        readinessItems.filter { $0.status == "Блокер" }.count
+    }
+
+    private func readinessRow(_ item: BetaReadinessItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: item.iconName, color: moreColor(for: item.colorName), size: 42)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                    StatusBadge(text: item.status, color: moreColor(for: item.colorName))
+                }
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func testerGroupRow(_ group: BetaTesterGroup) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(group.count)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(moreColor(for: group.colorName))
+                .frame(width: 48, height: 42)
+                .background(moreColor(for: group.colorName).opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(group.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(group.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+    }
+
+    private func betaScenarioRow(_ scenario: BetaScenario) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(scenario.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                StatusBadge(text: scenario.status, color: moreColor(for: scenario.colorName))
+            }
+            Text(scenario.detail)
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(scenario.expected, systemImage: "target")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(moreColor(for: scenario.colorName))
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct AIQualitySheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -8224,6 +8480,7 @@ private enum MoreSheet: String, Identifiable {
     case aiQuality
     case qaStates
     case syncCenter
+    case betaReadiness
     case support
     case problem
     case logout

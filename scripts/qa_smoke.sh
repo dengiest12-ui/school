@@ -98,5 +98,6 @@ run_case "more-ai-quality" -qa-tab more -qa-more-ai-quality
 run_case "more-qa-states" -qa-tab more -qa-more-states
 run_case "more-sync" -qa-tab more -qa-more-sync
 run_case "more-sync-offline" -qa-tab more -qa-more-sync -qa-more-sync-offline
+run_case "more-beta" -qa-tab more -qa-more-beta
 
 echo "QA smoke completed. Screenshots: $SCREENSHOT_DIR"
