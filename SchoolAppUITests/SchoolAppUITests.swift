@@ -46,9 +46,8 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(firstLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
-        XCTAssertTrue(firstLaunch.buttons["Я прочитал"].waitForExistence(timeout: 4))
-        firstLaunch.buttons["Я прочитал"].tap()
-        XCTAssertTrue(firstLaunch.buttons["Прочитано"].waitForExistence(timeout: 4))
+        XCTAssertTrue(firstLaunch.buttons["announcement.acknowledge"].waitForExistence(timeout: 4))
+        firstLaunch.buttons["announcement.acknowledge"].tap()
 
         firstLaunch.terminate()
 
@@ -60,8 +59,36 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(secondLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
         XCTAssertTrue(secondLaunch.staticTexts["Прочтение подтверждено"].exists)
-        XCTAssertTrue(secondLaunch.buttons["Прочитано"].exists)
-        XCTAssertFalse(secondLaunch.buttons["Я прочитал"].exists)
+        XCTAssertTrue(secondLaunch.buttons["announcement.acknowledged"].exists)
+        XCTAssertFalse(secondLaunch.buttons["announcement.acknowledge"].exists)
+    }
+
+    func testCollectionExpensePersistsAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-class-store",
+            "-qa-role", "parentCommittee",
+            "-qa-tab", "classRoom",
+            "-qa-collection-detail",
+            "-qa-scroll-expenses"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Сбор"].waitForExistence(timeout: 4))
+        let addExpenseButton = firstLaunch.buttons["collection.add-expense"]
+        XCTAssertTrue(addExpenseButton.waitForExistence(timeout: 5))
+        addExpenseButton.tap()
+        XCTAssertTrue(firstLaunch.staticTexts["collection.expense.title.Чек за автобус"].waitForExistence(timeout: 4))
+
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-role", "parentCommittee",
+            "-qa-tab", "classRoom",
+            "-qa-collection-detail",
+            "-qa-scroll-expenses"
+        ])
+
+        XCTAssertTrue(secondLaunch.navigationBars["Сбор"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["collection.expense.title.Чек за автобус"].waitForExistence(timeout: 4))
     }
 
     private func launchApp(arguments: [String]) -> XCUIApplication {

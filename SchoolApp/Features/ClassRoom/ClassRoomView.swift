@@ -2407,6 +2407,7 @@ private struct CollectionDetailSheet: View {
                                     Text(expense.title)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(SchoolTheme.graphite)
+                                        .accessibilityIdentifier("collection.expense.title.\(expense.title)")
                                     Text(expense.note)
                                         .font(.caption)
                                         .foregroundStyle(SchoolTheme.muted)
@@ -2472,6 +2473,7 @@ private struct CollectionDetailSheet: View {
                     .buttonStyle(.bordered)
                     .tint(SchoolTheme.success)
                     .disabled(expenseTitle.trimmed.isEmpty || expenseAmount.trimmed.isEmpty)
+                    .accessibilityIdentifier("collection.add-expense")
                     .id("expense-actions")
                 } else {
                     HStack(spacing: 12) {
@@ -3456,6 +3458,7 @@ private struct AnnouncementDetailSheet: View {
                     .buttonStyle(.borderedProminent)
                     .tint(acknowledged ? SchoolTheme.muted : SchoolTheme.success)
                     .disabled(acknowledged)
+                    .accessibilityIdentifier(acknowledged ? "announcement.acknowledged" : "announcement.acknowledge")
                 }
                 .padding(20)
                 .padding(.bottom, 20)
