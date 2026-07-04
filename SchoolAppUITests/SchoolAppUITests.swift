@@ -40,6 +40,19 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Опубликовать"].exists)
     }
 
+    func testParentCannotInviteClassMembers() {
+        let app = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-member-invite"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Нет прав"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Приглашения закрыты"].exists)
+        XCTAssertTrue(app.staticTexts["Доступ ограничен"].exists)
+        XCTAssertFalse(app.buttons["Добавить приглашение"].exists)
+    }
+
     func testBehaviorQAGateListsCriticalInvariants() {
         let app = launchApp(arguments: ["-qa-tab", "more", "-qa-more-behavior"])
 
