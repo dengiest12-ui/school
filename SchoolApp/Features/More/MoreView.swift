@@ -632,6 +632,80 @@ private struct BetaReadinessItem: Identifiable, Hashable {
     ]
 }
 
+private struct ModerationQueueItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var target: String
+    var reporter: String
+    var status: String
+    var priority: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [ModerationQueueItem] = [
+        ModerationQueueItem(
+            title: "Фото из экскурсии",
+            target: "Альбом 4Б",
+            reporter: "Мама Сони",
+            status: "Новая",
+            priority: "Высокий",
+            detail: "На снимке виден ребенок без согласия на публикацию в альбоме класса.",
+            iconName: "photo.fill",
+            colorName: "red"
+        ),
+        ModerationQueueItem(
+            title: "Сообщение в чате",
+            target: "Тихий чат",
+            reporter: "Папа Миши",
+            status: "На проверке",
+            priority: "Средний",
+            detail: "Родитель отметил резкий тон в обсуждении сбора на театр.",
+            iconName: "message.fill",
+            colorName: "orange"
+        ),
+        ModerationQueueItem(
+            title: "Новый участник",
+            target: "Приглашение CLASS-4B",
+            reporter: "Родкомитет",
+            status: "Закрыта",
+            priority: "Низкий",
+            detail: "Проверили связь с ребенком и оставили доступ только к нужному классу.",
+            iconName: "person.crop.circle.badge.questionmark",
+            colorName: "green"
+        )
+    ]
+}
+
+private struct ModerationRule: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [ModerationRule] = [
+        ModerationRule(
+            title: "Фото удаляют только доверенные роли",
+            detail: "Учитель, родкомитет или администратор класса могут скрыть спорное фото из локального альбома.",
+            iconName: "photo.badge.exclamationmark",
+            colorName: "red"
+        ),
+        ModerationRule(
+            title: "Жалоба не видна всему классу",
+            detail: "Сигнал попадает в очередь проверки, чтобы не раздувать конфликт в общем чате.",
+            iconName: "eye.slash.fill",
+            colorName: "teal"
+        ),
+        ModerationRule(
+            title: "Backend должен закрепить решение",
+            detail: "В продакшене статус жалобы, автор решения и аудит должны храниться на сервере.",
+            iconName: "server.rack",
+            colorName: "orange"
+        )
+    ]
+}
+
 private struct BetaTesterGroup: Identifiable, Hashable {
     let id = UUID()
     var title: String
@@ -2213,6 +2287,8 @@ struct MoreView: View {
                         colorName: "blue"
                     )
                 }
+            case .moderation:
+                ModerationCenterSheet()
             case .betaReadiness:
                 BetaReadinessSheet()
             case .support:
@@ -2389,6 +2465,7 @@ struct MoreView: View {
         [
             MoreMenuItem(title: "Безопасность", subtitle: securitySubtitle, icon: "lock.shield.fill", color: SchoolTheme.success, sheet: .security),
             MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
+            MoreMenuItem(title: "Модерация", subtitle: moderationSubtitle, icon: "flag.fill", color: SchoolTheme.danger, sheet: .moderation),
             MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
             MoreMenuItem(title: "Бета / TestFlight", subtitle: "Release gate, тестеры и сценарии приемки", icon: "testtube.2", color: SchoolTheme.accent, sheet: .betaReadiness),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
@@ -2413,6 +2490,11 @@ struct MoreView: View {
         }
 
         return "Нужно подтвердить согласие родителя"
+    }
+
+    private var moderationSubtitle: String {
+        let openCount = ModerationQueueItem.sample.filter { $0.status != "Закрыта" }.count
+        return "\(openCount) открыто: фото, чат, участники"
     }
 
     private var qaPassedCount: Int {
@@ -2484,6 +2566,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-sync") {
             return .syncCenter
+        }
+
+        if arguments.contains("-qa-more-moderation") {
+            return .moderation
         }
 
         if arguments.contains("-qa-more-beta") {
@@ -6332,6 +6418,187 @@ private struct MvpMetricsSheet: View {
     }
 }
 
+private struct ModerationCenterSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var queue = ModerationQueueItem.sample
+
+    private let rules = ModerationRule.sample
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "flag.fill",
+                        color: SchoolTheme.danger,
+                        title: "Жалобы и модерация",
+                        subtitle: "Локальная очередь спорных фото, сообщений и участников класса"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(newCount)", title: "новые", color: SchoolTheme.danger)
+                            Divider()
+                            MoreMetric(value: "\(reviewCount)", title: "проверка", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "\(closedCount)", title: "закрыто", color: SchoolTheme.success)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Очередь проверки")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach($queue) { $item in
+                                moderationRow(item: $item)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Правила безопасности")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(rules) { rule in
+                                moderationRuleRow(rule)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Что еще должен сделать backend", systemImage: "server.rack")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Сейчас это локальный MVP-экран. Для реального класса сервер должен хранить жалобу, роль проверяющего, решение, аудит, уведомление автора и запрет повторного показа скрытого материала.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("Модерация")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var newCount: Int {
+        queue.filter { $0.status == "Новая" }.count
+    }
+
+    private var reviewCount: Int {
+        queue.filter { $0.status == "На проверке" }.count
+    }
+
+    private var closedCount: Int {
+        queue.filter { $0.status == "Закрыта" }.count
+    }
+
+    private func moderationRow(item: Binding<ModerationQueueItem>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: item.wrappedValue.iconName, color: moreColor(for: item.wrappedValue.colorName), size: 42)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(item.wrappedValue.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        StatusBadge(text: item.wrappedValue.status, color: statusColor(for: item.wrappedValue.status))
+                    }
+
+                    Text("\(item.wrappedValue.target) · \(item.wrappedValue.reporter)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.muted)
+
+                    Text(item.wrappedValue.detail)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                StatusBadge(text: "Приоритет: \(item.wrappedValue.priority)", color: moreColor(for: item.wrappedValue.colorName))
+
+                Spacer()
+
+                if item.wrappedValue.status == "Новая" {
+                    Button("В проверку") {
+                        item.wrappedValue.status = "На проверке"
+                        item.wrappedValue.colorName = "orange"
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.bordered)
+                }
+
+                if item.wrappedValue.status != "Закрыта" {
+                    Button("Закрыть") {
+                        item.wrappedValue.status = "Закрыта"
+                        item.wrappedValue.colorName = "green"
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(SchoolTheme.success)
+                }
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func moderationRuleRow(_ rule: ModerationRule) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            IconBadge(systemName: rule.iconName, color: moreColor(for: rule.colorName), size: 40)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(rule.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Text(rule.detail)
+                    .font(.caption)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+    }
+
+    private func statusColor(for status: String) -> Color {
+        switch status {
+        case "Закрыта":
+            SchoolTheme.success
+        case "На проверке":
+            SchoolTheme.warning
+        default:
+            SchoolTheme.danger
+        }
+    }
+}
+
 private struct BetaReadinessSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -8480,6 +8747,7 @@ private enum MoreSheet: String, Identifiable {
     case aiQuality
     case qaStates
     case syncCenter
+    case moderation
     case betaReadiness
     case support
     case problem

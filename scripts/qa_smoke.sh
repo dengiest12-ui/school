@@ -152,6 +152,7 @@ more-ai-quality|-qa-tab more -qa-more-ai-quality
 more-qa-states|-qa-tab more -qa-more-states
 more-sync|-qa-tab more -qa-more-sync
 more-sync-offline|-qa-tab more -qa-more-sync -qa-more-sync-offline
+more-moderation|-qa-tab more -qa-more-moderation
 more-beta|-qa-tab more -qa-more-beta
 SMOKE_CASES
 
