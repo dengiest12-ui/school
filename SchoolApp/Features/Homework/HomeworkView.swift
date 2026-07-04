@@ -363,10 +363,12 @@ struct HomeworkView: View {
                         Text(item.subject)
                             .font(.headline)
                             .foregroundStyle(SchoolTheme.graphite)
+                            .accessibilityIdentifier("homework.subject.\(item.subject)")
                         Text(item.title)
                             .font(.subheadline)
                             .foregroundStyle(SchoolTheme.graphite)
                             .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("homework.title.\(item.title)")
                     }
 
                     Spacer()
@@ -649,6 +651,7 @@ private struct AddHomeworkSheet: View {
                     .buttonStyle(.borderedProminent)
                     .tint(SchoolTheme.success)
                     .disabled(subject.trimmed.isEmpty || title.trimmed.isEmpty || dueLabel.trimmed.isEmpty)
+                    .accessibilityIdentifier("homework.save")
                 }
                 .padding(20)
                 .padding(.bottom, 20)

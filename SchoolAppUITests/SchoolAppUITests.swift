@@ -91,6 +91,29 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(secondLaunch.staticTexts["collection.expense.title.Чек за автобус"].waitForExistence(timeout: 4))
     }
 
+    func testManualHomeworkPersistsAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-homework-store",
+            "-qa-tab", "homework",
+            "-qa-homework-add"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Новое ДЗ"].waitForExistence(timeout: 4))
+        XCTAssertTrue(firstLaunch.buttons["homework.save"].waitForExistence(timeout: 4))
+        firstLaunch.buttons["homework.save"].tap()
+        XCTAssertTrue(firstLaunch.staticTexts["homework.title.Страница 45, номера 6, 7, 8"].waitForExistence(timeout: 4))
+
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-tab", "homework"
+        ])
+
+        XCTAssertTrue(secondLaunch.staticTexts["Домашка"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["homework.subject.Математика"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["homework.title.Страница 45, номера 6, 7, 8"].exists)
+    }
+
     private func launchApp(arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: bundleIdentifier)
         app.launchArguments = arguments + ["-qa-skip-onboarding"]
