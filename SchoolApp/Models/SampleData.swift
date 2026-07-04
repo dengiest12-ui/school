@@ -374,6 +374,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
     var isPinned: Bool
     var reactions: [String: Int]
     var attachment: String?
+    var voiceDuration: String?
 
     init(
         id: UUID = UUID(),
@@ -385,7 +386,8 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         createdTask: Bool = false,
         isPinned: Bool = false,
         reactions: [String: Int] = [:],
-        attachment: String? = nil
+        attachment: String? = nil,
+        voiceDuration: String? = nil
     ) {
         self.id = id
         self.author = author
@@ -397,6 +399,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         self.isPinned = isPinned
         self.reactions = reactions
         self.attachment = attachment
+        self.voiceDuration = voiceDuration
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -410,6 +413,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         case isPinned
         case reactions
         case attachment
+        case voiceDuration
     }
 
     init(from decoder: Decoder) throws {
@@ -424,6 +428,7 @@ struct ClassChatMessage: Identifiable, Hashable, Codable {
         isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         reactions = try container.decodeIfPresent([String: Int].self, forKey: .reactions) ?? [:]
         attachment = try container.decodeIfPresent(String.self, forKey: .attachment)
+        voiceDuration = try container.decodeIfPresent(String.self, forKey: .voiceDuration)
     }
 }
 
@@ -1365,7 +1370,7 @@ enum SampleData {
             messages: [
                 ClassChatMessage(author: "Мария", text: "Напоминаю про экскурсию в пятницу. Сбор у школы в 09:10.", timeLabel: "09:12", isImportant: true, actionTitle: "Добавить в календарь", isPinned: true, reactions: ["checkmark.circle.fill": 8, "heart.fill": 3], attachment: "Согласие на экскурсию.pdf"),
                 ClassChatMessage(author: "Антон", text: "Кто сможет взять запасные дождевики?", timeLabel: "09:18", reactions: ["hand.raised.fill": 2], attachment: "Фото списка вещей.jpg"),
-                ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу", reactions: ["checkmark.circle.fill": 4])
+                ClassChatMessage(author: "Ольга", text: "Я заберу распечатанные согласия и передам учителю утром.", timeLabel: "09:24", isImportant: true, actionTitle: "Создать задачу", reactions: ["checkmark.circle.fill": 4], voiceDuration: "0:18")
             ]
         ),
         ChatThread(

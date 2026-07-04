@@ -2792,6 +2792,7 @@ private struct ChatDetailSheet: View {
     @State private var messages: [ClassChatMessage]
     @State private var replyText = "Спасибо, увидел"
     @State private var pendingAttachment: String?
+    @State private var pendingVoiceDuration: String?
     @State private var isFileImporterPresented = false
 
     init(thread: ChatThread, onSave: @escaping (ChatThread) -> Void) {
@@ -2863,7 +2864,7 @@ private struct ChatDetailSheet: View {
                 Divider()
                 chatMetric(value: "\(messages.filter(\.isPinned).count)", title: "пины", color: SchoolTheme.teal)
                 Divider()
-                chatMetric(value: "\(attachmentCount)", title: "файлы", color: SchoolTheme.success)
+                chatMetric(value: "\(mediaCount)", title: "медиа", color: SchoolTheme.success)
             }
             .frame(height: 62)
         }
@@ -2935,9 +2936,24 @@ private struct ChatDetailSheet: View {
                     }
                 }
 
+                if let pendingVoiceDuration {
+                    HStack(spacing: 8) {
+                        voiceChip(duration: pendingVoiceDuration)
+                        Spacer()
+                        Button {
+                            self.pendingVoiceDuration = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(SchoolTheme.muted)
+                    }
+                }
+
                 LazyVGrid(columns: reactionColumns, alignment: .leading, spacing: 8) {
                     Button {
                         pendingAttachment = "Фото: чат-\(Date.now.chatAttachmentTimestamp).jpg"
+                        pendingVoiceDuration = nil
                     } label: {
                         Label("Фото", systemImage: "photo.fill")
                             .font(.caption.weight(.semibold))
@@ -2947,12 +2963,23 @@ private struct ChatDetailSheet: View {
 
                     Button {
                         isFileImporterPresented = true
+                        pendingVoiceDuration = nil
                     } label: {
                         Label("Файл", systemImage: "paperclip")
                             .font(.caption.weight(.semibold))
                     }
                     .buttonStyle(.bordered)
                     .tint(SchoolTheme.teal)
+
+                    Button {
+                        pendingAttachment = nil
+                        pendingVoiceDuration = "0:12"
+                    } label: {
+                        Label("Голос", systemImage: "mic.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SchoolTheme.warning)
                 }
 
                 Button {
@@ -2995,6 +3022,10 @@ private struct ChatDetailSheet: View {
 
                 if let attachment = message.attachment {
                     attachmentChip(attachment)
+                }
+
+                if let voiceDuration = message.voiceDuration {
+                    voiceChip(duration: voiceDuration)
                 }
 
                 if let actionTitle = message.actionTitle {
@@ -3059,6 +3090,28 @@ private struct ChatDetailSheet: View {
             .background(SchoolTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func voiceChip(duration: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "waveform.circle.fill")
+                .foregroundStyle(SchoolTheme.warning)
+            Capsule()
+                .fill(SchoolTheme.warning.opacity(0.22))
+                .frame(height: 8)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(SchoolTheme.warning)
+                        .frame(width: 72, height: 8)
+                }
+            Text(duration)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(SchoolTheme.graphite)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(SchoolTheme.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func toggleTask(for message: ClassChatMessage) {
         guard let index = messages.firstIndex(where: { $0.id == message.id }) else {
             return
@@ -3088,11 +3141,13 @@ private struct ChatDetailSheet: View {
             author: "Вы",
             text: replyText.trimmed,
             timeLabel: "сейчас",
-            attachment: pendingAttachment
+            attachment: pendingAttachment,
+            voiceDuration: pendingVoiceDuration
         )
         messages.append(message)
         replyText = ""
         pendingAttachment = nil
+        pendingVoiceDuration = nil
     }
 
     private func save() {
@@ -3124,8 +3179,8 @@ private struct ChatDetailSheet: View {
         [GridItem(.adaptive(minimum: 86), spacing: 8)]
     }
 
-    private var attachmentCount: Int {
-        messages.filter { $0.attachment != nil }.count
+    private var mediaCount: Int {
+        messages.filter { $0.attachment != nil || $0.voiceDuration != nil }.count
     }
 
     private func reactionColor(for iconName: String) -> Color {
