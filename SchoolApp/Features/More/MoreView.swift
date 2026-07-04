@@ -550,6 +550,7 @@ private enum BackendEnvironment: String, CaseIterable, Identifiable, Codable {
 }
 
 private enum SyncEndpointKind: String, CaseIterable, Identifiable {
+    case signedUpload
     case classRoom
     case homework
     case announcementRead
@@ -561,6 +562,8 @@ private enum SyncEndpointKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .signedUpload:
+            "Upload URL"
         case .classRoom:
             "Класс"
         case .homework:
@@ -587,6 +590,8 @@ private enum SyncEndpointKind: String, CaseIterable, Identifiable {
 
     var path: String {
         switch self {
+        case .signedUpload:
+            "/files/upload-url"
         case .classRoom:
             "/classes"
         case .homework:
@@ -604,6 +609,8 @@ private enum SyncEndpointKind: String, CaseIterable, Identifiable {
 
     var entity: String {
         switch self {
+        case .signedUpload:
+            "file_upload_intent"
         case .classRoom:
             "class_room"
         case .homework:
@@ -621,6 +628,8 @@ private enum SyncEndpointKind: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
+        case .signedUpload:
+            "externaldrive.badge.plus"
         case .classRoom:
             "building.2.fill"
         case .homework:
@@ -638,6 +647,8 @@ private enum SyncEndpointKind: String, CaseIterable, Identifiable {
 
     var risk: String {
         switch self {
+        case .signedUpload:
+            "signed URL до отправки fileId"
         case .classRoom:
             "создает владельца и код класса"
         case .homework:
@@ -1049,7 +1060,7 @@ private struct ApiReadinessItem: Identifiable, Hashable {
             title: "OpenAPI MVP",
             artifact: "docs/openapi_mvp.yaml",
             status: "Готово",
-            detail: "Описаны batch-мутации и первые endpoint-ы класса, ДЗ, объявлений, чеков, приглашений и фото.",
+            detail: "Описаны batch-мутации, signed upload URL и первые endpoint-ы класса, ДЗ, объявлений, чеков, приглашений и фото.",
             iconName: "doc.text.fill",
             colorName: "green"
         ),
@@ -1079,9 +1090,9 @@ private struct ApiReadinessItem: Identifiable, Hashable {
         ),
         ApiReadinessItem(
             title: "File storage",
-            artifact: "Storage preflight + Private uploads",
+            artifact: "Signed upload contract + preflight",
             status: "Блокер",
-            detail: "iOS уже готовит preflight для фото, документов и чеков, но реальный private storage и signed upload URL еще должны появиться на backend.",
+            detail: "iOS уже готовит preflight, а OpenAPI описывает signed upload URL; реальная выдача URL, private bucket и malware/moderation scan остаются backend-блокером.",
             iconName: "externaldrive.badge.icloud.fill",
             colorName: "red"
         )
@@ -6687,7 +6698,7 @@ private struct SyncCenterSheet: View {
         switch endpoint {
         case .classRoom, .announcementRead:
             SchoolTheme.success
-        case .homework, .familyInvite:
+        case .homework, .familyInvite, .signedUpload:
             SchoolTheme.accent
         case .receipt, .photo:
             SchoolTheme.warning

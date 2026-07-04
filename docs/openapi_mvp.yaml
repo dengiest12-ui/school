@@ -25,6 +25,26 @@ tags:
   - name: Files
   - name: Sync
 paths:
+  /files/upload-url:
+    post:
+      tags: [Files]
+      summary: Create a signed private upload URL for a local file before metadata mutation.
+      operationId: createSignedUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSignedUploadUrlRequest'
+      responses:
+        '201':
+          description: Signed upload URL and file id reserved for the next metadata mutation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedUploadUrl'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /sync/mutations:
     post:
       tags: [Sync]
@@ -241,18 +261,37 @@ components:
   schemas:
     MutationBatchRequest:
       type: object
-      required: [clientId, actorUserId, mutations]
+      required: [clientId, actorUserId, roleClaim, mutations]
       properties:
         clientId:
           type: string
         actorUserId:
           type: string
           format: uuid
+        roleClaim:
+          type: string
+        storagePreflight:
+          $ref: '#/components/schemas/StoragePreflight'
         mutations:
           type: array
           minItems: 1
           items:
             $ref: '#/components/schemas/Mutation'
+    StoragePreflight:
+      type: object
+      required: [privateBucket, pendingUploads, requiredBeforeMutationIds, policy]
+      properties:
+        privateBucket:
+          type: string
+        pendingUploads:
+          type: integer
+          minimum: 0
+        requiredBeforeMutationIds:
+          type: array
+          items:
+            type: string
+        policy:
+          type: string
     MutationBatchResponse:
       type: object
       required: [results]
@@ -431,6 +470,76 @@ components:
       allOf:
         - $ref: '#/components/schemas/VersionedEntity'
         - $ref: '#/components/schemas/CreateAlbumPhotoRequest'
+    CreateSignedUploadUrlRequest:
+      type: object
+      required: [classId, kind, fileName, mimeType, sizeBytes, checksumSha256]
+      properties:
+        classId:
+          type: string
+          format: uuid
+        familyId:
+          type: string
+          format: uuid
+          nullable: true
+        collectionId:
+          type: string
+          format: uuid
+          nullable: true
+        albumId:
+          type: string
+          format: uuid
+          nullable: true
+        kind:
+          type: string
+          enum: [receipt, photo, homework_attachment, class_document, support_attachment]
+        fileName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+          minimum: 1
+        checksumSha256:
+          type: string
+    SignedUploadUrl:
+      type: object
+      required: [fileId, uploadUrl, method, expiresAt, requiredHeaders, metadata]
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        uploadUrl:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum: [PUT, POST]
+        expiresAt:
+          type: string
+          format: date-time
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          $ref: '#/components/schemas/FileMetadata'
+    FileMetadata:
+      type: object
+      required: [fileId, privateBucket, storageKey, kind, visibility]
+      properties:
+        fileId:
+          type: string
+          format: uuid
+        privateBucket:
+          type: string
+        storageKey:
+          type: string
+        kind:
+          type: string
+          enum: [receipt, photo, homework_attachment, class_document, support_attachment]
+        visibility:
+          type: string
+          enum: [class_members, family_members, staff_only]
     VersionedEntity:
       type: object
       required: [id, version, createdAt, updatedAt]
