@@ -27,6 +27,19 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Создать сбор"].exists)
     }
 
+    func testParentCannotPublishAnnouncement() {
+        let app = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom",
+            "-qa-announcement-add"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Нет прав"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Публикация закрыта"].exists)
+        XCTAssertTrue(app.staticTexts["Доступ ограничен"].exists)
+        XCTAssertFalse(app.buttons["Опубликовать"].exists)
+    }
+
     func testBehaviorQAGateListsCriticalInvariants() {
         let app = launchApp(arguments: ["-qa-tab", "more", "-qa-more-behavior"])
 
@@ -48,6 +61,7 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(firstLaunch.navigationBars["Объявление"].waitForExistence(timeout: 4))
         XCTAssertTrue(firstLaunch.buttons["announcement.acknowledge"].waitForExistence(timeout: 4))
         firstLaunch.buttons["announcement.acknowledge"].tap()
+        XCTAssertTrue(firstLaunch.buttons["announcement.acknowledged"].waitForExistence(timeout: 4))
 
         firstLaunch.terminate()
 
