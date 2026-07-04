@@ -114,10 +114,41 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(secondLaunch.staticTexts["homework.title.Страница 45, номера 6, 7, 8"].exists)
     }
 
+    func testCalendarEventPersistsAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-calendar-store",
+            "-qa-tab", "calendar",
+            "-qa-calendar-add"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Новое событие"].waitForExistence(timeout: 4))
+        let saveButton = firstLaunch.buttons["calendar.event.save"]
+        scrollUntilVisible(saveButton, in: firstLaunch)
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 4))
+        saveButton.tap()
+        XCTAssertTrue(firstLaunch.staticTexts["calendar.event.date.Пт, 17 июля, 09:10"].waitForExistence(timeout: 4))
+
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-tab", "calendar"
+        ])
+
+        XCTAssertTrue(secondLaunch.staticTexts["Календарь"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["calendar.event.title.Экскурсия в музей"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["calendar.event.date.Пт, 17 июля, 09:10"].exists)
+    }
+
     private func launchApp(arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: bundleIdentifier)
         app.launchArguments = arguments + ["-qa-skip-onboarding"]
         app.launch()
         return app
+    }
+
+    private func scrollUntilVisible(_ element: XCUIElement, in app: XCUIApplication, attempts: Int = 6) {
+        for _ in 0..<attempts where !element.isHittable {
+            app.swipeUp()
+        }
     }
 }

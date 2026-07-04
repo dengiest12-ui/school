@@ -195,9 +195,11 @@ struct CalendarView: View {
                     Text(event.title)
                         .font(.headline)
                         .foregroundStyle(SchoolTheme.graphite)
+                        .accessibilityIdentifier("calendar.event.title.\(event.title)")
                     Text(event.dateLabel)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(SchoolTheme.success)
+                        .accessibilityIdentifier("calendar.event.date.\(event.dateLabel)")
                     Text(event.participants.isEmpty ? "Участники: весь класс" : "Участники: \(event.participants.joined(separator: ", "))")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(SchoolTheme.accent)
@@ -382,6 +384,7 @@ private struct AddEventSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(SchoolTheme.success)
+                    .accessibilityIdentifier("calendar.event.save")
                     .disabled(
                         title.trimmed.isEmpty
                             || dateLabel.trimmed.isEmpty
