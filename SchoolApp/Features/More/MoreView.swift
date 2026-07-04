@@ -783,6 +783,67 @@ private struct LegalReadinessItem: Identifiable, Hashable {
     ]
 }
 
+private struct RealDeviceQaItem: Identifiable, Hashable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var status: String
+    var evidence: String
+    var iconName: String
+    var colorName: String
+
+    static let sample: [RealDeviceQaItem] = [
+        RealDeviceQaItem(
+            title: "Подпись и запуск",
+            detail: "Поставить сборку на iPhone, открыть приложение и убедиться, что подпись доверена.",
+            status: "Ждет iPhone",
+            evidence: "Скрин Xcode Devices + запуск на устройстве",
+            iconName: "iphone.gen3",
+            colorName: "orange"
+        ),
+        RealDeviceQaItem(
+            title: "Камера и фото",
+            detail: "Проверить ДЗ по фото, чек сбора, фотоальбом класса и разрешения камеры/галереи.",
+            status: "Ждет iPhone",
+            evidence: "Фото добавляется, превью видно, отказ разрешения не ломает экран",
+            iconName: "camera.fill",
+            colorName: "orange"
+        ),
+        RealDeviceQaItem(
+            title: "Файлы и шаринг",
+            detail: "Открыть document picker, прикрепить файл к ДЗ/сбору/чату и проверить системный Share Sheet.",
+            status: "Ждет iPhone",
+            evidence: "Имя файла сохраняется, лист шаринга открывается",
+            iconName: "folder.fill",
+            colorName: "orange"
+        ),
+        RealDeviceQaItem(
+            title: "Уведомления",
+            detail: "Запросить разрешение iOS, запланировать локальный тест и проверить тихие часы.",
+            status: "Ждет iPhone",
+            evidence: "Локальное уведомление приходит, отказ показывается в настройках",
+            iconName: "bell.badge.fill",
+            colorName: "orange"
+        ),
+        RealDeviceQaItem(
+            title: "Роли и приватность",
+            detail: "Пройти родителя, родкомитет, учителя и детский режим на реальном размере экрана.",
+            status: "Ждет iPhone",
+            evidence: "Запреты родителя и детская навигация совпадают с Simulator QA",
+            iconName: "person.2.badge.gearshape.fill",
+            colorName: "orange"
+        ),
+        RealDeviceQaItem(
+            title: "Производительность",
+            detail: "Проверить холодный старт, прокрутку ДЗ/класса/фото и отсутствие рывков на длинных списках.",
+            status: "Ждет iPhone",
+            evidence: "Нет зависаний дольше 1 секунды на ключевых вкладках",
+            iconName: "speedometer",
+            colorName: "orange"
+        )
+    ]
+}
+
 private struct BetaTesterGroup: Identifiable, Hashable {
     let id = UUID()
     var title: String
@@ -2312,6 +2373,8 @@ struct MoreView: View {
                 }
             case .legal:
                 LegalCenterSheet(settings: privacySettings)
+            case .realDeviceQa:
+                RealDeviceQaSheet()
             case .metrics:
                 MvpMetricsSheet(events: analyticsEvents, metrics: mvpMetrics) { updatedEvents, updatedMetrics in
                     analyticsEvents = updatedEvents
@@ -2546,6 +2609,7 @@ struct MoreView: View {
             MoreMenuItem(title: "Приватность", subtitle: privacySubtitle, icon: "hand.raised.fill", color: SchoolTheme.teal, sheet: .privacy),
             MoreMenuItem(title: "Юридика", subtitle: "Политика, условия и App Store-блокеры", icon: "doc.text.magnifyingglass", color: SchoolTheme.graphite, sheet: .legal),
             MoreMenuItem(title: "Модерация", subtitle: moderationSubtitle, icon: "flag.fill", color: SchoolTheme.danger, sheet: .moderation),
+            MoreMenuItem(title: "Проверка на iPhone", subtitle: "Камера, файлы, уведомления, подпись", icon: "iphone.gen3", color: SchoolTheme.accent, sheet: .realDeviceQa),
             MoreMenuItem(title: "QA-состояния", subtitle: "\(qaPassedCount) из \(qaScenarios.count) проверены: пусто, offline, нет прав", icon: "checkmark.seal.fill", color: SchoolTheme.success, sheet: .qaStates),
             MoreMenuItem(title: "Бета / TestFlight", subtitle: "Release gate, тестеры и сценарии приемки", icon: "testtube.2", color: SchoolTheme.accent, sheet: .betaReadiness),
             MoreMenuItem(title: "Поддержка", subtitle: "Написать нам", icon: "message.fill", color: SchoolTheme.accent, sheet: .support),
@@ -2634,6 +2698,10 @@ struct MoreView: View {
 
         if arguments.contains("-qa-more-legal") {
             return .legal
+        }
+
+        if arguments.contains("-qa-more-real-device") {
+            return .realDeviceQa
         }
 
         if arguments.contains("-qa-more-metrics") {
@@ -6248,6 +6316,124 @@ private struct LegalCenterSheet: View {
     }
 }
 
+private struct RealDeviceQaSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let checks = RealDeviceQaItem.sample
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    MoreSheetHeader(
+                        icon: "iphone.gen3",
+                        color: SchoolTheme.accent,
+                        title: "Проверка на iPhone",
+                        subtitle: "Ручной прогон того, что Simulator не доказывает перед TestFlight"
+                    )
+
+                    DashboardCard {
+                        HStack(spacing: 12) {
+                            MoreMetric(value: "\(checks.count)", title: "проверок", color: SchoolTheme.accent)
+                            Divider()
+                            MoreMetric(value: "\(waitingCount)", title: "ждут", color: SchoolTheme.warning)
+                            Divider()
+                            MoreMetric(value: "0", title: "пройдено", color: SchoolTheme.success)
+                        }
+                        .frame(height: 62)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Что пройти на устройстве")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+
+                            ForEach(checks) { check in
+                                deviceCheckRow(check)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Почему это отдельный gate", systemImage: "exclamationmark.triangle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("Simulator хорошо ловит навигацию, состояния и верстку. Реальный iPhone нужен для камеры, галереи, файлов, уведомлений, подписи, памяти, плавности прокрутки и поведения системных листов.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    DashboardCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Следующий шаг", systemImage: "checkmark.seal.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(SchoolTheme.graphite)
+                            Text("После установки на iPhone нужно пройти этот список, приложить фактические скриншоты или заметки в чеклист и только потом считать TestFlight gate готовым.")
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(20)
+                .padding(.bottom, 20)
+            }
+            .background(SchoolTheme.page.ignoresSafeArea())
+            .navigationTitle("iPhone QA")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var waitingCount: Int {
+        checks.filter { $0.status == "Ждет iPhone" }.count
+    }
+
+    private func deviceCheckRow(_ check: RealDeviceQaItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                IconBadge(systemName: check.iconName, color: moreColor(for: check.colorName), size: 42)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(check.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        StatusBadge(text: check.status, color: moreColor(for: check.colorName))
+                    }
+
+                    Text(check.detail)
+                        .font(.caption)
+                        .foregroundStyle(SchoolTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+            }
+
+            Label(check.evidence, systemImage: "doc.text.magnifyingglass")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct PrivacySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -8977,6 +9163,7 @@ private enum MoreSheet: String, Identifiable {
     case security
     case privacy
     case legal
+    case realDeviceQa
     case metrics
     case aiQuality
     case qaStates

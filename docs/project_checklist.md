@@ -821,11 +821,11 @@
   - Артефакт: `xcodebuild ... iPhone 17 Pro`, `.build/screenshots/final-verified-*.png`, `.build/screenshots/regression-*-after-calendar.png`, `.build/screenshots/regression-*-after-collections.png`, `.build/screenshots/regression-*-after-schedule.png`, `.build/screenshots/regression-*-after-chats.png`, `.build/screenshots/regression-*-after-access.png`, `.build/screenshots/regression-*-after-settings.png`, `.build/screenshots/regression-*-after-bugfixes.png`
   - Комментарий: сборка проходит; пять вкладок запускались в booted Simulator через QA-параметр `-qa-tab`, для вкладки `Класс` используется внутреннее имя `classRoom`
 
-- [ ] Проверка на реальном iPhone
+- [~] Проверка на реальном iPhone
   - Проверка: камера, уведомления, авторизация, подписка и производительность работают на устройстве
-  - Уровень: 0
-  - Артефакт:
-  - Комментарий:
+  - Уровень: 2
+  - Артефакт: `.build/screenshots/qa-smoke/more-real-device.png`
+  - Комментарий: в приложении добавлен ручной gate-чеклист для реального iPhone: подпись и запуск, камера/фото, файлы/Share Sheet, уведомления, роли/приватность и производительность; фактический прогон на физическом устройстве еще не выполнен
 
 - [~] Автоматические тесты критичных сценариев
   - Проверка: покрыты модели, права, парсинг AI-результата, создание ДЗ/событий/сборов
@@ -1031,3 +1031,4 @@
 | 2026-07-04 | Архив выполненных ДЗ | Пройдено | 3 | `SchoolApp/Features/Homework/HomeworkView.swift`, `SchoolApp/Models/SampleData.swift`, `.build/screenshots/qa-smoke/homework-archive.png` | В шапке ДЗ добавлена кнопка архива; экран показывает число выполненных заданий, количество сроков и детей, группирует готовые ДЗ по срокам и отображает предмет, задание и ребенка; smoke получил отдельный сценарий `homework-archive`; `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана прошли |
 | 2026-07-04 | Локальный центр модерации | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-moderation.png` | В разделе `Еще` добавлен экран модерации: очередь жалоб на фото, чат и участника, счетчики новых/на проверке/закрытых, локальные действия смены статуса и правила безопасности; серверная очередь и аудит решений еще не подключены |
 | 2026-07-04 | Юридический центр MVP | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-legal.png` | В разделе `Еще` добавлен экран юридической готовности: черновики политики/условий, статус согласия родителя, блокеры App Store, публичной ссылки, владельца приложения и фактических провайдеров; финальный юридический обзор еще не выполнен |
+| 2026-07-04 | Gate проверки на iPhone | Пройдено | 2 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-real-device.png` | В разделе `Еще` добавлен экран ручной проверки физического iPhone: подпись, камера, фото, файлы, системный шаринг, уведомления, роли, приватность и производительность; smoke проверяет доступность экрана, фактическая проверка на устройстве остается отдельным ручным шагом |
