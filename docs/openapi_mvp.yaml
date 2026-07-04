@@ -25,6 +25,7 @@ tags:
   - name: Invites
   - name: Files
   - name: Subscriptions
+  - name: Privacy
   - name: Sync
 paths:
   /health:
@@ -94,6 +95,49 @@ paths:
                 $ref: '#/components/schemas/SubscriptionEntitlement'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /me/export:
+    get:
+      tags: [Privacy]
+      summary: Prepare an export of the current user's family, child, class and file metadata before deletion.
+      operationId: exportMyData
+      parameters:
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [account_personal_data, child_profile, family_access, files_receipts, all_local_and_server_data]
+      responses:
+        '200':
+          description: Export manifest for user review before deletion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDataExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/deletion-requests:
+    post:
+      tags: [Privacy]
+      summary: Create a verified account or scoped data deletion request.
+      operationId: createDeletionRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeletionRequest'
+      responses:
+        '202':
+          description: Deletion request accepted and audit event recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /classes:
     post:
       tags: [Classes]
@@ -335,6 +379,71 @@ components:
         gracePeriodEndsAt:
           type: string
           format: date-time
+    UserDataExport:
+      type: object
+      required: [exportId, scope, status, generatedAt, sections]
+      properties:
+        exportId:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [account_personal_data, child_profile, family_access, files_receipts, all_local_and_server_data]
+        status:
+          type: string
+          enum: [ready, queued, failed]
+        generatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        sections:
+          type: array
+          items:
+            type: string
+        downloadUrl:
+          type: string
+          format: uri
+    CreateDeletionRequest:
+      type: object
+      required: [scope, confirmation, exportId]
+      properties:
+        scope:
+          type: string
+          enum: [account_personal_data, child_profile, family_access, files_receipts, all_local_and_server_data]
+        confirmation:
+          type: string
+          example: DELETE
+        exportId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+    DeletionRequest:
+      type: object
+      required: [requestId, scope, status, auditId, requestedAt]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [account_personal_data, child_profile, family_access, files_receipts, all_local_and_server_data]
+        status:
+          type: string
+          enum: [accepted, grace_period, completed, cancelled, rejected]
+        auditId:
+          type: string
+          format: uuid
+        requestedAt:
+          type: string
+          format: date-time
+        gracePeriodEndsAt:
+          type: string
+          format: date-time
+        visibleToUser:
+          type: boolean
     MutationBatchRequest:
       type: object
       required: [clientId, actorUserId, roleClaim, mutations]

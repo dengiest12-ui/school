@@ -5185,6 +5185,8 @@ private struct SecuritySettingsSheet: View {
                             .buttonStyle(.bordered)
                             .tint(SchoolTheme.accent)
 
+                            serverDeletionReadinessCard(ServerDeletionReadiness.make(scope: settings.deleteScope))
+
                             Divider()
 
                             VStack(alignment: .leading, spacing: 8) {
@@ -5316,6 +5318,42 @@ private struct SecuritySettingsSheet: View {
         }
     }
 
+    private func serverDeletionReadinessCard(_ readiness: ServerDeletionReadiness) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Server deletion", systemImage: "server.rack")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: readiness.status, color: SchoolTheme.warning)
+            }
+
+            Text(readiness.exportEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(readiness.deleteEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(readiness.auditRule)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(readiness.gracePeriod)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(SchoolTheme.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func securityToggle(
         title: String,
         detail: String,
@@ -5348,6 +5386,38 @@ private struct SecuritySettingsSheet: View {
     private func prepareDeletionRequest() {
         settings.deleteRequestStatus = MoreLocalStore.performLocalDeletion(scope: settings.deleteScope)
         settings.deleteConfirmation = ""
+    }
+}
+
+private struct ServerDeletionReadiness: Hashable {
+    var status: String
+    var exportEndpoint: String
+    var deleteEndpoint: String
+    var auditRule: String
+    var gracePeriod: String
+
+    static func make(scope: String) -> ServerDeletionReadiness {
+        let serverScope: String
+        switch scope {
+        case "Профиль ребенка":
+            serverScope = "child_profile"
+        case "Семейные доступы":
+            serverScope = "family_access"
+        case "Локальные файлы и чеки":
+            serverScope = "files_receipts"
+        case "Все локальные данные":
+            serverScope = "all_local_and_server_data"
+        default:
+            serverScope = "account_personal_data"
+        }
+
+        return ServerDeletionReadiness(
+            status: "backend gate",
+            exportEndpoint: "GET /me/export?scope=\(serverScope)",
+            deleteEndpoint: "POST /me/deletion-requests",
+            auditRule: "Backend must verify password/session, write AuditLog and revoke class/family access by scope.",
+            gracePeriod: "7 day grace period for account deletion; files and child data stay hidden immediately."
+        )
     }
 }
 
