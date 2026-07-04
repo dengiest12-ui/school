@@ -25,6 +25,7 @@ tags:
   - name: Invites
   - name: Files
   - name: Subscriptions
+  - name: Notifications
   - name: Privacy
   - name: Sync
 paths:
@@ -95,6 +96,48 @@ paths:
                 $ref: '#/components/schemas/SubscriptionEntitlement'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /devices/push-token:
+    post:
+      tags: [Notifications]
+      summary: Register or rotate an APNs token for the current user's device.
+      operationId: registerPushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPushTokenRequest'
+      responses:
+        '200':
+          description: Device token accepted and notification preferences synced.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushDevice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /notifications/dispatch-preview:
+    post:
+      tags: [Notifications]
+      summary: Preview the backend audience and APNs priority for a notification before delivery.
+      operationId: previewNotificationDispatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationDispatchPreviewRequest'
+      responses:
+        '200':
+          description: Notification routing preview for QA and server-side dry-run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDispatchPreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /me/export:
     get:
       tags: [Privacy]
@@ -430,6 +473,95 @@ components:
         gracePeriodEndsAt:
           type: string
           format: date-time
+    RegisterPushTokenRequest:
+      type: object
+      required: [deviceId, platform, apnsToken, environment, preferences]
+      properties:
+        deviceId:
+          type: string
+        platform:
+          type: string
+          enum: [ios]
+        apnsToken:
+          type: string
+        environment:
+          type: string
+          enum: [sandbox, production]
+        preferences:
+          type: array
+          items:
+            type: string
+            enum: [evening_digest, morning_digest, urgent_announcements, payment_deadlines, family_tasks]
+        quietHours:
+          $ref: '#/components/schemas/QuietHours'
+    PushDevice:
+      type: object
+      required: [deviceId, platform, status, registeredAt]
+      properties:
+        deviceId:
+          type: string
+        platform:
+          type: string
+          enum: [ios]
+        status:
+          type: string
+          enum: [active, revoked, token_rotated]
+        registeredAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+    QuietHours:
+      type: object
+      required: [enabled, start, end]
+      properties:
+        enabled:
+          type: boolean
+        start:
+          type: string
+          example: '22:00'
+        end:
+          type: string
+          example: '07:00'
+    NotificationDispatchPreviewRequest:
+      type: object
+      required: [kind, classId, targetScope]
+      properties:
+        kind:
+          type: string
+          enum: [evening_digest, morning_digest, urgent_announcement, payment_deadline, family_task]
+        classId:
+          type: string
+          format: uuid
+        childId:
+          type: string
+          format: uuid
+        targetScope:
+          type: string
+          enum: [class, child_family, unpaid_families, family_member]
+        bypassQuietHours:
+          type: boolean
+    NotificationDispatchPreview:
+      type: object
+      required: [kind, targetScope, deviceCount, apnsPriority, respectsQuietHours, dryRun]
+      properties:
+        kind:
+          type: string
+        targetScope:
+          type: string
+        deviceCount:
+          type: integer
+          minimum: 0
+        apnsPriority:
+          type: string
+          enum: [passive, active, time_sensitive]
+        respectsQuietHours:
+          type: boolean
+        dryRun:
+          type: boolean
+        blockedReason:
+          type: string
     UserDataExport:
       type: object
       required: [exportId, scope, status, generatedAt, sections]

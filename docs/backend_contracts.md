@@ -309,8 +309,20 @@ iOS dry-run теперь показывает будущий auth-контекс
 - Любое изменение финансового статуса другой семьи.
 - Загрузка фото, чеков и документов.
 - Entitlement подписки для AI/расширенных функций через StoreKit transaction и `GET /subscriptions/entitlement`.
+- Регистрация APNs device token и адресная доставка уведомлений по роли, ребенку, классу и семейным доступам.
 - Удаление аккаунта, ребенка, семьи или класса.
 - Подписка и платежи.
+
+### Push notifications
+
+Локальные уведомления в iOS остаются fallback для MVP. Реальная доставка должна идти через backend и APNs:
+
+1. iOS отправляет `POST /devices/push-token` после получения APNs token, смены пользователя, смены класса или изменения notification preferences.
+2. Backend хранит device token отдельно по пользователю, устройству, окружению sandbox/production, class role claim и quiet hours.
+3. `POST /notifications/dispatch-preview` используется как dry-run перед релизом: показывает audience, `deviceCount`, APNs priority и применение тихих часов.
+4. Срочные объявления получают `time_sensitive` priority и могут обходить quiet hours; обычные дайджесты, оплаты и семейные задачи должны уважать quiet hours.
+5. Для сборов сервер отправляет напоминания только семьям в целевом сегменте, например `unpaid_families`, а не всему классу.
+6. Отказ iOS от уведомлений, token rotation и удаление аккаунта должны отзывать device token и писать событие в AuditLog.
 
 ### Export and deletion
 

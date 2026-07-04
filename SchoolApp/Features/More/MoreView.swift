@@ -4248,6 +4248,8 @@ private struct NotificationSettingsSheet: View {
                                 scheduleEnabledNotifications()
                             }
 
+                            apnsReadinessCard(APNsReadiness.make(settings: settings, enabledCount: enabledCount))
+
                             if !scheduledPreview.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("В очереди iOS")
@@ -4422,6 +4424,42 @@ private struct NotificationSettingsSheet: View {
                 .background(color.opacity(0.11), in: Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    private func apnsReadinessCard(_ readiness: APNsReadiness) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("APNs readiness", systemImage: "antenna.radiowaves.left.and.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: readiness.status, color: SchoolTheme.warning)
+            }
+
+            Text(readiness.tokenEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(readiness.dispatchEndpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(readiness.routingRule)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(readiness.quietHoursRule)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(SchoolTheme.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func requestPermission() {
@@ -4628,6 +4666,26 @@ private struct NotificationSettingsSheet: View {
     private func save() {
         onSave(preferences, settings)
         dismiss()
+    }
+}
+
+private struct APNsReadiness: Hashable {
+    var status: String
+    var tokenEndpoint: String
+    var dispatchEndpoint: String
+    var routingRule: String
+    var quietHoursRule: String
+
+    static func make(settings: NotificationSettingsState, enabledCount: Int) -> APNsReadiness {
+        APNsReadiness(
+            status: "backend gate",
+            tokenEndpoint: "POST /devices/push-token",
+            dispatchEndpoint: "POST /notifications/dispatch-preview",
+            routingRule: "Server routes \(enabledCount) enabled channels by child/class/family role and stores per-device opt-outs.",
+            quietHoursRule: settings.quietHoursEnabled
+                ? "Quiet hours \(settings.quietStart)-\(settings.quietEnd); urgent announcements bypass as time-sensitive."
+                : "Quiet hours disabled; backend still must rate-limit urgent and payment reminders."
+        )
     }
 }
 

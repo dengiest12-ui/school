@@ -44,7 +44,7 @@
 | iOS-приложение | `[~]` | 3 | Создан `SchoolApp.xcodeproj`; онбординг, ДЗ, календарь, сборы, расписание, чаты, объявления, семейный доступ, роли, детский режим, приглашения, настройки уведомлений и подписки собираются и проверяются на iPhone 17 Simulator; данные разделов "Класс", "ДЗ", "Календарь" и "Еще" сохраняются локально между перезапусками. |
 | Backend / синхронизация | `[~]` | 3 | Для MVP добавлены локальное хранение, backend-контракты, OpenAPI draft, signed upload contract, экран очереди синхронизации, typed dry-run API-клиента, auth context, storage preflight, metadata release и network readiness gate; настоящий backend, storage и серверные права еще не подключены. |
 | AI-разбор фото/текста | `[~]` | 3 | Реализован локальный MVP-поток разбора ДЗ из фото/текста с правкой результата; реальный AI/backend еще не подключен. |
-| Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; реальные Push еще не подключены. |
+| Уведомления | `[~]` | 3 | Локальный экран настроек дайджестов, срочного, дедлайнов и тихих часов проверен в Simulator; добавлен APNs/backend readiness gate, настоящий push-сервер еще не подключен. |
 | Подписка | `[~]` | 3 | Локальный экран trial, тарифов MVP, восстановления покупок, StoreKit 2 каталога и entitlement-readiness проверен в Simulator; настоящие покупки и App Store Connect еще не подключены. |
 | Безопасность и приватность | `[~]` | 3 | Добавлен локальный экран безопасности: закрытый класс, управление участниками, маскирование финансов, подтверждение входов, подготовка удаления данных, request lifecycle, локальная отмена через re-auth и server deletion readiness; юридическая часть и серверная защита еще впереди. |
 | Релизная готовность | `[~]` | 3 | Добавлены локальные экраны поддержки, отчета о проблеме и выхода; App Store, политика, аналитика и TestFlight еще не готовы. |
@@ -636,8 +636,8 @@
 - [~] Разрешение на уведомления
   - Проверка: onboarding объясняет пользу и корректно обрабатывает отказ
   - Уровень: 3
-  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
-  - Комментарий: в онбординге есть объяснение и переключатель, в настройках добавлен системный запрос `UNUserNotificationCenter.requestAuthorization`; обработка отказа видна в статусе, APNs и серверные push еще не подключены
+  - Артефакт: `SchoolApp/Features/Onboarding/OnboardingView.swift`, `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
+  - Комментарий: в онбординге есть объяснение и переключатель, в настройках добавлен системный запрос `UNUserNotificationCenter.requestAuthorization`; обработка отказа видна в статусе; экран показывает APNs readiness для `POST /devices/push-token`, настоящий push-сервер еще не подключен
 
 - [~] Вечерний дайджест
   - Проверка: вечером пользователь получает "что завтра"
@@ -655,7 +655,7 @@
   - Проверка: важные объявления доставляются отдельно и заметно
   - Уровень: 3
   - Артефакт: `SchoolApp/Features/More/MoreView.swift`, `.build/screenshots/notifications-ios-local.png`, `.build/screenshots/notifications-scheduled-local.png`, `.build/screenshots/qa-smoke/more-notifications.png`
-  - Комментарий: настройка срочных объявлений есть в UI, локальный MVP планирует отдельное time-sensitive iOS-уведомление; APNs-канал доставки, приоритет и серверная адресация еще не подключены
+  - Комментарий: настройка срочных объявлений есть в UI, локальный MVP планирует отдельное time-sensitive iOS-уведомление; backend-контракт фиксирует `time_sensitive`, dispatch preview и обход тихих часов для срочного, реальная APNs-доставка еще не подключена
 
 - [~] Дедлайны оплат
   - Проверка: напоминания приходят до срока и при просрочке
@@ -1021,3 +1021,4 @@
 | 2026-07-04 | Server deletion readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-security.png` | Экран безопасности показывает будущий server deletion gate: `GET /me/export`, `POST /me/deletion-requests`, AuditLog, scope и 7-day grace period; OpenAPI получил export/deletion schemas; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
 | 2026-07-04 | Deletion status and cancel readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `docs/release_materials.md`, `.build/screenshots/qa-smoke/more-security.png` | Экран безопасности и backend-контракт показывают жизненный цикл заявки удаления: `GET /me/deletion-requests/{requestId}`, `POST /me/deletion-requests/{requestId}/cancel`, `canCancel`, re-auth и AuditLog для отмены; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
 | 2026-07-04 | Local deletion lifecycle UX | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `scripts/qa_smoke.sh`, `.build/screenshots/qa-smoke/more-security-lifecycle.png`, `docs/project_checklist.md` | Экран безопасности хранит локальный requestId, grace period, статус `canCancel`, re-auth код `1234`, кнопку отмены и AuditLog-события создания/отмены заявки; smoke получил отдельный кадр нижнего lifecycle-блока; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана безопасности прошли |
+| 2026-07-04 | APNs backend readiness | Пройдено | 3 | `SchoolApp/Features/More/MoreView.swift`, `docs/openapi_mvp.yaml`, `docs/backend_contracts.md`, `.build/screenshots/qa-smoke/more-notifications.png` | Экран уведомлений показывает APNs readiness gate: `POST /devices/push-token`, `POST /notifications/dispatch-preview`, quiet hours, time-sensitive urgent и role/child/class routing; OpenAPI получил push token и dispatch preview schemas; YAML-проверка, `xcodebuild clean build`, полный smoke-прогон и визуальная проверка экрана уведомлений прошли |
