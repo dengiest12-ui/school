@@ -6,6 +6,7 @@ struct AppView: View {
     @AppStorage("currentUserRole") private var currentUserRoleRaw = AppUserRole.parent.rawValue
     @State private var selectedTab: AppTab
     @State private var completedForcedOnboarding = false
+    @State private var completedChildrenReset = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         _selectedTab = State(initialValue: initialTab)
@@ -20,6 +21,7 @@ struct AppView: View {
             }
         }
         .onAppear(perform: resetOnboardingIfNeeded)
+        .onAppear(perform: resetChildrenIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
     }
@@ -89,6 +91,15 @@ struct AppView: View {
         completedForcedOnboarding = false
     }
 
+    private func resetChildrenIfNeeded() {
+        guard Self.resetsChildren, !completedChildrenReset else {
+            return
+        }
+
+        AppChildStore.clear()
+        completedChildrenReset = true
+    }
+
     private func normalizeSelectedTab() {
         guard !visibleTabs.contains(selectedTab) else {
             return
@@ -122,6 +133,10 @@ struct AppView: View {
 
     private static var resetsOnboarding: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-reset-onboarding")
+    }
+
+    private static var resetsChildren: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-reset-children-store")
     }
 
     private static var launchRole: AppUserRole? {

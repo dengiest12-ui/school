@@ -95,6 +95,26 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Следующий уровень автоматизации"].exists)
     }
 
+    func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Миша, 3Б"].waitForExistence(timeout: 4))
+        app.buttons["today.child.selector"].tap()
+        app.buttons["today.child.option.Аня.4А"].tap()
+
+        app.buttons["tab.classRoom"].tap()
+
+        XCTAssertTrue(app.staticTexts["Класс 4А"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Аня: родкомитет, код 4A-1254"].exists)
+        XCTAssertTrue(app.buttons["class.section.collections"].exists)
+        app.buttons["class.section.collections"].tap()
+        XCTAssertTrue(app.buttons["Создать сбор"].waitForExistence(timeout: 4))
+    }
+
     func testAnnouncementAcknowledgementPersistsAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-class-store",

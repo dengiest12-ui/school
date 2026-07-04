@@ -480,6 +480,7 @@ struct TodayView: View {
                     selectedChildID = child.id.uuidString
                     AppChildStore.select(child)
                 }
+                .accessibilityIdentifier("today.child.option.\(child.name).\(child.className)")
             }
             Divider()
             Button("Добавить ребенка") {
@@ -510,6 +511,7 @@ struct TodayView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("today.child.selector")
     }
 
     private var tomorrowCard: some View {
