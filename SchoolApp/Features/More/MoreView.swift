@@ -1615,7 +1615,7 @@ private struct SupabaseReadinessProbe: Identifiable, Hashable {
 
 private struct SupabaseClassRoomRow: Decodable, Hashable {
     var id: String
-    var name: String
+    var title: String
     var invite_code: String?
 }
 
@@ -1666,6 +1666,30 @@ private struct SupabaseAuthSessionProbe: Hashable {
     }
 }
 
+private struct SupabaseRlsSmokeProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var seedUser: String
+    var parentResult: String
+    var teacherResult: String
+    var anonResult: String
+    var nextStep: String
+
+    static func make(config: SupabaseBackendConfig) -> SupabaseRlsSmokeProbe {
+        SupabaseRlsSmokeProbe(
+            title: "RLS smoke seed",
+            status: "SQL proven",
+            statusColorName: "green",
+            seedUser: "parent 10000000-0000-4000-8000-000000000001",
+            parentResult: "parent sees 1 class: QA-3B-2026",
+            teacherResult: "teacher sees 2 classes: QA-3B-2026, QA-4A-2026",
+            anonResult: "anon sees 0 classes",
+            nextStep: config.hasAccessToken ? "Run live iOS request with this user token and map returned class rows" : "Issue a real Supabase Auth access token for the seed parent before iOS signed REST proof"
+        )
+    }
+}
+
 private struct SupabaseLiveProbeResult: Hashable {
     var title: String
     var status: String
@@ -1684,7 +1708,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             status: config.hasAnonKey ? "ready to run" : "blocked",
             statusColorName: config.hasAnonKey ? "blue" : "orange",
             method: "GET",
-            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
             headerState: config.hasAnonKey ? "apikey ready, bearer \(config.accessTokenPreview ?? config.anonKeyPreview ?? "set")" : "missing SUPABASE_ANON_KEY",
             detail: config.hasAccessToken ? "URLSession request is prepared with user token; local class data still stays active until rows map cleanly." : "URLSession request is prepared with anon key; no local class data is replaced until a signed user probe succeeds.",
@@ -1709,12 +1733,12 @@ private struct SupabaseLiveProbeResult: Hashable {
             status: rows.isEmpty ? "reachable" : "rows",
             statusColorName: rows.isEmpty ? "blue" : "green",
             method: "GET",
-            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
             headerState: config.hasAccessToken ? "HTTP \(statusCode), user bearer accepted" : "HTTP \(statusCode), anon bearer accepted",
             detail: rows.isEmpty ? "REST responded, but RLS/auth seed returned no visible classes yet." : "REST responded with visible class rows.",
             nextStep: rows.isEmpty ? "Seed signed test user, profile, class membership and retry with user session token" : (config.hasAccessToken ? "Map returned rows into local class repository" : "Repeat with user access token before trusting RLS"),
-            rowsPreview: rows.isEmpty ? "[]" : rows.map { row in "\(row.name) (\(row.invite_code ?? "no code"))" }.joined(separator: ", ")
+            rowsPreview: rows.isEmpty ? "[]" : rows.map { row in "\(row.title) (\(row.invite_code ?? "no code"))" }.joined(separator: ", ")
         )
     }
 
@@ -1724,7 +1748,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             status: "HTTP \(statusCode)",
             statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
             method: "GET",
-            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
             headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "apikey sent",
             detail: message,
@@ -1739,7 +1763,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             status: "network",
             statusColorName: "red",
             method: "GET",
-            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
             headerState: "apikey prepared",
             detail: message,
@@ -1760,7 +1784,7 @@ private struct SupabaseLiveClient {
         }
 
         components.queryItems = [
-            URLQueryItem(name: "select", value: "id,name,invite_code"),
+            URLQueryItem(name: "select", value: "id,title,invite_code"),
             URLQueryItem(name: "limit", value: "3")
         ]
 
@@ -8158,6 +8182,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseConfig = SupabaseBackendConfig.make()
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
+    @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
@@ -8537,6 +8562,7 @@ private struct SyncCenterSheet: View {
             }
 
             supabaseAuthSessionCard(supabaseAuthSession)
+            supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
             Button {
@@ -9002,6 +9028,50 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(moreColor(for: session.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseRlsSmokeCard(_ smoke: SupabaseRlsSmokeProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(smoke.title, systemImage: "lock.shield.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: smoke.status, color: moreColor(for: smoke.statusColorName))
+            }
+
+            Text(smoke.seedUser)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(smoke.parentResult)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.success)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(smoke.teacherResult)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(smoke.anonResult)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(smoke.nextStep)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(10)
+        .background(moreColor(for: smoke.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
@@ -9518,6 +9588,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
         syncStatus = supabaseConfig.hasAnonKey
@@ -9528,6 +9599,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseAuthSessionReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = supabaseConfig.hasAccessToken
             ? "Supabase auth session готовится к RLS-проверке: live probe пойдет с user bearer token."
@@ -9538,6 +9610,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
         let result = await SupabaseLiveClient.probeClassRooms(config: supabaseConfig)

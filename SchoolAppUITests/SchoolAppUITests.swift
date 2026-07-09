@@ -160,6 +160,9 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Supabase Auth session", in: app))
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "RLS is not proven", in: app))
+        XCTAssertTrue(findStaticText("RLS smoke seed", in: app))
+        XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
+        XCTAssertTrue(findStaticText(containing: "anon sees 0 classes", in: app))
         XCTAssertTrue(findStaticText("Live REST probe", in: app))
         XCTAssertTrue(findStaticText(containing: "GET /class_rooms", in: app))
 

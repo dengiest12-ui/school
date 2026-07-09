@@ -73,14 +73,17 @@ Current verified state:
 - Auth: `https://tlhjwfauddueioatkahm.supabase.co/auth/v1`
 - Expected schema: 14 public tables and 44 RLS/storage policies.
 - Storage bucket: private `class-files`.
-- Live REST probe: `GET /class_rooms?select=id,name,invite_code&limit=3` through `URLSession`.
+- RLS helpers: moved to non-exposed `private` schema through `supabase/migrations/20260710003000_harden_rls_helpers.sql`.
+- RLS smoke seed: `supabase/seeds/rls_smoke_seed.sql`.
+- RLS smoke checks: `supabase/tests/rls_smoke.sql`.
+- Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided; when a user access token exists, the live probe sends it as `Authorization: Bearer <access token>` while keeping the anon key in the `apikey` header.
 
 Gate before first signed iOS request:
 
 - Add `SUPABASE_ANON_KEY` through build config or test launch environment.
-- Seed test auth users, profiles, class rooms, class members and children.
+- Seed test auth users, profiles, class rooms, class members and children. Current smoke seed is applied for `QA-3B-2026` and `QA-4A-2026`.
 - Provide a signed seed user's access token, refresh token and user id to the iOS test run.
 - Run the live `class_rooms` probe with anon key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
@@ -99,3 +102,19 @@ Additional iOS verification:
 
 - MVP metrics persistence retest passed in `.build/MvpMetricsUITest-3.xcresult` after making the test-event action explicit and visible.
 - The app now reports RLS as unproven until a signed user request returns only the seeded user's class rows.
+
+## Latest Supabase verification
+
+Date: 2026-07-10
+
+- Security advisor after RLS helper hardening: no warnings for exposed `SECURITY DEFINER` helper RPCs.
+- Remaining security advisor warning: leaked password protection is disabled in Supabase Auth settings; this is a project Auth setting to enable before public auth testing.
+- RLS SQL smoke:
+  - `anon` sees 0 class rows.
+  - Seed parent `10000000-0000-4000-8000-000000000001` sees only `QA-3B-2026`.
+  - Seed teacher `10000000-0000-4000-8000-000000000002` sees `QA-3B-2026` and `QA-4A-2026`.
+  - Seed parent sees only child `Smoke Child`.
+- iOS verification:
+  - Targeted Supabase RLS smoke UI test passed in `.build/SupabaseRlsSmokeUITest.xcresult`.
+  - Full UI run passed through the first 11 tests and was interrupted by an Xcode launch timeout on `testAnnouncementAcknowledgementPersistsAfterRelaunch`; the same test and the remaining persistence tests passed in separate reruns.
+  - Full smoke suite passed 50 scenarios, summary in `.build/screenshots/qa-smoke/summary.txt`.
