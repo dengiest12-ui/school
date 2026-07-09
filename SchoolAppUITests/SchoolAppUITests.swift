@@ -157,6 +157,8 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("verified", in: app))
         XCTAssertTrue(findStaticText("private", in: app))
         XCTAssertTrue(findStaticText(containing: "tlhjwfauddueioatkahm", in: app))
+        XCTAssertTrue(findStaticText("Live REST probe", in: app))
+        XCTAssertTrue(findStaticText(containing: "GET /class_rooms", in: app))
 
         let readinessButton = app.buttons["sync.supabase-readiness"]
         scrollUntilVisible(readinessButton, in: app)
@@ -164,6 +166,13 @@ final class SchoolAppUITests: XCTestCase {
         readinessButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ANON_KEY", in: app))
+
+        let liveProbeButton = app.buttons["sync.supabase-live-probe"]
+        scrollUntilVisible(liveProbeButton, in: app)
+        XCTAssertTrue(liveProbeButton.waitForExistence(timeout: 4))
+        liveProbeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "Live URLSession request is intentionally blocked", in: app))
     }
 
     func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {

@@ -1486,6 +1486,7 @@ private struct SupabaseBackendConfig: Hashable {
     var restBaseURL: String
     var storageBaseURL: String
     var authBaseURL: String
+    var anonKey: String?
     var anonKeyPreview: String?
     var hasAnonKey: Bool
     var migrationFile: String
@@ -1504,6 +1505,7 @@ private struct SupabaseBackendConfig: Hashable {
             restBaseURL: "https://\(projectRef).supabase.co/rest/v1",
             storageBaseURL: "https://\(projectRef).supabase.co/storage/v1",
             authBaseURL: "https://\(projectRef).supabase.co/auth/v1",
+            anonKey: anonKey,
             anonKeyPreview: anonKey.map(Self.preview),
             hasAnonKey: anonKey?.isEmpty == false,
             migrationFile: "supabase/migrations/20260704190000_initial_school_schema.sql",
@@ -1590,6 +1592,147 @@ private struct SupabaseReadinessProbe: Identifiable, Hashable {
                 iconName: "person.badge.key.fill"
             )
         ]
+    }
+}
+
+private struct SupabaseClassRoomRow: Decodable, Hashable {
+    var id: String
+    var name: String
+    var invite_code: String?
+}
+
+private struct SupabaseErrorResponse: Decodable, Hashable {
+    var code: String?
+    var message: String?
+    var details: String?
+    var hint: String?
+}
+
+private struct SupabaseLiveProbeResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseLiveProbeResult {
+        SupabaseLiveProbeResult(
+            title: "Live REST probe",
+            status: config.hasAnonKey ? "ready to run" : "blocked",
+            statusColorName: config.hasAnonKey ? "blue" : "orange",
+            method: "GET",
+            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            url: "\(config.restBaseURL)/class_rooms",
+            headerState: config.hasAnonKey ? "apikey header ready, bearer preview \(config.anonKeyPreview ?? "set")" : "missing SUPABASE_ANON_KEY",
+            detail: "URLSession request is prepared; no local class data is replaced until a signed probe succeeds.",
+            nextStep: config.hasAnonKey ? "Run probe, then seed auth users/class memberships for real rows" : "Add SUPABASE_ANON_KEY through build config or test launch environment",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseLiveProbeResult {
+        var result = planned(config: config)
+        result.status = "blocked"
+        result.statusColorName = "orange"
+        result.headerState = "missing SUPABASE_ANON_KEY"
+        result.detail = "Live URLSession request is intentionally blocked before network access."
+        result.rowsPreview = "0 rows"
+        return result
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseClassRoomRow], statusCode: Int) -> SupabaseLiveProbeResult {
+        SupabaseLiveProbeResult(
+            title: "Live REST probe",
+            status: rows.isEmpty ? "reachable" : "rows",
+            statusColorName: rows.isEmpty ? "blue" : "green",
+            method: "GET",
+            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            url: "\(config.restBaseURL)/class_rooms",
+            headerState: "HTTP \(statusCode), apikey header accepted",
+            detail: rows.isEmpty ? "REST responded, but RLS/auth seed returned no visible classes yet." : "REST responded with visible class rows.",
+            nextStep: rows.isEmpty ? "Seed signed test user, profile, class membership and retry with user session token" : "Map returned rows into local class repository",
+            rowsPreview: rows.isEmpty ? "[]" : rows.map { row in "\(row.name) (\(row.invite_code ?? "no code"))" }.joined(separator: ", ")
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseLiveProbeResult {
+        SupabaseLiveProbeResult(
+            title: "Live REST probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            url: "\(config.restBaseURL)/class_rooms",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "apikey sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Connect Supabase Auth session before reading class data" : "Check Supabase REST/RLS response and migration state",
+            rowsPreview: "not decoded"
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseLiveProbeResult {
+        SupabaseLiveProbeResult(
+            title: "Live REST probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/class_rooms?select=id,name,invite_code&limit=3",
+            url: "\(config.restBaseURL)/class_rooms",
+            headerState: "apikey prepared",
+            detail: message,
+            nextStep: "Keep local data active and retry after network/backend healthcheck",
+            rowsPreview: "not requested"
+        )
+    }
+}
+
+private struct SupabaseLiveClient {
+    static func probeClassRooms(config: SupabaseBackendConfig) async -> SupabaseLiveProbeResult {
+        guard let anonKey = config.anonKey, anonKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/class_rooms") else {
+            return .networkError(config: config, message: "Invalid Supabase REST URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "id,name,invite_code"),
+            URLQueryItem(name: "limit", value: "3")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase class_rooms query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(anonKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseClassRoomRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
     }
 }
 
@@ -7927,6 +8070,7 @@ private struct SyncCenterSheet: View {
     @State private var environment: BackendEnvironment = .staging
     @State private var dryRunResult: SyncDryRunResult?
     @State private var supabaseConfig = SupabaseBackendConfig.make()
+    @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
@@ -8305,6 +8449,8 @@ private struct SyncCenterSheet: View {
                 supabaseProbeRow(probe)
             }
 
+            supabaseLiveProbeCard(supabaseLiveProbe)
+
             Button {
                 runSupabaseReadiness()
             } label: {
@@ -8316,6 +8462,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-readiness")
+
+            Button {
+                Task {
+                    await runSupabaseLiveProbe()
+                }
+            } label: {
+                Label("Запустить live REST probe", systemImage: "dot.radiowaves.left.and.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-live-probe")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -8642,6 +8802,56 @@ private struct SyncCenterSheet: View {
         }
         .padding(8)
         .background(moreColor(for: probe.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseLiveProbeCard(_ result: SupabaseLiveProbeResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "dot.radiowaves.left.and.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
@@ -9157,10 +9367,23 @@ private struct SyncCenterSheet: View {
 
     private func runSupabaseReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
         syncStatus = supabaseConfig.hasAnonKey
             ? "Supabase readiness готов: URL, anon key, schema и private storage подготовлены для первого live-запроса."
             : "Supabase readiness частичный: schema и private storage готовы, live URLSession-запрос ждет SUPABASE_ANON_KEY."
+    }
+
+    @MainActor
+    private func runSupabaseLiveProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
+        let result = await SupabaseLiveClient.probeClassRooms(config: supabaseConfig)
+        supabaseLiveProbe = result
+        syncStatus = result.status == "blocked"
+            ? "Supabase live probe заблокирован: нужен SUPABASE_ANON_KEY."
+            : "Supabase live probe завершен: \(result.headerState). \(result.nextStep)"
     }
 
     private func save() {

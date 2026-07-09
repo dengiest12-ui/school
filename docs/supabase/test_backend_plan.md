@@ -73,10 +73,22 @@ Current verified state:
 - Auth: `https://tlhjwfauddueioatkahm.supabase.co/auth/v1`
 - Expected schema: 14 public tables and 44 RLS/storage policies.
 - Storage bucket: private `class-files`.
+- Live REST probe: `GET /class_rooms?select=id,name,invite_code&limit=3` through `URLSession`.
+- Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided through build config or test launch environment.
 
-Gate before first live iOS request:
+Gate before first signed iOS request:
 
 - Add `SUPABASE_ANON_KEY` through build config or test launch environment.
 - Seed test auth users, profiles, class rooms, class members and children.
-- Run a signed request smoke against `profiles` / `class_rooms`.
+- Run the live `class_rooms` probe with anon key, then repeat with a real Supabase Auth session token.
+- Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
+
+## Latest iOS verification
+
+Date: 2026-07-09
+
+- Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed in `.build/SupabaseLiveProbeUITest-2.xcresult`.
+- Full UI suite: 15 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
+- Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
+- One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
