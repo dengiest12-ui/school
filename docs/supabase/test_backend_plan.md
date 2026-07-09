@@ -79,14 +79,14 @@ Current verified state:
 - RLS write checks: `supabase/tests/rls_write_smoke.sql`.
 - Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
-- Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided; when a user access token exists, the live probe sends it as `Authorization: Bearer <access token>` while keeping the anon key in the `apikey` header.
+- Current live behavior: blocked until `SUPABASE_PUBLISHABLE_KEY` or legacy `SUPABASE_ANON_KEY` is provided. The live probe sends the client key in the `apikey` header; `Authorization: Bearer <access token>` is sent only when a real user token exists. Legacy anon bearer remains a fallback when no publishable key is configured.
 
 Gate before first signed iOS request:
 
-- Add `SUPABASE_ANON_KEY` through build config or test launch environment.
+- Add `SUPABASE_PUBLISHABLE_KEY` through build config or test launch environment. Legacy `SUPABASE_ANON_KEY` still works as fallback.
 - Seed test auth users, profiles, class rooms, class members and children. Current smoke seed is applied for `QA-3B-2026` and `QA-4A-2026`.
 - Provide a signed seed user's access token, refresh token and user id to the iOS test run.
-- Run the live `class_rooms` probe with anon key, then repeat with a real Supabase Auth session token.
+- Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
 

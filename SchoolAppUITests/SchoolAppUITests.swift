@@ -173,6 +173,7 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(readinessButton.waitForExistence(timeout: 4))
         readinessButton.tap()
 
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_PUBLISHABLE_KEY", in: app))
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ANON_KEY", in: app))
 
         let authSessionButton = app.buttons["sync.supabase-auth-session"]

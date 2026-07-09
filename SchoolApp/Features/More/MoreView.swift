@@ -1486,6 +1486,9 @@ private struct SupabaseBackendConfig: Hashable {
     var restBaseURL: String
     var storageBaseURL: String
     var authBaseURL: String
+    var publishableKey: String?
+    var publishableKeyPreview: String?
+    var hasPublishableKey: Bool
     var anonKey: String?
     var anonKeyPreview: String?
     var hasAnonKey: Bool
@@ -1499,9 +1502,34 @@ private struct SupabaseBackendConfig: Hashable {
     var expectedTableCount: Int
     var expectedPolicyCount: Int
     var storageBucket: String
+    var clientApiKey: String? {
+        publishableKey ?? anonKey
+    }
+
+    var clientKeyPreview: String? {
+        publishableKeyPreview ?? anonKeyPreview
+    }
+
+    var hasClientApiKey: Bool {
+        clientApiKey?.isEmpty == false
+    }
+
+    var clientKeyKind: String {
+        if hasPublishableKey {
+            return "publishable"
+        }
+
+        if hasAnonKey {
+            return "legacy anon"
+        }
+
+        return "missing"
+    }
 
     static func make() -> SupabaseBackendConfig {
         let projectRef = "tlhjwfauddueioatkahm"
+        let publishableKey = Self.readValue(named: "SUPABASE_PUBLISHABLE_KEY")
+            ?? Self.readValue(named: "SupabasePublishableKey")
         let anonKey = Self.readValue(named: "SUPABASE_ANON_KEY")
             ?? Self.readValue(named: "SupabaseAnonKey")
         let accessToken = Self.readValue(named: "SUPABASE_ACCESS_TOKEN")
@@ -1517,6 +1545,9 @@ private struct SupabaseBackendConfig: Hashable {
             restBaseURL: "https://\(projectRef).supabase.co/rest/v1",
             storageBaseURL: "https://\(projectRef).supabase.co/storage/v1",
             authBaseURL: "https://\(projectRef).supabase.co/auth/v1",
+            publishableKey: publishableKey,
+            publishableKeyPreview: publishableKey.map(Self.preview),
+            hasPublishableKey: publishableKey?.isEmpty == false,
             anonKey: anonKey,
             anonKeyPreview: anonKey.map(Self.preview),
             hasAnonKey: anonKey?.isEmpty == false,
@@ -1575,11 +1606,11 @@ private struct SupabaseReadinessProbe: Identifiable, Hashable {
             ),
             SupabaseReadinessProbe(
                 title: "REST API",
-                status: config.hasAnonKey ? "ready" : "needs anon key",
-                statusColorName: config.hasAnonKey ? "green" : "orange",
+                status: config.hasClientApiKey ? "ready" : "key missing",
+                statusColorName: config.hasClientApiKey ? "green" : "orange",
                 endpoint: config.restBaseURL,
-                detail: "URLSession can call PostgREST once anon key is provided",
-                nextStep: config.hasAnonKey ? "Run signed request smoke against profiles/class_rooms" : "Add SUPABASE_ANON_KEY through build config or test launch environment",
+                detail: "URLSession uses \(config.clientKeyKind) apikey; user JWT stays separate",
+                nextStep: config.hasClientApiKey ? "Run signed request smoke against profiles/class_rooms" : "Add SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY through build config/test environment",
                 iconName: "network"
             ),
             SupabaseReadinessProbe(
@@ -1707,14 +1738,14 @@ private struct SupabaseLiveProbeResult: Hashable {
     static func planned(config: SupabaseBackendConfig) -> SupabaseLiveProbeResult {
         SupabaseLiveProbeResult(
             title: "Live REST probe",
-            status: config.hasAnonKey ? "ready to run" : "blocked",
-            statusColorName: config.hasAnonKey ? "blue" : "orange",
+            status: config.hasClientApiKey ? "ready to run" : "blocked",
+            statusColorName: config.hasClientApiKey ? "blue" : "orange",
             method: "GET",
             path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: config.hasAnonKey ? "apikey ready, bearer \(config.accessTokenPreview ?? config.anonKeyPreview ?? "set")" : "missing SUPABASE_ANON_KEY",
-            detail: config.hasAccessToken ? "URLSession request is prepared with user token; local class data still stays active until rows map cleanly." : "URLSession request is prepared with anon key; no local class data is replaced until a signed user probe succeeds.",
-            nextStep: config.hasAnonKey ? (config.hasAccessToken ? "Run probe, verify RLS, then map class rows into repository" : "Run anon probe, then repeat with Supabase Auth session token") : "Add SUPABASE_ANON_KEY through build config or test launch environment",
+            headerState: config.hasClientApiKey ? "apikey \(config.clientKeyKind) ready, bearer \(config.accessTokenPreview ?? (config.hasPublishableKey ? "user token missing" : config.anonKeyPreview ?? "set"))" : "missing SUPABASE_PUBLISHABLE_KEY",
+            detail: config.hasAccessToken ? "URLSession request is prepared with user token; local class data still stays active until rows map cleanly." : "URLSession request is prepared with client apikey; no local class data is replaced until a signed user probe succeeds.",
+            nextStep: config.hasClientApiKey ? (config.hasAccessToken ? "Run probe, verify RLS, then map class rows into repository" : "Run anon probe, then repeat with Supabase Auth session token") : "Add SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY through build config/test environment",
             rowsPreview: "not requested"
         )
     }
@@ -1723,7 +1754,7 @@ private struct SupabaseLiveProbeResult: Hashable {
         var result = planned(config: config)
         result.status = "blocked"
         result.statusColorName = "orange"
-        result.headerState = "missing SUPABASE_ANON_KEY"
+        result.headerState = "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY"
         result.detail = "Live URLSession request is intentionally blocked before network access."
         result.rowsPreview = "0 rows"
         return result
@@ -1737,7 +1768,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             method: "GET",
             path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: config.hasAccessToken ? "HTTP \(statusCode), user bearer accepted" : "HTTP \(statusCode), anon bearer accepted",
+            headerState: config.hasAccessToken ? "HTTP \(statusCode), user bearer accepted" : "HTTP \(statusCode), \(config.clientKeyKind) apikey accepted",
             detail: rows.isEmpty ? "REST responded, but RLS/auth seed returned no visible classes yet." : "REST responded with visible class rows.",
             nextStep: rows.isEmpty ? "Seed signed test user, profile, class membership and retry with user session token" : (config.hasAccessToken ? "Map returned rows into local class repository" : "Repeat with user access token before trusting RLS"),
             rowsPreview: rows.isEmpty ? "[]" : rows.map { row in "\(row.title) (\(row.invite_code ?? "no code"))" }.joined(separator: ", ")
@@ -1752,7 +1783,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             method: "GET",
             path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "apikey sent",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey sent",
             detail: message,
             nextStep: statusCode == 401 || statusCode == 403 ? "Connect Supabase Auth session before reading class data" : "Check Supabase REST/RLS response and migration state",
             rowsPreview: "not decoded"
@@ -1767,7 +1798,7 @@ private struct SupabaseLiveProbeResult: Hashable {
             method: "GET",
             path: "/class_rooms?select=id,title,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: "apikey prepared",
+            headerState: "\(config.clientKeyKind) apikey prepared",
             detail: message,
             nextStep: "Keep local data active and retry after network/backend healthcheck",
             rowsPreview: "not requested"
@@ -1777,7 +1808,7 @@ private struct SupabaseLiveProbeResult: Hashable {
 
 private struct SupabaseLiveClient {
     static func probeClassRooms(config: SupabaseBackendConfig) async -> SupabaseLiveProbeResult {
-        guard let anonKey = config.anonKey, anonKey.isEmpty == false else {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
             return .missingKey(config: config)
         }
 
@@ -1797,8 +1828,12 @@ private struct SupabaseLiveClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 8
-        request.addValue(anonKey, forHTTPHeaderField: "apikey")
-        request.addValue("Bearer \(config.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        if let accessToken = config.accessToken, accessToken.isEmpty == false {
+            request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        } else if config.hasAnonKey && !config.hasPublishableKey, let anonKey = config.anonKey {
+            request.addValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        }
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
@@ -8206,7 +8241,7 @@ private struct SyncCenterSheet: View {
             if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error") {
                 _syncStatus = State(initialValue: "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован.")
             } else if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-supabase") {
-                _syncStatus = State(initialValue: "Supabase test backend подключен на уровне схемы: live iOS-запрос ждет anon key и тестовых пользователей.")
+                _syncStatus = State(initialValue: "Supabase test backend подключен на уровне схемы: live iOS-запрос ждет publishable/client key и тестовых пользователей.")
             } else {
                 _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
             }
@@ -8542,7 +8577,7 @@ private struct SyncCenterSheet: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(SchoolTheme.graphite)
                 Spacer()
-                StatusBadge(text: supabaseConfig.hasAnonKey ? "key set" : "key missing", color: supabaseConfig.hasAnonKey ? SchoolTheme.success : SchoolTheme.warning)
+                StatusBadge(text: supabaseConfig.hasClientApiKey ? "key set" : "key missing", color: supabaseConfig.hasClientApiKey ? SchoolTheme.success : SchoolTheme.warning)
             }
 
             Text("Тестовая база создана в Supabase Cloud; продакшен для РФ-аудитории остается отдельным решением.")
@@ -8555,7 +8590,7 @@ private struct SyncCenterSheet: View {
                 Divider()
                 MoreMetric(value: "\(supabaseConfig.expectedPolicyCount)", title: "политик", color: SchoolTheme.accent)
                 Divider()
-                MoreMetric(value: supabaseConfig.hasAnonKey ? "set" : "нет", title: "anon key", color: supabaseConfig.hasAnonKey ? SchoolTheme.success : SchoolTheme.warning)
+                MoreMetric(value: supabaseConfig.hasClientApiKey ? supabaseConfig.clientKeyKind : "нет", title: "client key", color: supabaseConfig.hasClientApiKey ? SchoolTheme.success : SchoolTheme.warning)
             }
             .frame(height: 54)
 
@@ -9599,9 +9634,9 @@ private struct SyncCenterSheet: View {
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
-        syncStatus = supabaseConfig.hasAnonKey
-            ? "Supabase readiness готов: URL, anon key, schema и private storage подготовлены для первого live-запроса."
-            : "Supabase readiness частичный: schema и private storage готовы, live URLSession-запрос ждет SUPABASE_ANON_KEY."
+        syncStatus = supabaseConfig.hasClientApiKey
+            ? "Supabase readiness готов: URL, client apikey, schema и private storage подготовлены для первого live-запроса."
+            : "Supabase readiness частичный: schema и private storage готовы, live URLSession-запрос ждет SUPABASE_PUBLISHABLE_KEY или SUPABASE_ANON_KEY."
     }
 
     private func runSupabaseAuthSessionReadiness() {
@@ -9624,7 +9659,7 @@ private struct SyncCenterSheet: View {
         let result = await SupabaseLiveClient.probeClassRooms(config: supabaseConfig)
         supabaseLiveProbe = result
         syncStatus = result.status == "blocked"
-            ? "Supabase live probe заблокирован: нужен SUPABASE_ANON_KEY."
+            ? "Supabase live probe заблокирован: нужен SUPABASE_PUBLISHABLE_KEY или SUPABASE_ANON_KEY."
             : "Supabase live probe завершен: \(result.headerState). \(result.nextStep)"
     }
 
