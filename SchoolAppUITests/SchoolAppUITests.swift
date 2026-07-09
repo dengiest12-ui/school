@@ -163,6 +163,8 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("RLS smoke seed", in: app))
         XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
         XCTAssertTrue(findStaticText(containing: "anon sees 0 classes", in: app))
+        XCTAssertTrue(findStaticText(containing: "parent blocked", in: app))
+        XCTAssertTrue(findStaticText(containing: "teacher allowed", in: app))
         XCTAssertTrue(findStaticText("Live REST probe", in: app))
         XCTAssertTrue(findStaticText(containing: "GET /class_rooms", in: app))
 

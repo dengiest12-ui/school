@@ -1674,6 +1674,7 @@ private struct SupabaseRlsSmokeProbe: Hashable {
     var parentResult: String
     var teacherResult: String
     var anonResult: String
+    var writeResult: String
     var nextStep: String
 
     static func make(config: SupabaseBackendConfig) -> SupabaseRlsSmokeProbe {
@@ -1685,6 +1686,7 @@ private struct SupabaseRlsSmokeProbe: Hashable {
             parentResult: "parent sees 1 class: QA-3B-2026",
             teacherResult: "teacher sees 2 classes: QA-3B-2026, QA-4A-2026",
             anonResult: "anon sees 0 classes",
+            writeResult: "writes: parent blocked, teacher allowed",
             nextStep: config.hasAccessToken ? "Run live iOS request with this user token and map returned class rows" : "Issue a real Supabase Auth access token for the seed parent before iOS signed REST proof"
         )
     }
@@ -9063,6 +9065,12 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
+
+            Text(smoke.writeResult)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.success)
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
 
             Text(smoke.nextStep)
                 .font(.caption2)

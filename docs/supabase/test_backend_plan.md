@@ -76,6 +76,7 @@ Current verified state:
 - RLS helpers: moved to non-exposed `private` schema through `supabase/migrations/20260710003000_harden_rls_helpers.sql`.
 - RLS smoke seed: `supabase/seeds/rls_smoke_seed.sql`.
 - RLS smoke checks: `supabase/tests/rls_smoke.sql`.
+- RLS write checks: `supabase/tests/rls_write_smoke.sql`.
 - Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided; when a user access token exists, the live probe sends it as `Authorization: Bearer <access token>` while keeping the anon key in the `apikey` header.
@@ -114,6 +115,11 @@ Date: 2026-07-10
   - Seed parent `10000000-0000-4000-8000-000000000001` sees only `QA-3B-2026`.
   - Seed teacher `10000000-0000-4000-8000-000000000002` sees `QA-3B-2026` and `QA-4A-2026`.
   - Seed parent sees only child `Smoke Child`.
+- RLS write smoke:
+  - Seed parent is blocked from publishing announcements.
+  - Seed parent is blocked from creating collections.
+  - Seed parent is blocked from adding collection expenses.
+  - Seed teacher can publish announcements, create collections and add collection expenses.
 - iOS verification:
   - Targeted Supabase RLS smoke UI test passed in `.build/SupabaseRlsSmokeUITest.xcresult`.
   - Full UI run passed through the first 11 tests and was interrupted by an Xcode launch timeout on `testAnnouncementAcknowledgementPersistsAfterRelaunch`; the same test and the remaining persistence tests passed in separate reruns.

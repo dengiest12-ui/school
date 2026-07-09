@@ -93,3 +93,17 @@ set
   display_name = excluded.display_name,
   grade_title = excluded.grade_title,
   updated_at = now();
+
+insert into public.collections (id, class_id, author_user_id, title, amount_per_family, total_count, paid_count, status)
+values
+  ('50000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Smoke bus collection', 1200, 20, 0, 'active')
+on conflict (id) do update
+set
+  class_id = excluded.class_id,
+  author_user_id = excluded.author_user_id,
+  title = excluded.title,
+  amount_per_family = excluded.amount_per_family,
+  total_count = excluded.total_count,
+  paid_count = excluded.paid_count,
+  status = excluded.status,
+  updated_at = now();
