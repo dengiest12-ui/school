@@ -74,12 +74,14 @@ Current verified state:
 - Expected schema: 14 public tables and 44 RLS/storage policies.
 - Storage bucket: private `class-files`.
 - Live REST probe: `GET /class_rooms?select=id,name,invite_code&limit=3` through `URLSession`.
-- Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided through build config or test launch environment.
+- Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
+- Current live behavior: blocked until `SUPABASE_ANON_KEY` is provided; when a user access token exists, the live probe sends it as `Authorization: Bearer <access token>` while keeping the anon key in the `apikey` header.
 
 Gate before first signed iOS request:
 
 - Add `SUPABASE_ANON_KEY` through build config or test launch environment.
 - Seed test auth users, profiles, class rooms, class members and children.
+- Provide a signed seed user's access token, refresh token and user id to the iOS test run.
 - Run the live `class_rooms` probe with anon key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -88,7 +90,12 @@ Gate before first signed iOS request:
 
 Date: 2026-07-09
 
-- Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed in `.build/SupabaseLiveProbeUITest-2.xcresult`.
+- Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed in `.build/SupabaseAuthSessionUITest.xcresult`.
 - Full UI suite: 15 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
 - One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
+
+Additional iOS verification:
+
+- MVP metrics persistence retest passed in `.build/MvpMetricsUITest-3.xcresult` after making the test-event action explicit and visible.
+- The app now reports RLS as unproven until a signed user request returns only the seeded user's class rows.

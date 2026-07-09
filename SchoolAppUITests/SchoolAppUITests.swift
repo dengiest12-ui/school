@@ -107,8 +107,8 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(firstLaunch.staticTexts["Активация класса"].exists)
         XCTAssertTrue(firstLaunch.staticTexts["Retention 30 дней"].exists)
 
-        firstLaunch.buttons["Добавить тестовое событие"].tap()
-        XCTAssertTrue(firstLaunch.staticTexts["qa_smoke_passed"].waitForExistence(timeout: 4))
+        firstLaunch.buttons["metrics.add-test-event"].tap()
+        XCTAssertTrue(firstLaunch.staticTexts["metrics.latest-event.qa_smoke_passed"].waitForExistence(timeout: 4))
         firstLaunch.navigationBars["Метрики"].buttons["Закрыть"].tap()
         firstLaunch.terminate()
 
@@ -118,7 +118,7 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(secondLaunch.navigationBars["Метрики"].waitForExistence(timeout: 4))
-        XCTAssertTrue(secondLaunch.staticTexts["qa_smoke_passed"].waitForExistence(timeout: 4))
+        XCTAssertTrue(secondLaunch.staticTexts["metrics.latest-event.qa_smoke_passed"].waitForExistence(timeout: 4))
         XCTAssertTrue(secondLaunch.staticTexts["Локальная проверка ключевого сценария"].exists)
     }
 
@@ -157,6 +157,9 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("verified", in: app))
         XCTAssertTrue(findStaticText("private", in: app))
         XCTAssertTrue(findStaticText(containing: "tlhjwfauddueioatkahm", in: app))
+        XCTAssertTrue(findStaticText("Supabase Auth session", in: app))
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
+        XCTAssertTrue(findStaticText(containing: "RLS is not proven", in: app))
         XCTAssertTrue(findStaticText("Live REST probe", in: app))
         XCTAssertTrue(findStaticText(containing: "GET /class_rooms", in: app))
 
@@ -166,6 +169,14 @@ final class SchoolAppUITests: XCTestCase {
         readinessButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ANON_KEY", in: app))
+
+        let authSessionButton = app.buttons["sync.supabase-auth-session"]
+        scrollUntilVisible(authSessionButton, in: app)
+        XCTAssertTrue(authSessionButton.waitForExistence(timeout: 4))
+        authSessionButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
+        XCTAssertTrue(findStaticText(containing: "seed membership", in: app))
 
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)

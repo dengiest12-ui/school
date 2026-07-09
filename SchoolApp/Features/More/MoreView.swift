@@ -1489,6 +1489,12 @@ private struct SupabaseBackendConfig: Hashable {
     var anonKey: String?
     var anonKeyPreview: String?
     var hasAnonKey: Bool
+    var accessToken: String?
+    var accessTokenPreview: String?
+    var hasAccessToken: Bool
+    var refreshToken: String?
+    var hasRefreshToken: Bool
+    var userID: String?
     var migrationFile: String
     var expectedTableCount: Int
     var expectedPolicyCount: Int
@@ -1498,6 +1504,12 @@ private struct SupabaseBackendConfig: Hashable {
         let projectRef = "tlhjwfauddueioatkahm"
         let anonKey = Self.readValue(named: "SUPABASE_ANON_KEY")
             ?? Self.readValue(named: "SupabaseAnonKey")
+        let accessToken = Self.readValue(named: "SUPABASE_ACCESS_TOKEN")
+            ?? Self.readValue(named: "SupabaseAccessToken")
+        let refreshToken = Self.readValue(named: "SUPABASE_REFRESH_TOKEN")
+            ?? Self.readValue(named: "SupabaseRefreshToken")
+        let userID = Self.readValue(named: "SUPABASE_USER_ID")
+            ?? Self.readValue(named: "SupabaseUserID")
 
         return SupabaseBackendConfig(
             projectRef: projectRef,
@@ -1508,6 +1520,12 @@ private struct SupabaseBackendConfig: Hashable {
             anonKey: anonKey,
             anonKeyPreview: anonKey.map(Self.preview),
             hasAnonKey: anonKey?.isEmpty == false,
+            accessToken: accessToken,
+            accessTokenPreview: accessToken.map(Self.preview),
+            hasAccessToken: accessToken?.isEmpty == false,
+            refreshToken: refreshToken,
+            hasRefreshToken: refreshToken?.isEmpty == false,
+            userID: userID,
             migrationFile: "supabase/migrations/20260704190000_initial_school_schema.sql",
             expectedTableCount: 14,
             expectedPolicyCount: 44,
@@ -1608,6 +1626,46 @@ private struct SupabaseErrorResponse: Decodable, Hashable {
     var hint: String?
 }
 
+private struct SupabaseAuthSessionProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var authURL: String
+    var userState: String
+    var tokenState: String
+    var refreshState: String
+    var rlsState: String
+    var nextStep: String
+
+    static func make(config: SupabaseBackendConfig) -> SupabaseAuthSessionProbe {
+        if config.hasAccessToken {
+            return SupabaseAuthSessionProbe(
+                title: "Supabase Auth session",
+                status: config.hasRefreshToken ? "ready" : "refresh missing",
+                statusColorName: config.hasRefreshToken ? "green" : "orange",
+                authURL: config.authBaseURL,
+                userState: config.userID.map { "user \($0)" } ?? "user id not provided",
+                tokenState: "Bearer \(config.accessTokenPreview ?? "set")",
+                refreshState: config.hasRefreshToken ? "refresh token available for retry" : "missing SUPABASE_REFRESH_TOKEN",
+                rlsState: "RLS can be checked with user JWT on class_rooms/profile rows",
+                nextStep: config.hasRefreshToken ? "Run class_rooms probe with user access token and seeded membership" : "Add refresh token before retry/offline session restore"
+            )
+        }
+
+        return SupabaseAuthSessionProbe(
+            title: "Supabase Auth session",
+            status: "session missing",
+            statusColorName: "orange",
+            authURL: config.authBaseURL,
+            userState: config.userID.map { "seed user \($0)" } ?? "local onboarding only",
+            tokenState: "missing SUPABASE_ACCESS_TOKEN",
+            refreshState: "missing SUPABASE_REFRESH_TOKEN",
+            rlsState: "RLS is not proven until a signed user request returns only that class",
+            nextStep: "Sign in seed user or inject SUPABASE_ACCESS_TOKEN, SUPABASE_REFRESH_TOKEN and SUPABASE_USER_ID"
+        )
+    }
+}
+
 private struct SupabaseLiveProbeResult: Hashable {
     var title: String
     var status: String
@@ -1628,9 +1686,9 @@ private struct SupabaseLiveProbeResult: Hashable {
             method: "GET",
             path: "/class_rooms?select=id,name,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: config.hasAnonKey ? "apikey header ready, bearer preview \(config.anonKeyPreview ?? "set")" : "missing SUPABASE_ANON_KEY",
-            detail: "URLSession request is prepared; no local class data is replaced until a signed probe succeeds.",
-            nextStep: config.hasAnonKey ? "Run probe, then seed auth users/class memberships for real rows" : "Add SUPABASE_ANON_KEY through build config or test launch environment",
+            headerState: config.hasAnonKey ? "apikey ready, bearer \(config.accessTokenPreview ?? config.anonKeyPreview ?? "set")" : "missing SUPABASE_ANON_KEY",
+            detail: config.hasAccessToken ? "URLSession request is prepared with user token; local class data still stays active until rows map cleanly." : "URLSession request is prepared with anon key; no local class data is replaced until a signed user probe succeeds.",
+            nextStep: config.hasAnonKey ? (config.hasAccessToken ? "Run probe, verify RLS, then map class rows into repository" : "Run anon probe, then repeat with Supabase Auth session token") : "Add SUPABASE_ANON_KEY through build config or test launch environment",
             rowsPreview: "not requested"
         )
     }
@@ -1653,9 +1711,9 @@ private struct SupabaseLiveProbeResult: Hashable {
             method: "GET",
             path: "/class_rooms?select=id,name,invite_code&limit=3",
             url: "\(config.restBaseURL)/class_rooms",
-            headerState: "HTTP \(statusCode), apikey header accepted",
+            headerState: config.hasAccessToken ? "HTTP \(statusCode), user bearer accepted" : "HTTP \(statusCode), anon bearer accepted",
             detail: rows.isEmpty ? "REST responded, but RLS/auth seed returned no visible classes yet." : "REST responded with visible class rows.",
-            nextStep: rows.isEmpty ? "Seed signed test user, profile, class membership and retry with user session token" : "Map returned rows into local class repository",
+            nextStep: rows.isEmpty ? "Seed signed test user, profile, class membership and retry with user session token" : (config.hasAccessToken ? "Map returned rows into local class repository" : "Repeat with user access token before trusting RLS"),
             rowsPreview: rows.isEmpty ? "[]" : rows.map { row in "\(row.name) (\(row.invite_code ?? "no code"))" }.joined(separator: ", ")
         )
     }
@@ -1714,7 +1772,7 @@ private struct SupabaseLiveClient {
         request.httpMethod = "GET"
         request.timeoutInterval = 8
         request.addValue(anonKey, forHTTPHeaderField: "apikey")
-        request.addValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("Bearer \(config.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
@@ -7168,16 +7226,44 @@ private struct MvpMetricsSheet: View {
                                     .font(.headline)
                                     .foregroundStyle(SchoolTheme.graphite)
                                 Spacer()
-                                Button {
-                                    addSmokeEvent()
-                                } label: {
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundStyle(SchoolTheme.accent)
-                                        .frame(width: 34, height: 34)
-                                        .background(SchoolTheme.accent.opacity(0.10), in: Circle())
+                            }
+
+                            Button {
+                                addSmokeEvent()
+                            } label: {
+                                Label("Добавить тестовое событие", systemImage: "plus.circle.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(SchoolTheme.accent)
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                                    .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("metrics.add-test-event")
+
+                            if let latestEvent = events.first {
+                                HStack(alignment: .top, spacing: 10) {
+                                    IconBadge(systemName: latestEvent.iconName, color: moreColor(for: latestEvent.colorName), size: 34)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Последнее событие")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(SchoolTheme.muted)
+                                        Text(latestEvent.name)
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(SchoolTheme.graphite)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.76)
+                                            .accessibilityIdentifier("metrics.latest-event.\(latestEvent.name)")
+                                        Text(latestEvent.detail)
+                                            .font(.caption2)
+                                            .foregroundStyle(SchoolTheme.muted)
+                                            .lineLimit(2)
+                                            .minimumScaleFactor(0.76)
+                                    }
+                                    Spacer()
+                                    StatusBadge(text: "\(latestEvent.count)", color: moreColor(for: latestEvent.colorName))
                                 }
-                                .accessibilityLabel("Добавить тестовое событие")
+                                .padding(8)
+                                .background(moreColor(for: latestEvent.colorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
 
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -8071,6 +8157,7 @@ private struct SyncCenterSheet: View {
     @State private var dryRunResult: SyncDryRunResult?
     @State private var supabaseConfig = SupabaseBackendConfig.make()
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
@@ -8449,6 +8536,7 @@ private struct SyncCenterSheet: View {
                 supabaseProbeRow(probe)
             }
 
+            supabaseAuthSessionCard(supabaseAuthSession)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
             Button {
@@ -8462,6 +8550,18 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-readiness")
+
+            Button {
+                runSupabaseAuthSessionReadiness()
+            } label: {
+                Label("Проверить auth session", systemImage: "person.badge.key.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.warning)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.warning.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-auth-session")
 
             Button {
                 Task {
@@ -8852,6 +8952,56 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseAuthSessionCard(_ session: SupabaseAuthSessionProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(session.title, systemImage: "person.badge.key.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: session.status, color: moreColor(for: session.statusColorName))
+            }
+
+            Text(session.authURL)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(session.userState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(session.tokenState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: session.statusColorName))
+                .lineLimit(1)
+                .minimumScaleFactor(0.70)
+
+            Text(session.refreshState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.74)
+
+            Text(session.rlsState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(session.nextStep)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .background(moreColor(for: session.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
@@ -9367,6 +9517,7 @@ private struct SyncCenterSheet: View {
 
     private func runSupabaseReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
         syncStatus = supabaseConfig.hasAnonKey
@@ -9374,9 +9525,19 @@ private struct SyncCenterSheet: View {
             : "Supabase readiness частичный: schema и private storage готовы, live URLSession-запрос ждет SUPABASE_ANON_KEY."
     }
 
+    private func runSupabaseAuthSessionReadiness() {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = supabaseConfig.hasAccessToken
+            ? "Supabase auth session готовится к RLS-проверке: live probe пойдет с user bearer token."
+            : "Supabase auth session не подключен: нужен SUPABASE_ACCESS_TOKEN, refresh token и seed membership."
+    }
+
     @MainActor
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
         let result = await SupabaseLiveClient.probeClassRooms(config: supabaseConfig)
