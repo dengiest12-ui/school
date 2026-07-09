@@ -160,6 +160,9 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Supabase Auth session", in: app))
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "RLS is not proven", in: app))
+        XCTAssertTrue(findStaticText("Auth refresh probe", in: app))
+        XCTAssertTrue(findStaticText(containing: "grant_type=refresh_token", in: app))
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_REFRESH_TOKEN", in: app))
         XCTAssertTrue(findStaticText("RLS smoke seed", in: app))
         XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
         XCTAssertTrue(findStaticText(containing: "anon sees 0 classes", in: app))
@@ -183,6 +186,14 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "seed membership", in: app))
+
+        let refreshSessionButton = app.buttons["sync.supabase-refresh-session"]
+        scrollUntilVisible(refreshSessionButton, in: app)
+        XCTAssertTrue(refreshSessionButton.waitForExistence(timeout: 4))
+        refreshSessionButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "client key и SUPABASE_REFRESH_TOKEN", in: app))
+        XCTAssertTrue(findStaticText(containing: "missing SUPABASE_PUBLISHABLE_KEY", in: app))
 
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)

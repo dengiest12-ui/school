@@ -1574,7 +1574,7 @@ private struct SupabaseBackendConfig: Hashable {
         return environmentValue?.isEmpty == false ? environmentValue : nil
     }
 
-    private static func preview(_ value: String) -> String {
+    static func preview(_ value: String) -> String {
         guard value.count > 12 else {
             return "set"
         }
@@ -1697,6 +1697,124 @@ private struct SupabaseAuthSessionProbe: Hashable {
     }
 }
 
+private struct SupabaseRefreshSessionRequest: Encodable {
+    var refresh_token: String
+}
+
+private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
+    var access_token: String?
+    var refresh_token: String?
+    var expires_in: Int?
+    var token_type: String?
+    var user: SupabaseRefreshSessionUser?
+}
+
+private struct SupabaseRefreshSessionUser: Decodable, Hashable {
+    var id: String?
+}
+
+private struct SupabaseSessionRefreshProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var endpoint: String
+    var headerState: String
+    var tokenState: String
+    var refreshState: String
+    var nextStep: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSessionRefreshProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasRefreshToken == false {
+            return missingRefreshToken(config: config)
+        }
+
+        return SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "ready",
+            statusColorName: "blue",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "apikey \(config.clientKeyKind) ready; no bearer fallback",
+            tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "access token optional for refresh",
+            refreshState: "SUPABASE_REFRESH_TOKEN ready",
+            nextStep: "Run refresh exchange, then use returned access token for signed class_rooms probe"
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSessionRefreshProbe {
+        SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "blocked",
+            statusColorName: "orange",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "missing SUPABASE_ACCESS_TOKEN",
+            refreshState: config.hasRefreshToken ? "SUPABASE_REFRESH_TOKEN ready" : "missing SUPABASE_REFRESH_TOKEN",
+            nextStep: "Add client apikey before calling Supabase Auth refresh endpoint"
+        )
+    }
+
+    static func missingRefreshToken(config: SupabaseBackendConfig) -> SupabaseSessionRefreshProbe {
+        SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "refresh missing",
+            statusColorName: "orange",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "apikey \(config.clientKeyKind) ready",
+            tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "missing SUPABASE_ACCESS_TOKEN",
+            refreshState: "missing SUPABASE_REFRESH_TOKEN",
+            nextStep: "Sign in seed user and pass refresh token through build config/test environment"
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, response: SupabaseRefreshSessionResponse, statusCode: Int) -> SupabaseSessionRefreshProbe {
+        let accessPreview = response.access_token.map(SupabaseBackendConfig.preview) ?? "missing"
+        let refreshState = response.refresh_token?.isEmpty == false ? "new refresh token received" : "refresh token not returned"
+        let expires = response.expires_in.map { ", expires \($0)s" } ?? ""
+        let user = response.user?.id.map { " for user \($0)" } ?? ""
+
+        return SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: "green",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "HTTP \(statusCode), \(config.clientKeyKind) apikey accepted",
+            tokenState: "access \(accessPreview)\(expires)\(user)",
+            refreshState: refreshState,
+            nextStep: "Use refreshed access token for signed class_rooms/profile probe; persist only after Keychain storage is wired"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSessionRefreshProbe {
+        SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "Supabase Auth rejected refresh request",
+            tokenState: message,
+            refreshState: "SUPABASE_REFRESH_TOKEN was sent in JSON body",
+            nextStep: statusCode == 401 || statusCode == 403 ? "Issue a fresh seed-user session and retry" : "Check Supabase Auth response before enabling session restore"
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSessionRefreshProbe {
+        SupabaseSessionRefreshProbe(
+            title: "Auth refresh probe",
+            status: "network",
+            statusColorName: "red",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=refresh_token",
+            headerState: "\(config.clientKeyKind) apikey prepared",
+            tokenState: message,
+            refreshState: config.hasRefreshToken ? "SUPABASE_REFRESH_TOKEN ready" : "missing SUPABASE_REFRESH_TOKEN",
+            nextStep: "Keep local session state active and retry after backend/network healthcheck"
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -1803,6 +1921,47 @@ private struct SupabaseLiveProbeResult: Hashable {
             nextStep: "Keep local data active and retry after network/backend healthcheck",
             rowsPreview: "not requested"
         )
+    }
+}
+
+private struct SupabaseAuthClient {
+    static func refreshSession(config: SupabaseBackendConfig) async -> SupabaseSessionRefreshProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let refreshToken = config.refreshToken, refreshToken.isEmpty == false else {
+            return .missingRefreshToken(config: config)
+        }
+
+        guard let url = URL(string: "\(config.authBaseURL)/token?grant_type=refresh_token") else {
+            return .networkError(config: config, message: "Invalid Supabase Auth token URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(SupabaseRefreshSessionRequest(refresh_token: refreshToken))
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let decoded = try JSONDecoder().decode(SupabaseRefreshSessionResponse.self, from: data)
+                return .success(config: config, response: decoded, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase Auth returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
     }
 }
 
@@ -8219,6 +8378,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseConfig = SupabaseBackendConfig.make()
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
+    @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
@@ -8599,6 +8759,7 @@ private struct SyncCenterSheet: View {
             }
 
             supabaseAuthSessionCard(supabaseAuthSession)
+            supabaseSessionRefreshCard(supabaseSessionRefresh)
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
@@ -8625,6 +8786,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-auth-session")
+
+            Button {
+                Task {
+                    await runSupabaseSessionRefreshProbe()
+                }
+            } label: {
+                Label("Обновить auth token", systemImage: "arrow.clockwise.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.accent)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-refresh-session")
 
             Button {
                 Task {
@@ -9065,6 +9240,50 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(moreColor(for: session.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseSessionRefreshCard(_ refresh: SupabaseSessionRefreshProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(refresh.title, systemImage: "arrow.clockwise.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: refresh.status, color: moreColor(for: refresh.statusColorName))
+            }
+
+            Text(refresh.endpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.52)
+
+            Text(refresh.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: refresh.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(refresh.tokenState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(refresh.refreshState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(refresh.nextStep)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .background(moreColor(for: refresh.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func supabaseRlsSmokeCard(_ smoke: SupabaseRlsSmokeProbe) -> some View {
@@ -9631,6 +9850,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
@@ -9642,6 +9862,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseAuthSessionReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = supabaseConfig.hasAccessToken
@@ -9650,9 +9871,25 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabaseSessionRefreshProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
+        let result = await SupabaseAuthClient.refreshSession(config: supabaseConfig)
+        supabaseSessionRefresh = result
+        syncStatus = result.status == "blocked" || result.status == "refresh missing"
+            ? "Supabase auth refresh заблокирован: нужен client key и SUPABASE_REFRESH_TOKEN."
+            : "Supabase auth refresh завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
