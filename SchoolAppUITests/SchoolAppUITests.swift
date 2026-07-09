@@ -144,6 +144,28 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "данные сохранены локально", in: app))
     }
 
+    func testSupabaseReadinessShowsSchemaAndMissingKeyGate() {
+        let app = launchApp(arguments: [
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Supabase test backend", in: app))
+        XCTAssertTrue(findStaticText("key missing", in: app))
+        XCTAssertTrue(findStaticText("verified", in: app))
+        XCTAssertTrue(findStaticText("private", in: app))
+        XCTAssertTrue(findStaticText(containing: "tlhjwfauddueioatkahm", in: app))
+
+        let readinessButton = app.buttons["sync.supabase-readiness"]
+        scrollUntilVisible(readinessButton, in: app)
+        XCTAssertTrue(readinessButton.waitForExistence(timeout: 4))
+        readinessButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_ANON_KEY", in: app))
+    }
+
     func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

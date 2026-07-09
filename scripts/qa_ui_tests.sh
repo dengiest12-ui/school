@@ -17,6 +17,7 @@ TESTS=(
   "testBehaviorQAGateListsCriticalInvariants"
   "testMvpMetricsEventPersistsAfterRelaunch"
   "testSyncNetworkErrorKeepsQueuedMutation"
+  "testSupabaseReadinessShowsSchemaAndMissingKeyGate"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"

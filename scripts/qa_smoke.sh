@@ -157,6 +157,7 @@ more-qa-states|-qa-tab more -qa-more-states
 more-sync|-qa-tab more -qa-more-sync
 more-sync-offline|-qa-tab more -qa-more-sync -qa-more-sync-offline
 more-sync-network-error|-qa-tab more -qa-more-sync -qa-more-sync-network-error
+more-sync-supabase|-qa-tab more -qa-more-sync -qa-more-sync-supabase
 more-moderation|-qa-tab more -qa-more-moderation
 more-beta|-qa-tab more -qa-more-beta
 SMOKE_CASES

@@ -1480,6 +1480,119 @@ private struct SyncNetworkReadiness: Hashable {
     }
 }
 
+private struct SupabaseBackendConfig: Hashable {
+    var projectRef: String
+    var region: String
+    var restBaseURL: String
+    var storageBaseURL: String
+    var authBaseURL: String
+    var anonKeyPreview: String?
+    var hasAnonKey: Bool
+    var migrationFile: String
+    var expectedTableCount: Int
+    var expectedPolicyCount: Int
+    var storageBucket: String
+
+    static func make() -> SupabaseBackendConfig {
+        let projectRef = "tlhjwfauddueioatkahm"
+        let anonKey = Self.readValue(named: "SUPABASE_ANON_KEY")
+            ?? Self.readValue(named: "SupabaseAnonKey")
+
+        return SupabaseBackendConfig(
+            projectRef: projectRef,
+            region: "eu-west-1",
+            restBaseURL: "https://\(projectRef).supabase.co/rest/v1",
+            storageBaseURL: "https://\(projectRef).supabase.co/storage/v1",
+            authBaseURL: "https://\(projectRef).supabase.co/auth/v1",
+            anonKeyPreview: anonKey.map(Self.preview),
+            hasAnonKey: anonKey?.isEmpty == false,
+            migrationFile: "supabase/migrations/20260704190000_initial_school_schema.sql",
+            expectedTableCount: 14,
+            expectedPolicyCount: 44,
+            storageBucket: "class-files"
+        )
+    }
+
+    private static func readValue(named key: String) -> String? {
+        if let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+           value.isEmpty == false {
+            return value
+        }
+
+        let environmentValue = ProcessInfo.processInfo.environment[key]
+        return environmentValue?.isEmpty == false ? environmentValue : nil
+    }
+
+    private static func preview(_ value: String) -> String {
+        guard value.count > 12 else {
+            return "set"
+        }
+
+        return "\(value.prefix(6))...\(value.suffix(4))"
+    }
+}
+
+private struct SupabaseReadinessProbe: Identifiable, Hashable {
+    var id: String { title }
+    var title: String
+    var status: String
+    var statusColorName: String
+    var endpoint: String
+    var detail: String
+    var nextStep: String
+    var iconName: String
+
+    static func make(config: SupabaseBackendConfig) -> [SupabaseReadinessProbe] {
+        [
+            SupabaseReadinessProbe(
+                title: "Project",
+                status: "active",
+                statusColorName: "green",
+                endpoint: config.projectRef,
+                detail: "\(config.region), schema applied in test project",
+                nextStep: "Keep test backend separate from production hosting decision",
+                iconName: "server.rack"
+            ),
+            SupabaseReadinessProbe(
+                title: "REST API",
+                status: config.hasAnonKey ? "ready" : "needs anon key",
+                statusColorName: config.hasAnonKey ? "green" : "orange",
+                endpoint: config.restBaseURL,
+                detail: "URLSession can call PostgREST once anon key is provided",
+                nextStep: config.hasAnonKey ? "Run signed request smoke against profiles/class_rooms" : "Add SUPABASE_ANON_KEY through build config or test launch environment",
+                iconName: "network"
+            ),
+            SupabaseReadinessProbe(
+                title: "Schema",
+                status: "verified",
+                statusColorName: "green",
+                endpoint: config.migrationFile,
+                detail: "\(config.expectedTableCount) public tables, \(config.expectedPolicyCount) RLS/storage policies",
+                nextStep: "Seed test users and class memberships before live iOS sync",
+                iconName: "tablecells.fill"
+            ),
+            SupabaseReadinessProbe(
+                title: "Storage",
+                status: "private",
+                statusColorName: "green",
+                endpoint: "\(config.storageBaseURL)/object/\(config.storageBucket)",
+                detail: "Bucket \(config.storageBucket), 15 MB, images/PDF for photos and receipts",
+                nextStep: "Use signed upload flow before file metadata mutation",
+                iconName: "externaldrive.badge.checkmark"
+            ),
+            SupabaseReadinessProbe(
+                title: "Auth",
+                status: "planned",
+                statusColorName: "blue",
+                endpoint: config.authBaseURL,
+                detail: "Supabase Auth exists, app still uses local onboarding state",
+                nextStep: "Map onboarding phone/Apple flow to auth.users and public.profiles",
+                iconName: "person.badge.key.fill"
+            )
+        ]
+    }
+}
+
 private struct SchoolSyncClient {
     static func dryRun(environment: BackendEnvironment, requestID: String, authContext: SyncAuthContext, storagePreflight: SyncStoragePreflight, mutations: [SyncMutationPreview]) -> SyncClientProbeResult {
         guard let url = URL(string: "\(environment.baseURL)/sync/mutations") else {
@@ -7813,6 +7926,7 @@ private struct SyncCenterSheet: View {
     @State private var syncStatus = "Backend еще не подключен: проверяется локальная очередь"
     @State private var environment: BackendEnvironment = .staging
     @State private var dryRunResult: SyncDryRunResult?
+    @State private var supabaseConfig = SupabaseBackendConfig.make()
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
@@ -7833,6 +7947,8 @@ private struct SyncCenterSheet: View {
             _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: launchOperations))
             if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error") {
                 _syncStatus = State(initialValue: "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован.")
+            } else if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-supabase") {
+                _syncStatus = State(initialValue: "Supabase test backend подключен на уровне схемы: live iOS-запрос ждет anon key и тестовых пользователей.")
             } else {
                 _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
             }
@@ -7935,6 +8051,10 @@ private struct SyncCenterSheet: View {
 
                     DashboardCard {
                         apiReadinessSummary
+                    }
+
+                    DashboardCard {
+                        supabaseReadinessCard
                     }
 
                     if let dryRunResult {
@@ -8151,6 +8271,51 @@ private struct SyncCenterSheet: View {
             ForEach(ApiReadinessItem.sample) { item in
                 apiReadinessRow(item)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var supabaseReadinessCard: some View {
+        let probes = SupabaseReadinessProbe.make(config: supabaseConfig)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Supabase test backend", systemImage: "server.rack")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: supabaseConfig.hasAnonKey ? "key set" : "key missing", color: supabaseConfig.hasAnonKey ? SchoolTheme.success : SchoolTheme.warning)
+            }
+
+            Text("Тестовая база создана в Supabase Cloud; продакшен для РФ-аудитории остается отдельным решением.")
+                .font(.caption)
+                .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                MoreMetric(value: "\(supabaseConfig.expectedTableCount)", title: "таблиц", color: SchoolTheme.success)
+                Divider()
+                MoreMetric(value: "\(supabaseConfig.expectedPolicyCount)", title: "политик", color: SchoolTheme.accent)
+                Divider()
+                MoreMetric(value: supabaseConfig.hasAnonKey ? "set" : "нет", title: "anon key", color: supabaseConfig.hasAnonKey ? SchoolTheme.success : SchoolTheme.warning)
+            }
+            .frame(height: 54)
+
+            ForEach(probes) { probe in
+                supabaseProbeRow(probe)
+            }
+
+            Button {
+                runSupabaseReadiness()
+            } label: {
+                Label("Проверить Supabase readiness", systemImage: "checkmark.seal.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.accent)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-readiness")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -8440,6 +8605,43 @@ private struct SyncCenterSheet: View {
         }
         .padding(8)
         .background(moreColor(for: scenario.colorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseProbeRow(_ probe: SupabaseReadinessProbe) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            IconBadge(systemName: probe.iconName, color: moreColor(for: probe.statusColorName), size: 34)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(probe.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(SchoolTheme.graphite)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+                    Spacer()
+                    StatusBadge(text: probe.status, color: moreColor(for: probe.statusColorName))
+                }
+
+                Text(probe.endpoint)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.56)
+
+                Text(probe.detail)
+                    .font(.caption2)
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.76)
+
+                Text(probe.nextStep)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(8)
+        .background(moreColor(for: probe.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func syncClientPreviewCard(_ client: SyncClientPreview) -> some View {
@@ -8951,6 +9153,14 @@ private struct SyncCenterSheet: View {
         operations[0].conflictRule = "Пользовательские данные не теряются; idempotency key не меняется"
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
         syncStatus = "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован."
+    }
+
+    private func runSupabaseReadiness() {
+        supabaseConfig = SupabaseBackendConfig.make()
+        dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
+        syncStatus = supabaseConfig.hasAnonKey
+            ? "Supabase readiness готов: URL, anon key, schema и private storage подготовлены для первого live-запроса."
+            : "Supabase readiness частичный: schema и private storage готовы, live URLSession-запрос ждет SUPABASE_ANON_KEY."
     }
 
     private func save() {

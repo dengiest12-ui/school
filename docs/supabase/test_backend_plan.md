@@ -60,3 +60,23 @@ Key policies:
 - Collection expenses are added by teacher/parent committee roles.
 - Class photos are visible to class members, but delete is limited to teacher/parent committee roles.
 - Sync mutations are owned by the current authenticated user and can only target classes where the user is a member.
+
+## iOS readiness gate
+
+The iOS app now shows the test backend status in `Еще -> Синхронизация`.
+
+Current verified state:
+
+- Project ref: `tlhjwfauddueioatkahm`
+- REST: `https://tlhjwfauddueioatkahm.supabase.co/rest/v1`
+- Storage: `https://tlhjwfauddueioatkahm.supabase.co/storage/v1`
+- Auth: `https://tlhjwfauddueioatkahm.supabase.co/auth/v1`
+- Expected schema: 14 public tables and 44 RLS/storage policies.
+- Storage bucket: private `class-files`.
+
+Gate before first live iOS request:
+
+- Add `SUPABASE_ANON_KEY` through build config or test launch environment.
+- Seed test auth users, profiles, class rooms, class members and children.
+- Run a signed request smoke against `profiles` / `class_rooms`.
+- Keep file uploads behind signed upload flow before creating file metadata.
