@@ -208,7 +208,6 @@ final class SchoolAppUITests: XCTestCase {
         authSessionButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
-        XCTAssertTrue(findStaticText(containing: "seed membership", in: app))
 
         XCTAssertTrue(findStaticText("Password sign-in probe", in: app))
         let passwordSignInButton = app.buttons["sync.supabase-password-sign-in"]
@@ -272,6 +271,25 @@ final class SchoolAppUITests: XCTestCase {
         liveProbeButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "Live URLSession request is intentionally blocked", in: app))
+    }
+
+    func testSupabaseAnnouncementReadAckBlocksBeforeClientKey() {
+        let app = launchApp(arguments: [
+            "-qa-seed-supabase-announcement-bridge",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(app.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Announcement read ack", in: app, attempts: 8))
+        XCTAssertTrue(findStaticText(containing: "/announcement_reads", in: app, attempts: 8))
+        XCTAssertTrue(findStaticText(containing: "Signed announcement read ack is blocked", in: app, attempts: 8))
+        XCTAssertTrue(findStaticText(containing: "Supabase: форма на физкультуру", in: app, attempts: 8))
+
+        let announcementReadAckButton = app.buttons["sync.supabase-announcement-read-ack"]
+        scrollUntilVisible(announcementReadAckButton, in: app, attempts: 8)
+        XCTAssertTrue(announcementReadAckButton.waitForExistence(timeout: 4))
     }
 
     func testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch() {

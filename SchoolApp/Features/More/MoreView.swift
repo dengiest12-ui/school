@@ -2984,6 +2984,170 @@ private struct SupabaseSignedAnnouncementsProbe: Hashable {
     }
 }
 
+private struct SupabaseAnnouncementReadAckResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseAnnouncementReadAckResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        guard let announcement = AppSupabaseAnnouncementBridge.primaryAnnouncement else {
+            return missingAnnouncement(config: config)
+        }
+
+        return SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: announcement.isReadByMe ? "already read" : "ready",
+            statusColorName: announcement.isReadByMe ? "green" : "blue",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: announcement.isReadByMe ? "Saved bridge already marks this announcement as read by current user." : "Signed request will insert current-user read state under RLS.",
+            nextStep: announcement.isReadByMe ? "Keep local bridge in sync with signed announcements probe" : "Send signed ack before wiring live announcement detail button",
+            targetPreview: announcement.summary
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed announcement read ack is blocked before network access.",
+            nextStep: "Add client apikey, signed session and announcement bridge",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot write read state for a user.",
+            nextStep: "Inject a seed user's Supabase access token before read ack proof",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the ack body needs the signed user's id.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed user and retry read ack",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+
+    static func missingAnnouncement(config: SupabaseBackendConfig) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "announcement missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase announcement bridge item is available to acknowledge.",
+            nextStep: "Run signed announcements probe first, then retry read ack",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, announcement: SupabaseAnnouncementBridgeItem, statusCode: Int) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "saved",
+            statusColorName: "green",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: "Server accepted read-state insert for the signed user.",
+            nextStep: "Refresh signed announcements before replacing the local detail ack button",
+            targetPreview: announcement.summary
+        )
+    }
+
+    static func duplicate(config: SupabaseBackendConfig, announcement: SupabaseAnnouncementBridgeItem, statusCode: Int) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "already saved",
+            statusColorName: "green",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "HTTP \(statusCode), duplicate read row treated as idempotent success",
+            detail: "The read-state row already exists for this announcement and user.",
+            nextStep: "Keep UI read state enabled; no retry needed",
+            targetPreview: announcement.summary
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry read ack" : "Check announcement_reads RLS and primary-key conflict handling",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseAnnouncementReadAckResult {
+        SupabaseAnnouncementReadAckResult(
+            title: "Announcement read ack",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/announcement_reads",
+            url: "\(config.restBaseURL)/announcement_reads",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local feed active and retry after network/backend healthcheck",
+            targetPreview: AppSupabaseAnnouncementBridge.previewText
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -3524,6 +3688,71 @@ private struct SupabaseSignedAnnouncementsClient {
             let message = decodedError?.message
                 ?? String(data: data, encoding: .utf8)
                 ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseAnnouncementReadAckClient {
+    private struct ReadAckBody: Encodable {
+        var announcement_id: String
+        var user_id: String
+    }
+
+    static func acknowledgePrimaryAnnouncement(config: SupabaseBackendConfig) async -> SupabaseAnnouncementReadAckResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let announcement = AppSupabaseAnnouncementBridge.primaryAnnouncement else {
+            return .missingAnnouncement(config: config)
+        }
+
+        guard let url = URL(string: "\(config.restBaseURL)/announcement_reads") else {
+            return .networkError(config: config, message: "Invalid Supabase announcement_reads URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try? JSONEncoder().encode(
+            ReadAckBody(
+                announcement_id: announcement.id,
+                user_id: userID
+            )
+        )
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, announcement: announcement, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+
+            if statusCode == 409 || message.localizedCaseInsensitiveContains("duplicate key") {
+                return .duplicate(config: config, announcement: announcement, statusCode: statusCode)
+            }
+
             return .serverError(config: config, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, message: error.localizedDescription)
@@ -9969,6 +10198,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
 
@@ -10006,6 +10236,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedClassScope = State(initialValue: SupabaseSignedClassScopeProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedChildren = State(initialValue: SupabaseSignedChildrenProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedAnnouncements = State(initialValue: SupabaseSignedAnnouncementsProbe.planned(config: launchSupabaseConfig))
+        _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
         if arguments.contains("-qa-more-sync") {
@@ -10378,6 +10609,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseSignedChildrenCard(supabaseSignedChildren)
             supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
+            supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
@@ -10503,6 +10735,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-announcements")
+
+            Button {
+                Task {
+                    await runSupabaseAnnouncementReadAck()
+                }
+            } label: {
+                Label("Отметить announcement read", systemImage: "checkmark.message.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-announcement-read-ack")
 
             Button {
                 Task {
@@ -11301,6 +11547,56 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "checkmark.message.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Target: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.58)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private var supabaseChildSourcePreviewCard: some View {
         let bridgeChildren = AppSupabaseChildContextBridge.childSummaries(
             classContexts: AppSupabaseClassContextBridge.contexts
@@ -11934,6 +12230,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
+        supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
     }
@@ -12001,6 +12298,7 @@ private struct SyncCenterSheet: View {
         if announcements.mappedAnnouncements.isEmpty == false {
             AppSupabaseAnnouncementBridge.replace(with: announcements.mappedAnnouncements)
         }
+        supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: signedConfig)
 
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: signedConfig)
         syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). Seed-сессия сохранена: \(storageSource)."
@@ -12088,6 +12386,27 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase signed announcements заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
             : "Supabase signed announcements завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseAnnouncementReadAck() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase announcement read ack: готовлю POST /announcement_reads без замены локальной ленты."
+        let result = await SupabaseAnnouncementReadAckClient.acknowledgePrimaryAnnouncement(config: supabaseConfig)
+        supabaseAnnouncementReadAck = result
+        if result.status == "saved" || result.status == "already saved" {
+            if let announcementID = AppSupabaseAnnouncementBridge.primaryAnnouncement?.id {
+                AppSupabaseAnnouncementBridge.markRead(
+                    announcementID: announcementID,
+                    mappedAt: Date.now.formatted(date: .numeric, time: .shortened)
+                )
+                supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
+                supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
+            }
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "announcement missing"
+            ? "Supabase announcement read ack заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и announcement bridge."
+            : "Supabase announcement read ack завершен: \(result.headerState). \(result.nextStep)"
     }
 
     private func enableSupabaseChildSourcePreview() {

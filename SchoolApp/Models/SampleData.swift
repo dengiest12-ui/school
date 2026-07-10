@@ -604,6 +604,26 @@ enum AppSupabaseAnnouncementBridge {
         self.announcements = announcements
     }
 
+    static func markRead(announcementID: String, mappedAt: String) {
+        announcements = announcements.map { announcement in
+            guard announcement.id == announcementID else {
+                return announcement
+            }
+
+            return SupabaseAnnouncementBridgeItem(
+                id: announcement.id,
+                classID: announcement.classID,
+                title: announcement.title,
+                body: announcement.body,
+                isUrgent: announcement.isUrgent,
+                publishedAt: announcement.publishedAt,
+                isReadByMe: true,
+                source: "signed announcement read ack",
+                mappedAt: mappedAt
+            )
+        }
+    }
+
     static func seedSmokeAnnouncements() {
         replace(
             with: [
