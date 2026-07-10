@@ -138,7 +138,7 @@ struct OnboardingView: View {
 
     private static var initialSupabaseStatus: String {
         startsSupabaseHandoffReady
-            ? "Supabase Auth подключен, найдено детей: 1, классов: 1. Smoke Child, 3Б -> QA-3B-2026"
+            ? "Supabase Auth подключен, профиль: Smoke Parent [+7 900 000-00-00], детей: 1, классов: 1. Smoke Child, 3Б -> QA-3B-2026"
             : "Войдите через Supabase Auth, чтобы связать аккаунт с backend."
     }
 
@@ -813,6 +813,7 @@ struct OnboardingView: View {
         }
 
         SupabaseSeedSessionStore.seedForUITest()
+        AppSupabaseAccountProfileBridge.seedSmokeProfile()
         AppSupabaseClassContextBridge.seedSmokeContext()
         AppSupabaseChildContextBridge.seedSmokeContext()
         AppChildStore.usesSupabaseChildSourcePreview = true

@@ -243,6 +243,7 @@ enum AppChildStore {
         UserDefaults.standard.removeObject(forKey: childrenKey)
         UserDefaults.standard.removeObject(forKey: selectedChildIDKey)
         UserDefaults.standard.removeObject(forKey: usesSupabaseChildSourcePreviewKey)
+        AppSupabaseAccountProfileBridge.clear()
         AppSupabaseClassContextBridge.clear()
         AppSupabaseChildContextBridge.clear()
     }
@@ -342,6 +343,80 @@ enum AppSupabaseClassContextBridge {
                     mappedAt: "QA"
                 )
             ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseAccountProfileBridgeItem: Identifiable, Hashable, Codable {
+    var id: String { userID }
+
+    let userID: String
+    let displayName: String
+    let phone: String
+    let emailPreview: String
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        let contact = phone.isEmpty ? emailPreview : phone
+        return "\(displayName) [\(contact)]"
+    }
+
+    var handoffText: String {
+        "Supabase профиль готов: \(summary)"
+    }
+}
+
+enum AppSupabaseAccountProfileBridge {
+    private static let bridgeKey = "school.supabase.accountProfileBridge.v1"
+
+    static var profile: SupabaseAccountProfileBridgeItem? {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode(SupabaseAccountProfileBridgeItem.self, from: data)
+            else {
+                return nil
+            }
+
+            return decoded
+        }
+        set {
+            guard let newValue else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var previewText: String {
+        profile?.summary ?? "no saved account profile"
+    }
+
+    static func save(_ profile: SupabaseAccountProfileBridgeItem) {
+        self.profile = profile
+    }
+
+    static func seedSmokeProfile() {
+        save(
+            SupabaseAccountProfileBridgeItem(
+                userID: "qa-user-0000",
+                displayName: "Smoke Parent",
+                phone: "+7 900 000-00-00",
+                emailPreview: "sm...@example.test",
+                source: "qa launch argument",
+                mappedAt: "QA"
+            )
         )
     }
 

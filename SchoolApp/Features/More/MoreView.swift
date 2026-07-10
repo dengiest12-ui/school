@@ -1710,6 +1710,17 @@ private struct SupabaseProfileRow: Decodable, Hashable {
     var id: String
     var display_name: String
     var phone: String?
+
+    func bridgeItem(emailPreview: String, mappedAt: String) -> SupabaseAccountProfileBridgeItem {
+        SupabaseAccountProfileBridgeItem(
+            userID: id,
+            displayName: display_name.isEmpty ? "Supabase user" : display_name,
+            phone: phone ?? "",
+            emailPreview: emailPreview,
+            source: "Supabase signed profiles",
+            mappedAt: mappedAt
+        )
+    }
 }
 
 private struct SupabaseClassMembershipRow: Decodable, Hashable {
@@ -2306,6 +2317,7 @@ private struct SupabaseSignedProfileProbe: Hashable {
     var detail: String
     var nextStep: String
     var rowsPreview: String
+    var mappedProfile: SupabaseAccountProfileBridgeItem?
 
     static func planned(config: SupabaseBackendConfig) -> SupabaseSignedProfileProbe {
         if config.hasClientApiKey == false {
@@ -2330,7 +2342,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
             detail: "Signed request will check whether RLS exposes exactly the current user's profile row.",
             nextStep: "Run signed profile probe before mapping Supabase session into local account state",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            mappedProfile: nil
         )
     }
 
@@ -2345,7 +2358,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
             detail: "Signed REST request is blocked before network access.",
             nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
-            rowsPreview: "0 rows"
+            rowsPreview: "0 rows",
+            mappedProfile: nil
         )
     }
 
@@ -2360,7 +2374,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
             detail: "Client key alone cannot prove user RLS for a profile row.",
             nextStep: "Inject a seed user's Supabase access token before signed RLS proof",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            mappedProfile: nil
         )
     }
 
@@ -2375,7 +2390,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
             detail: "Access token exists, but the app cannot target the expected profile row yet.",
             nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed profile probe",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            mappedProfile: nil
         )
     }
 
@@ -2384,6 +2400,9 @@ private struct SupabaseSignedProfileProbe: Hashable {
         let preview = rows.isEmpty
             ? "[]"
             : rows.map { row in "\(row.display_name.isEmpty ? row.id : row.display_name) (\(row.phone ?? "no phone"))" }.joined(separator: ", ")
+        let profile = rows.count == 1
+            ? rows[0].bridgeItem(emailPreview: config.testEmail.map(SupabaseBackendConfig.previewEmail) ?? "signed session", mappedAt: Date.now.formatted(date: .numeric, time: .shortened))
+            : nil
 
         return SupabaseSignedProfileProbe(
             title: "Signed profile probe",
@@ -2394,8 +2413,9 @@ private struct SupabaseSignedProfileProbe: Hashable {
             url: "\(config.restBaseURL)/profiles",
             headerState: "HTTP \(statusCode), user bearer accepted",
             detail: rows.count == 1 ? "RLS returned exactly the requested profile row." : "Signed request responded, but returned \(rows.count) profile rows.",
-            nextStep: rows.count == 1 ? "Repeat with class_rooms and map signed rows into repository" : "Check profile seed, RLS policy and SUPABASE_USER_ID before trusting session",
-            rowsPreview: preview
+            nextStep: rows.count == 1 ? "Save profile bridge before class/child handoff" : "Check profile seed, RLS policy and SUPABASE_USER_ID before trusting session",
+            rowsPreview: preview,
+            mappedProfile: profile
         )
     }
 
@@ -2410,7 +2430,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
             detail: message,
             nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, grants, migration and RLS response",
-            rowsPreview: "not decoded"
+            rowsPreview: "not decoded",
+            mappedProfile: nil
         )
     }
 
@@ -2425,7 +2446,8 @@ private struct SupabaseSignedProfileProbe: Hashable {
             headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
             detail: message,
             nextStep: "Keep local profile state active and retry after network/backend healthcheck",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            mappedProfile: nil
         )
     }
 }
@@ -2881,6 +2903,8 @@ struct SupabasePasswordAuthResult: Hashable {
 struct SupabaseOnboardingHandoffResult: Hashable {
     var status: String
     var message: String
+    var accountSummary: String?
+    var profileCount: Int
     var classCount: Int
     var childCount: Int
     var selectedChildSummary: String?
@@ -2896,15 +2920,22 @@ struct SupabaseOnboardingHandoffClient {
             return SupabaseOnboardingHandoffResult(
                 status: "session incomplete",
                 message: "Сессия сохранена, но для загрузки класса нужны access token и user id.",
+                accountSummary: nil,
+                profileCount: 0,
                 classCount: 0,
                 childCount: 0,
                 selectedChildSummary: nil
             )
         }
 
+        async let profile = SupabaseSignedProfileClient.probeProfile(config: config)
         async let classScope = SupabaseSignedClassScopeClient.probeClassScope(config: config)
         async let children = SupabaseSignedChildrenClient.probeChildren(config: config)
-        let (classResult, childResult) = await (classScope, children)
+        let (profileResult, classResult, childResult) = await (profile, classScope, children)
+
+        if let mappedProfile = profileResult.mappedProfile {
+            AppSupabaseAccountProfileBridge.save(mappedProfile)
+        }
 
         if classResult.mappedContexts.isEmpty == false {
             AppSupabaseClassContextBridge.replace(
@@ -2925,17 +2956,21 @@ struct SupabaseOnboardingHandoffClient {
         let selected = AppChildStore.usesSupabaseChildSourcePreview
             ? AppChildStore.effectiveChildren.first.map { "\($0.name), \($0.className) -> \($0.school)" }
             : nil
+        let account = AppSupabaseAccountProfileBridge.profile?.summary
         let details = [
+            profileResult.detail,
             classResult.detail,
             childResult.detail
         ].joined(separator: " ")
         let message = childResult.mappedChildren.isEmpty
             ? "Supabase Auth подключен, но live-дети пока не найдены. \(details)"
-            : "Supabase Auth подключен, найдено детей: \(childResult.mappedChildren.count), классов: \(classResult.mappedContexts.count)."
+            : "Supabase Auth подключен, профиль: \(account ?? "не найден"), детей: \(childResult.mappedChildren.count), классов: \(classResult.mappedContexts.count)."
 
         return SupabaseOnboardingHandoffResult(
             status: childResult.mappedChildren.isEmpty ? "partial" : "ready",
             message: message,
+            accountSummary: account,
+            profileCount: profileResult.mappedProfile == nil ? 0 : 1,
             classCount: classResult.mappedContexts.count,
             childCount: childResult.mappedChildren.count,
             selectedChildSummary: selected

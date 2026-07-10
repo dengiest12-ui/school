@@ -125,7 +125,8 @@ final class SchoolAppUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Вход"].waitForExistence(timeout: 4))
-        XCTAssertTrue(findStaticText(containing: "Supabase Auth подключен, найдено детей: 1, классов: 1", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase Auth подключен, профиль: Smoke Parent", in: app))
+        XCTAssertTrue(findStaticText(containing: "детей: 1, классов: 1", in: app))
         XCTAssertTrue(findStaticText(containing: "Smoke Child, 3Б -> QA-3B-2026", in: app))
         XCTAssertTrue(app.staticTexts["Ваш статус"].exists)
         XCTAssertTrue(app.staticTexts["Создать комнату класса"].exists || app.buttons["Создать комнату класса"].exists)
