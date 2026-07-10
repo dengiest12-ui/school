@@ -4031,6 +4031,160 @@ private struct SupabaseCollectionPaymentWriteResult: Hashable {
     }
 }
 
+private struct SupabaseCollectionExpenseWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseCollectionExpenseWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        guard AppSupabaseCollectionBridge.primaryCollection != nil else {
+            return missingCollection(config: config)
+        }
+
+        return SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will add a collection expense only if RLS confirms class manager rights.",
+            nextStep: "Send expense write after signed upload/file metadata is ready for receipts",
+            targetPreview: expenseTargetPreview
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed collection expense write is blocked before network access.",
+            nextStep: "Add client apikey, signed manager session and collection bridge",
+            targetPreview: expenseTargetPreview
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot add collection expenses.",
+            nextStep: "Inject a teacher or parent-committee Supabase access token before expense proof",
+            targetPreview: expenseTargetPreview
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the expense body needs the signed author id.",
+            nextStep: "Provide SUPABASE_USER_ID for the manager seed user and retry expense write",
+            targetPreview: expenseTargetPreview
+        )
+    }
+
+    static func missingCollection(config: SupabaseBackendConfig) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "collection missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase collection bridge item is available for the expense row.",
+            nextStep: "Run signed collections probe first, then retry expense write",
+            targetPreview: expenseTargetPreview
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, body: SupabaseCollectionExpenseBody, statusCode: Int) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "saved",
+            statusColorName: "green",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "HTTP \(statusCode), manager bearer accepted",
+            detail: "RLS accepted the class manager expense row.",
+            nextStep: "Refresh collections and expenses before replacing the local receipt form",
+            targetPreview: "\(body.collection_id), \(body.title), amount \(body.amount)"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, body: SupabaseCollectionExpenseBody?, statusCode: Int, message: String) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: statusCode == 401 || statusCode == 403 ? "manager auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Use teacher/committee session or verify can_manage_class RLS" : "Check collection_expenses Data API exposure and RLS response",
+            targetPreview: body.map { "\($0.collection_id), \($0.title), blocked" } ?? expenseTargetPreview
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, body: SupabaseCollectionExpenseBody?, message: String) -> SupabaseCollectionExpenseWriteResult {
+        SupabaseCollectionExpenseWriteResult(
+            title: "Collection expense write",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local expense queued and retry after network/backend healthcheck",
+            targetPreview: body.map { "\($0.collection_id), \($0.title)" } ?? expenseTargetPreview
+        )
+    }
+
+    private static var expenseTargetPreview: String {
+        let collection = AppSupabaseCollectionBridge.primaryCollection?.summary ?? "no saved collection"
+        return "\(collection) -> Чек за автобус [2500]"
+    }
+}
+
 private struct SupabaseAnnouncementReadAckResult: Hashable {
     var title: String
     var status: String
@@ -5121,6 +5275,70 @@ private struct SupabaseCollectionPaymentWriteClient {
                 return .duplicate(config: config, body: body, statusCode: statusCode)
             }
 
+            return .serverError(config: config, body: body, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, body: body, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseCollectionExpenseBody: Encodable, Hashable {
+    var collection_id: String
+    var author_user_id: String
+    var title: String
+    var amount: String
+}
+
+private struct SupabaseCollectionExpenseWriteClient {
+    static func saveProbeExpense(config: SupabaseBackendConfig) async -> SupabaseCollectionExpenseWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let collection = AppSupabaseCollectionBridge.primaryCollection else {
+            return .missingCollection(config: config)
+        }
+
+        let body = SupabaseCollectionExpenseBody(
+            collection_id: collection.id,
+            author_user_id: userID,
+            title: "QA чек за автобус",
+            amount: "2500"
+        )
+
+        guard let url = URL(string: "\(config.restBaseURL)/collection_expenses") else {
+            return .networkError(config: config, body: body, message: "Invalid Supabase collection_expenses URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, body: body, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
             return .serverError(config: config, body: body, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, body: body, message: error.localizedDescription)
@@ -11637,6 +11855,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -11681,6 +11900,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedPhotos = State(initialValue: SupabaseSignedPhotosProbe.planned(config: launchSupabaseConfig))
         _supabaseSyncMutationWrite = State(initialValue: SupabaseSyncMutationWriteResult.planned(config: launchSupabaseConfig))
         _supabaseCollectionPaymentWrite = State(initialValue: SupabaseCollectionPaymentWriteResult.planned(config: launchSupabaseConfig))
+        _supabaseCollectionExpenseWrite = State(initialValue: SupabaseCollectionExpenseWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -12058,6 +12278,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
             supabaseCollectionPaymentWriteCard(supabaseCollectionPaymentWrite)
+            supabaseCollectionExpenseWriteCard(supabaseCollectionExpenseWrite)
             supabaseSignedPhotosCard(supabaseSignedPhotos)
             supabaseSyncMutationWriteCard(supabaseSyncMutationWrite)
             supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
@@ -13406,6 +13627,70 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseCollectionExpenseWriteCard(_ result: SupabaseCollectionExpenseWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "receipt.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Expense: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(3)
+                .minimumScaleFactor(0.58)
+
+            Button {
+                Task {
+                    await runSupabaseCollectionExpenseWrite()
+                }
+            } label: {
+                Label("Записать расход сбора", systemImage: "receipt.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-collection-expense-write")
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -14095,6 +14380,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: supabaseConfig)
         supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: supabaseConfig)
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: supabaseConfig)
+        supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -14182,6 +14468,7 @@ private struct SyncCenterSheet: View {
             AppSupabaseCollectionBridge.replace(with: collections.mappedCollections)
         }
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: signedConfig)
+        supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: signedConfig)
 
         let photos = await SupabaseSignedPhotosClient.probePhotos(config: signedConfig)
         supabaseSignedPhotos = photos
@@ -14316,6 +14603,7 @@ private struct SyncCenterSheet: View {
             AppSupabaseCollectionBridge.replace(with: result.mappedCollections)
         }
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: supabaseConfig)
+        supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed collections заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed collections завершен: \(result.headerState). \(result.nextStep)"
@@ -14355,6 +14643,17 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "child missing" || result.status == "collection missing"
             ? "Supabase collection payment заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID, child bridge и collection bridge."
             : "Supabase collection payment завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseCollectionExpenseWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase collection expense: готовлю signed POST /collection_expenses для расхода родкомитета/учителя."
+        let result = await SupabaseCollectionExpenseWriteClient.saveProbeExpense(config: supabaseConfig)
+        supabaseCollectionExpenseWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "collection missing"
+            ? "Supabase collection expense заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и collection bridge."
+            : "Supabase collection expense завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor

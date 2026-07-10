@@ -138,6 +138,7 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabasePhotoBridgeShowsWithoutGrantingParentDeleteRights` passed in `.build/SupabasePhotosBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabaseSyncMutationWriteBlocksBeforeClientKey` passed in `.build/SupabaseSyncMutationWriteUITest-4.xcresult`.
 - Targeted UI test: `testSupabaseCollectionPaymentWriteBlocksBeforeClientKey` passed in `.build/SupabaseCollectionPaymentWriteUITest.xcresult`.
+- Targeted UI test: `testSupabaseCollectionExpenseWriteBlocksBeforeClientKey` passed in `.build/SupabaseCollectionExpenseWriteUITest.xcresult`.
 - Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
 - Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
@@ -157,6 +158,7 @@ Additional iOS verification:
 - The app now has a signed class photos bridge: Sync Center can request `GET /class_photos` by saved Supabase class context and the Class photos screen shows mapped metadata separately from local albums while preserving parent no-delete/no-create restrictions.
 - The app now has a signed sync mutation write gate: Sync Center can prepare and send an idempotent `POST /sync_mutations` row under user/class RLS, and it blocks before network access without client key, user bearer, user id or class bridge.
 - The app now has a signed collection payment write gate: Sync Center can prepare `POST /collection_payments` for the signed parent, saved child bridge and saved collection bridge while keeping `is_confirmed = false` so parent payment does not become committee confirmation.
+- The app now has a signed collection expense write gate: Sync Center can prepare `POST /collection_expenses` for a teacher/committee signed session and saved collection bridge, while RLS `can_manage_class` remains the authority and receipt files stay behind the separate signed upload/class_files flow.
 - Production Auth is still incomplete: signup/email confirmation, phone OTP, native Apple ID, profile creation and class membership mapping must still be connected to live Supabase data before release.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before saving the local account profile bridge.
