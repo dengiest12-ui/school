@@ -1768,6 +1768,30 @@ private struct SupabaseAnnouncementRow: Decodable, Hashable {
     }
 }
 
+private struct SupabaseHomeworkRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var subject: String
+    var title: String
+    var details: String?
+    var due_at: String?
+    var assignee_child_id: String?
+
+    func bridgeItem(mappedAt: String) -> SupabaseHomeworkBridgeItem {
+        SupabaseHomeworkBridgeItem(
+            id: id,
+            classID: class_id,
+            subject: subject,
+            title: title,
+            details: details ?? "",
+            dueAt: due_at ?? "",
+            assigneeChildID: assignee_child_id,
+            source: "signed homework RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+}
+
 private struct SupabaseLocalClassContextPreview: Hashable {
     var classID: String
     var classTitle: String
@@ -2984,6 +3008,156 @@ private struct SupabaseSignedAnnouncementsProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedHomeworkProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+    var bridgePreview: String
+    var mappedHomework: [SupabaseHomeworkBridgeItem]
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedHomeworkProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if AppSupabaseClassContextBridge.contexts.isEmpty {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>&select=id,class_id,subject,title,details,due_at,assignee_child_id",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will read class homework rows under RLS.",
+            nextStep: "Run signed homework probe before replacing the local homework repository",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedHomeworkProbe {
+        SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed homework request is blocked before network access.",
+            nextStep: "Add client apikey, signed session and class bridge",
+            rowsPreview: "0 rows",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedHomeworkProbe {
+        SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove class homework RLS.",
+            nextStep: "Inject a seed user's Supabase access token before signed homework proof",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseSignedHomeworkProbe {
+        SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "The app has no saved Supabase class bridge to scope homework rows.",
+            nextStep: "Run signed class scope probe first, then retry homework",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseHomeworkRow], statusCode: Int) -> SupabaseSignedHomeworkProbe {
+        let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+        let homework = rows.map { $0.bridgeItem(mappedAt: mappedAt) }
+        let preview = homework.isEmpty ? "[]" : homework.map(\.summary).joined(separator: ", ")
+
+        return SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: homework.isEmpty ? "empty" : "mapped",
+            statusColorName: homework.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>&select=id,class_id,subject,title,details,due_at,assignee_child_id",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: homework.isEmpty ? "RLS returned no homework for saved class context." : "Mapped \(homework.count) homework item(s) from signed RLS rows.",
+            nextStep: homework.isEmpty ? "Seed class homework or verify RLS before homework switch" : "Keep bridge preview until the local homework repository can switch safely",
+            rowsPreview: preview,
+            bridgePreview: homework.isEmpty ? "Homework bridge waiting: local homework active" : "Homework bridge ready: \(homework.count) item(s), local homework still active",
+            mappedHomework: homework
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedHomeworkProbe {
+        SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure and homework_items RLS response",
+            rowsPreview: "not decoded",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedHomeworkProbe {
+        SupabaseSignedHomeworkProbe(
+            title: "Signed homework probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/homework_items?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local homework active and retry after network/backend healthcheck",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseHomeworkBridge.statusText,
+            mappedHomework: []
+        )
+    }
+}
+
 private struct SupabaseAnnouncementReadAckResult: Hashable {
     var title: String
     var status: String
@@ -3681,6 +3855,62 @@ private struct SupabaseSignedAnnouncementsClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseAnnouncementRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedHomeworkClient {
+    static func probeHomework(config: SupabaseBackendConfig) async -> SupabaseSignedHomeworkProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        let classIDs = AppSupabaseClassContextBridge.contexts.map(\.classID)
+        guard classIDs.isEmpty == false else {
+            return .missingClassContext(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/homework_items") else {
+            return .networkError(config: config, message: "Invalid Supabase homework_items URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "class_id", value: "in.(\(classIDs.joined(separator: ",")))"),
+            URLQueryItem(name: "select", value: "id,class_id,subject,title,details,due_at,assignee_child_id"),
+            URLQueryItem(name: "order", value: "due_at.asc"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase homework_items query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseHomeworkRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -10198,6 +10428,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -10236,6 +10467,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedClassScope = State(initialValue: SupabaseSignedClassScopeProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedChildren = State(initialValue: SupabaseSignedChildrenProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedAnnouncements = State(initialValue: SupabaseSignedAnnouncementsProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedHomework = State(initialValue: SupabaseSignedHomeworkProbe.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -10609,6 +10841,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseSignedChildrenCard(supabaseSignedChildren)
             supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
+            supabaseSignedHomeworkCard(supabaseSignedHomework)
             supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
@@ -10735,6 +10968,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-announcements")
+
+            Button {
+                Task {
+                    await runSupabaseSignedHomeworkProbe()
+                }
+            } label: {
+                Label("Проверить signed homework", systemImage: "book.closed.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-homework")
 
             Button {
                 Task {
@@ -11547,6 +11794,62 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSignedHomeworkCard(_ result: SupabaseSignedHomeworkProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "book.closed.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.46)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -12230,6 +12533,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
+        supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -12297,6 +12601,12 @@ private struct SyncCenterSheet: View {
         supabaseSignedAnnouncements = announcements
         if announcements.mappedAnnouncements.isEmpty == false {
             AppSupabaseAnnouncementBridge.replace(with: announcements.mappedAnnouncements)
+        }
+
+        let homework = await SupabaseSignedHomeworkClient.probeHomework(config: signedConfig)
+        supabaseSignedHomework = homework
+        if homework.mappedHomework.isEmpty == false {
+            AppSupabaseHomeworkBridge.replace(with: homework.mappedHomework)
         }
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: signedConfig)
 
@@ -12386,6 +12696,20 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase signed announcements заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
             : "Supabase signed announcements завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseSignedHomeworkProbe() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase signed homework: готовлю GET /homework_items без замены локальных ДЗ."
+        let result = await SupabaseSignedHomeworkClient.probeHomework(config: supabaseConfig)
+        supabaseSignedHomework = result
+        if result.mappedHomework.isEmpty == false {
+            AppSupabaseHomeworkBridge.replace(with: result.mappedHomework)
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
+            ? "Supabase signed homework заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
+            : "Supabase signed homework завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor

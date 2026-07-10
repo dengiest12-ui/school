@@ -67,6 +67,7 @@ struct HomeworkView: View {
                 VStack(spacing: 14) {
                     header
                     scopePicker
+                    supabaseHomeworkBridgeCard
                     parseCard
                     summaryCard
                     filtersCard
@@ -141,6 +142,44 @@ struct HomeworkView: View {
             }
         }
         .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var supabaseHomeworkBridgeCard: some View {
+        if let homework = AppSupabaseHomeworkBridge.primaryHomework {
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "externaldrive.badge.checkmark", color: SchoolTheme.accent, size: 42)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Supabase ДЗ")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .accessibilityIdentifier("homework.supabase.title")
+                            Text(AppSupabaseHomeworkBridge.statusText)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(homework.handoffText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if homework.details.isEmpty == false {
+                            Text(homework.details)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var parseCard: some View {

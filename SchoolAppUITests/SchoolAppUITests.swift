@@ -407,6 +407,24 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Не прочитано", in: app))
     }
 
+    func testSupabaseHomeworkBridgeShowsWithoutReplacingLocalHomework() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-reset-homework-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-homework-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "homework"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Домашка"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Supabase ДЗ", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase ДЗ: Математика: Supabase: страница 45", in: app))
+        XCTAssertTrue(findStaticText(containing: "Homework bridge ready: 1 item", in: app))
+        XCTAssertTrue(app.staticTexts["homework.subject.Математика"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["homework.title.№ 47, 48 (с. 78)"].exists)
+    }
+
     func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

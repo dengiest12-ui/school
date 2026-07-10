@@ -10,6 +10,7 @@ struct AppView: View {
     @State private var completedSupabaseBridgeSeed = false
     @State private var completedSupabaseChildBridgeSeed = false
     @State private var completedSupabaseAnnouncementBridgeSeed = false
+    @State private var completedSupabaseHomeworkBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -24,6 +25,9 @@ struct AppView: View {
         if Self.seedsSupabaseAnnouncementBridge {
             AppSupabaseAnnouncementBridge.seedSmokeAnnouncements()
         }
+        if Self.seedsSupabaseHomeworkBridge {
+            AppSupabaseHomeworkBridge.seedSmokeHomework()
+        }
         if Self.usesSupabaseChildSourcePreview {
             AppChildStore.usesSupabaseChildSourcePreview = true
         }
@@ -32,6 +36,7 @@ struct AppView: View {
         _completedSupabaseBridgeSeed = State(initialValue: Self.seedsSupabaseBridge)
         _completedSupabaseChildBridgeSeed = State(initialValue: Self.seedsSupabaseChildBridge)
         _completedSupabaseAnnouncementBridgeSeed = State(initialValue: Self.seedsSupabaseAnnouncementBridge)
+        _completedSupabaseHomeworkBridgeSeed = State(initialValue: Self.seedsSupabaseHomeworkBridge)
     }
 
     var body: some View {
@@ -47,6 +52,7 @@ struct AppView: View {
         .onAppear(perform: seedSupabaseBridgeIfNeeded)
         .onAppear(perform: seedSupabaseChildBridgeIfNeeded)
         .onAppear(perform: seedSupabaseAnnouncementBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseHomeworkBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
@@ -153,6 +159,15 @@ struct AppView: View {
         completedSupabaseAnnouncementBridgeSeed = true
     }
 
+    private func seedSupabaseHomeworkBridgeIfNeeded() {
+        guard Self.seedsSupabaseHomeworkBridge, !completedSupabaseHomeworkBridgeSeed else {
+            return
+        }
+
+        AppSupabaseHomeworkBridge.seedSmokeHomework()
+        completedSupabaseHomeworkBridgeSeed = true
+    }
+
     private func enableSupabaseChildSourcePreviewIfNeeded() {
         guard Self.usesSupabaseChildSourcePreview else {
             return
@@ -210,6 +225,10 @@ struct AppView: View {
 
     private static var seedsSupabaseAnnouncementBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-announcement-bridge")
+    }
+
+    private static var seedsSupabaseHomeworkBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-homework-bridge")
     }
 
     private static var usesSupabaseChildSourcePreview: Bool {

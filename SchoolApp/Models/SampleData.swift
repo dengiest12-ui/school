@@ -247,6 +247,7 @@ enum AppChildStore {
         AppSupabaseClassContextBridge.clear()
         AppSupabaseChildContextBridge.clear()
         AppSupabaseAnnouncementBridge.clear()
+        AppSupabaseHomeworkBridge.clear()
     }
 }
 
@@ -635,6 +636,98 @@ enum AppSupabaseAnnouncementBridge {
                     isUrgent: true,
                     publishedAt: "QA",
                     isReadByMe: false,
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseHomeworkBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let subject: String
+    let title: String
+    let details: String
+    let dueAt: String
+    let assigneeChildID: String?
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        let due = dueAt.isEmpty ? "без срока" : dueAt
+        return "\(subject): \(title) [\(due)]"
+    }
+
+    var handoffText: String {
+        "Supabase ДЗ: \(summary)"
+    }
+}
+
+enum AppSupabaseHomeworkBridge {
+    private static let bridgeKey = "school.supabase.homeworkBridge.v1"
+
+    static var homework: [SupabaseHomeworkBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseHomeworkBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryHomework: SupabaseHomeworkBridgeItem? {
+        homework.first
+    }
+
+    static var statusText: String {
+        homework.isEmpty
+            ? "Homework bridge waiting: local homework active"
+            : "Homework bridge ready: \(homework.count) item(s), local homework still active"
+    }
+
+    static var previewText: String {
+        homework.isEmpty
+            ? "no saved homework"
+            : homework.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with homework: [SupabaseHomeworkBridgeItem]) {
+        self.homework = homework
+    }
+
+    static func seedSmokeHomework() {
+        replace(
+            with: [
+                SupabaseHomeworkBridgeItem(
+                    id: "60000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    subject: "Математика",
+                    title: "Supabase: страница 45, номера 6 и 7",
+                    details: "Проверить решение и принести тетрадь.",
+                    dueAt: "QA завтра",
+                    assigneeChildID: "40000000-0000-4000-8000-000000000001",
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )
