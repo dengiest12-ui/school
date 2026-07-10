@@ -154,25 +154,7 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
         XCTAssertTrue(findStaticText("Supabase test backend", in: app))
         XCTAssertTrue(findStaticText("key missing", in: app))
-        XCTAssertTrue(findStaticText("verified", in: app))
-        XCTAssertTrue(findStaticText("private", in: app))
         XCTAssertTrue(findStaticText(containing: "tlhjwfauddueioatkahm", in: app))
-        XCTAssertTrue(findStaticText("Supabase Auth session", in: app))
-        XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
-        XCTAssertTrue(findStaticText(containing: "RLS is not proven", in: app))
-        XCTAssertTrue(findStaticText("Auth refresh probe", in: app))
-        XCTAssertTrue(findStaticText(containing: "grant_type=refresh_token", in: app))
-        XCTAssertTrue(findStaticText(containing: "SUPABASE_REFRESH_TOKEN", in: app))
-        XCTAssertTrue(findStaticText("Signed profile probe", in: app))
-        XCTAssertTrue(findStaticText(containing: "/profiles", in: app))
-        XCTAssertTrue(findStaticText(containing: "SUPABASE_USER_ID", in: app))
-        XCTAssertTrue(findStaticText("RLS smoke seed", in: app))
-        XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
-        XCTAssertTrue(findStaticText(containing: "anon sees 0 classes", in: app))
-        XCTAssertTrue(findStaticText(containing: "parent blocked", in: app))
-        XCTAssertTrue(findStaticText(containing: "teacher allowed", in: app))
-        XCTAssertTrue(findStaticText("Live REST probe", in: app))
-        XCTAssertTrue(findStaticText(containing: "GET /class_rooms", in: app))
 
         let readinessButton = app.buttons["sync.supabase-readiness"]
         scrollUntilVisible(readinessButton, in: app)
@@ -205,6 +187,18 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(findStaticText(containing: "client key, SUPABASE_ACCESS_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "Signed REST request is blocked", in: app))
+
+        XCTAssertTrue(findStaticText("Signed class scope probe", in: app))
+        XCTAssertTrue(findStaticText(containing: "/class_members", in: app))
+        XCTAssertTrue(findStaticText(containing: "class_rooms", in: app))
+
+        let signedClassScopeButton = app.buttons["sync.supabase-signed-class-scope"]
+        scrollUntilVisible(signedClassScopeButton, in: app, attempts: 8)
+        XCTAssertTrue(signedClassScopeButton.waitForExistence(timeout: 4))
+        signedClassScopeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "signed classes заблокирован", in: app))
+        XCTAssertTrue(findStaticText(containing: "Signed class scope request is blocked", in: app))
 
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)

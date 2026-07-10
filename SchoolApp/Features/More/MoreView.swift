@@ -1656,6 +1656,14 @@ private struct SupabaseProfileRow: Decodable, Hashable {
     var phone: String?
 }
 
+private struct SupabaseClassMembershipRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var role: String
+    var status: String
+    var class_rooms: SupabaseClassRoomRow?
+}
+
 private struct SupabaseErrorResponse: Decodable, Hashable {
     var code: String?
     var message: String?
@@ -1956,6 +1964,146 @@ private struct SupabaseSignedProfileProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedClassScopeProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        return SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will check class membership rows and embedded class_rooms under RLS.",
+            nextStep: "Run signed class scope probe before mapping Supabase classes into local repository",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
+        SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed class scope request is blocked before network access.",
+            nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
+            rowsPreview: "0 rows"
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
+        SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove membership RLS for class rows.",
+            nextStep: "Inject a seed user's Supabase access token before signed class proof",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
+        SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the app cannot target the expected class membership rows yet.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed class scope probe",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseClassMembershipRow], statusCode: Int) -> SupabaseSignedClassScopeProbe {
+        let activeRows = rows.filter { $0.status == "active" }
+        let status = activeRows.isEmpty ? "no classes" : "scoped"
+        let preview = rows.isEmpty
+            ? "[]"
+            : rows.map { row in
+                let classTitle = row.class_rooms?.title ?? row.class_id
+                let invite = row.class_rooms?.invite_code ?? "no code"
+                return "\(classTitle) [\(row.role), \(row.status), \(invite)]"
+            }.joined(separator: ", ")
+
+        return SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: status,
+            statusColorName: activeRows.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: activeRows.isEmpty ? "RLS returned no active class memberships for this user." : "RLS returned \(activeRows.count) active class membership row(s).",
+            nextStep: activeRows.isEmpty ? "Check seed membership and class_members RLS before trusting session" : "Map returned class roles into child/class context repository",
+            rowsPreview: preview
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedClassScopeProbe {
+        SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, grants, embeds and class_members RLS response",
+            rowsPreview: "not decoded"
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedClassScopeProbe {
+        SupabaseSignedClassScopeProbe(
+            title: "Signed class scope probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/class_members",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local class state active and retry after network/backend healthcheck",
+            rowsPreview: "not requested"
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -2145,6 +2293,60 @@ private struct SupabaseSignedProfileClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseProfileRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedClassScopeClient {
+    static func probeClassScope(config: SupabaseBackendConfig) async -> SupabaseSignedClassScopeProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/class_members") else {
+            return .networkError(config: config, message: "Invalid Supabase class_members URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "user_id", value: "eq.\(userID)"),
+            URLQueryItem(name: "select", value: "id,class_id,role,status,class_rooms(id,title,invite_code)"),
+            URLQueryItem(name: "order", value: "created_at.asc")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase class_members query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseClassMembershipRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -8574,6 +8776,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
     @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
@@ -8956,6 +9159,7 @@ private struct SyncCenterSheet: View {
             supabaseAuthSessionCard(supabaseAuthSession)
             supabaseSessionRefreshCard(supabaseSessionRefresh)
             supabaseSignedProfileCard(supabaseSignedProfile)
+            supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
@@ -9010,6 +9214,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-profile")
+
+            Button {
+                Task {
+                    await runSupabaseSignedClassScopeProbe()
+                }
+            } label: {
+                Label("Проверить signed classes", systemImage: "person.3.sequence.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-class-scope")
 
             Button {
                 Task {
@@ -9511,6 +9729,56 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                 .lineLimit(2)
                 .minimumScaleFactor(0.60)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseSignedClassScopeCard(_ result: SupabaseSignedClassScopeProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "person.3.sequence.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.50)
 
             Text(result.url)
                 .font(.caption2)
@@ -10112,6 +10380,7 @@ private struct SyncCenterSheet: View {
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
@@ -10125,6 +10394,7 @@ private struct SyncCenterSheet: View {
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = supabaseConfig.hasAccessToken
@@ -10138,6 +10408,7 @@ private struct SyncCenterSheet: View {
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
@@ -10154,6 +10425,7 @@ private struct SyncCenterSheet: View {
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase signed profile: готовлю GET /profiles с user bearer token без замены локального профиля."
@@ -10165,11 +10437,29 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabaseSignedClassScopeProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase signed classes: готовлю GET /class_members с embedded class_rooms без замены локальных классов."
+        let result = await SupabaseSignedClassScopeClient.probeClassScope(config: supabaseConfig)
+        supabaseSignedClassScope = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
+            ? "Supabase signed classes заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
+            : "Supabase signed classes завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
