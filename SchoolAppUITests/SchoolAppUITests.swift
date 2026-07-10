@@ -292,6 +292,27 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(announcementReadAckButton.waitForExistence(timeout: 4))
     }
 
+    func testSupabaseSyncMutationWriteBlocksBeforeClientKey() {
+        let app = launchApp(arguments: [
+            "-qa-seed-supabase-class-bridge",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(findStaticText("Sync mutation write", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "/sync_mutations", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "Signed sync mutation write is blocked", in: app, attempts: 10))
+
+        let writeButton = app.buttons["sync.supabase-sync-mutation-write"]
+        scrollUntilVisible(writeButton, in: app, attempts: 10)
+        XCTAssertTrue(writeButton.waitForExistence(timeout: 4))
+        writeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "sync mutation заблокирована", in: app, attempts: 6))
+        XCTAssertTrue(findStaticText(containing: "no mutation built", in: app, attempts: 6))
+    }
+
     func testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-supabase-session-store",

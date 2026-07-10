@@ -3678,6 +3678,170 @@ private struct SupabaseSignedPhotosProbe: Hashable {
     }
 }
 
+private struct SupabaseSyncMutationWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var mutationPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSyncMutationWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        if AppSupabaseClassContextBridge.contexts.isEmpty {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will enqueue one idempotent QA mutation under RLS.",
+            nextStep: "Run write probe before replacing local mutation dry-run with live sync queue",
+            mutationPreview: "not sent"
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed sync mutation write is blocked before network access.",
+            nextStep: "Add client apikey, signed session and class bridge",
+            mutationPreview: "no mutation built"
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot write the signed mutation queue.",
+            nextStep: "Inject a seed user's Supabase access token before sync write proof",
+            mutationPreview: "no mutation built"
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but mutation owner cannot be written without user id.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed user and retry sync mutation write",
+            mutationPreview: "no mutation built"
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "The app has no saved Supabase class bridge to scope the mutation.",
+            nextStep: "Run signed class scope probe first, then retry sync mutation write",
+            mutationPreview: "no mutation built"
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, body: SupabaseSyncMutationInsertBody, statusCode: Int) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "queued",
+            statusColorName: "green",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: "RLS accepted the mutation owner and class scope.",
+            nextStep: "Use this signed queue path for live offline mutations after repository switch",
+            mutationPreview: "\(body.mutation_id), \(body.entity_type), \(body.operation), class \(body.class_id ?? "none")"
+        )
+    }
+
+    static func duplicate(config: SupabaseBackendConfig, body: SupabaseSyncMutationInsertBody, statusCode: Int) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "duplicate",
+            statusColorName: "green",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "HTTP \(statusCode), idempotency held",
+            detail: "The same mutation_id already exists; retry did not create a duplicate.",
+            nextStep: "Keep stable mutation_id for retries and fetch queue state before clearing local draft",
+            mutationPreview: "\(body.mutation_id), duplicate-safe"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, body: SupabaseSyncMutationInsertBody?, statusCode: Int, message: String) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh seed session or verify class membership RLS" : "Check sync_mutations Data API exposure and RLS response",
+            mutationPreview: body.map { "\($0.mutation_id), blocked" } ?? "not encoded"
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, body: SupabaseSyncMutationInsertBody?, message: String) -> SupabaseSyncMutationWriteResult {
+        SupabaseSyncMutationWriteResult(
+            title: "Sync mutation write",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/sync_mutations",
+            url: "\(config.restBaseURL)/sync_mutations",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local mutation queued and retry after network/backend healthcheck",
+            mutationPreview: body.map(\.mutation_id) ?? "not encoded"
+        )
+    }
+}
+
 private struct SupabaseAnnouncementReadAckResult: Hashable {
     var title: String
     var status: String
@@ -4609,6 +4773,91 @@ private struct SupabaseSignedPhotosClient {
             return .serverError(config: config, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSyncMutationInsertBody: Encodable, Hashable {
+    struct Payload: Encodable, Hashable {
+        var source: String
+        var client: String
+        var scenario: String
+    }
+
+    var mutation_id: String
+    var user_id: String
+    var class_id: String?
+    var entity_type: String
+    var operation: String
+    var base_version: Int
+    var payload: Payload
+}
+
+private struct SupabaseSyncMutationWriteClient {
+    static func enqueueProbeMutation(config: SupabaseBackendConfig) async -> SupabaseSyncMutationWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let classID = AppSupabaseClassContextBridge.primaryContext?.classID else {
+            return .missingClassContext(config: config)
+        }
+
+        let body = SupabaseSyncMutationInsertBody(
+            mutation_id: "ios-sync-probe-\(userID)-\(classID)",
+            user_id: userID,
+            class_id: classID,
+            entity_type: "sync_probe",
+            operation: "qa_enqueue",
+            base_version: 1,
+            payload: SupabaseSyncMutationInsertBody.Payload(
+                source: "ios-sync-center",
+                client: "SchoolApp",
+                scenario: "signed sync_mutations write probe"
+            )
+        )
+
+        guard let url = URL(string: "\(config.restBaseURL)/sync_mutations") else {
+            return .networkError(config: config, body: body, message: "Invalid Supabase sync_mutations URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, body: body, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+
+            if statusCode == 409 || message.localizedCaseInsensitiveContains("duplicate key") {
+                return .duplicate(config: config, body: body, statusCode: statusCode)
+            }
+
+            return .serverError(config: config, body: body, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, body: body, message: error.localizedDescription)
         }
     }
 }
@@ -11120,6 +11369,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -11162,6 +11412,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedCalendarEvents = State(initialValue: SupabaseSignedCalendarEventsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedCollections = State(initialValue: SupabaseSignedCollectionsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedPhotos = State(initialValue: SupabaseSignedPhotosProbe.planned(config: launchSupabaseConfig))
+        _supabaseSyncMutationWrite = State(initialValue: SupabaseSyncMutationWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -11539,6 +11790,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
             supabaseSignedPhotosCard(supabaseSignedPhotos)
+            supabaseSyncMutationWriteCard(supabaseSyncMutationWrite)
             supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
@@ -12757,6 +13009,70 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSyncMutationWriteCard(_ result: SupabaseSyncMutationWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "paperplane.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Mutation: \(result.mutationPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.58)
+
+            Button {
+                Task {
+                    await runSupabaseSyncMutationWrite()
+                }
+            } label: {
+                Label("Записать sync mutation", systemImage: "paperplane.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-sync-mutation-write")
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -13444,6 +13760,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: supabaseConfig)
         supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: supabaseConfig)
         supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: supabaseConfig)
+        supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -13680,6 +13997,17 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed photos заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed photos завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseSyncMutationWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase sync mutation: готовлю signed POST /sync_mutations с idempotent mutation_id."
+        let result = await SupabaseSyncMutationWriteClient.enqueueProbeMutation(config: supabaseConfig)
+        supabaseSyncMutationWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
+            ? "Supabase sync mutation заблокирована: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
+            : "Supabase sync mutation завершена: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor
