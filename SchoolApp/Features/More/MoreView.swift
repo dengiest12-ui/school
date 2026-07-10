@@ -1498,6 +1498,11 @@ private struct SupabaseBackendConfig: Hashable {
     var refreshToken: String?
     var hasRefreshToken: Bool
     var userID: String?
+    var testEmail: String?
+    var testEmailPreview: String?
+    var hasTestEmail: Bool
+    var testPassword: String?
+    var hasTestPassword: Bool
     var migrationFile: String
     var expectedTableCount: Int
     var expectedPolicyCount: Int
@@ -1538,6 +1543,10 @@ private struct SupabaseBackendConfig: Hashable {
             ?? Self.readValue(named: "SupabaseRefreshToken")
         let userID = Self.readValue(named: "SUPABASE_USER_ID")
             ?? Self.readValue(named: "SupabaseUserID")
+        let testEmail = Self.readValue(named: "SUPABASE_TEST_EMAIL")
+            ?? Self.readValue(named: "SupabaseTestEmail")
+        let testPassword = Self.readValue(named: "SUPABASE_TEST_PASSWORD")
+            ?? Self.readValue(named: "SupabaseTestPassword")
 
         return SupabaseBackendConfig(
             projectRef: projectRef,
@@ -1557,11 +1566,33 @@ private struct SupabaseBackendConfig: Hashable {
             refreshToken: refreshToken,
             hasRefreshToken: refreshToken?.isEmpty == false,
             userID: userID,
+            testEmail: testEmail,
+            testEmailPreview: testEmail.map(Self.previewEmail),
+            hasTestEmail: testEmail?.isEmpty == false,
+            testPassword: testPassword,
+            hasTestPassword: testPassword?.isEmpty == false,
             migrationFile: "supabase/migrations/20260704190000_initial_school_schema.sql",
             expectedTableCount: 14,
             expectedPolicyCount: 44,
             storageBucket: "class-files"
         )
+    }
+
+    func applying(session response: SupabaseRefreshSessionResponse) -> SupabaseBackendConfig {
+        var copy = self
+        if let accessToken = response.access_token, accessToken.isEmpty == false {
+            copy.accessToken = accessToken
+            copy.accessTokenPreview = Self.preview(accessToken)
+            copy.hasAccessToken = true
+        }
+        if let refreshToken = response.refresh_token, refreshToken.isEmpty == false {
+            copy.refreshToken = refreshToken
+            copy.hasRefreshToken = true
+        }
+        if let userID = response.user?.id, userID.isEmpty == false {
+            copy.userID = userID
+        }
+        return copy
     }
 
     private static func readValue(named key: String) -> String? {
@@ -1580,6 +1611,18 @@ private struct SupabaseBackendConfig: Hashable {
         }
 
         return "\(value.prefix(6))...\(value.suffix(4))"
+    }
+
+    static func previewEmail(_ value: String) -> String {
+        let parts = value.split(separator: "@", maxSplits: 1)
+        guard parts.count == 2 else {
+            return preview(value)
+        }
+
+        let local = parts[0]
+        let domain = parts[1]
+        let localPreview = local.count <= 2 ? String(local) : "\(local.prefix(2))..."
+        return "\(localPreview)@\(domain)"
     }
 }
 
@@ -1797,6 +1840,11 @@ private struct SupabaseRefreshSessionRequest: Encodable {
     var refresh_token: String
 }
 
+private struct SupabasePasswordSignInRequest: Encodable {
+    var email: String
+    var password: String
+}
+
 private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
     var access_token: String?
     var refresh_token: String?
@@ -1807,6 +1855,110 @@ private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
 
 private struct SupabaseRefreshSessionUser: Decodable, Hashable {
     var id: String?
+}
+
+private struct SupabasePasswordSignInProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var endpoint: String
+    var credentialState: String
+    var sessionState: String
+    var nextStep: String
+    var session: SupabaseRefreshSessionResponse?
+
+    static func planned(config: SupabaseBackendConfig) -> SupabasePasswordSignInProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasTestEmail == false || config.hasTestPassword == false {
+            return missingCredentials(config: config)
+        }
+
+        return SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "ready",
+            statusColorName: "blue",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: "seed email \(config.testEmailPreview ?? "set"), password provided",
+            sessionState: "no session requested yet",
+            nextStep: "Run password sign-in, then reuse returned access token for signed RLS probes without persisting it",
+            session: nil
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabasePasswordSignInProbe {
+        SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "blocked",
+            statusColorName: "orange",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            sessionState: "network skipped before credentials are sent",
+            nextStep: "Add client apikey before testing Supabase Auth password sign-in",
+            session: nil
+        )
+    }
+
+    static func missingCredentials(config: SupabaseBackendConfig) -> SupabasePasswordSignInProbe {
+        SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "credentials missing",
+            statusColorName: "orange",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: [
+                config.hasTestEmail ? "SUPABASE_TEST_EMAIL ready" : "missing SUPABASE_TEST_EMAIL",
+                config.hasTestPassword ? "SUPABASE_TEST_PASSWORD ready" : "missing SUPABASE_TEST_PASSWORD"
+            ].joined(separator: ", "),
+            sessionState: "network skipped before password request",
+            nextStep: "Create a seed Auth user and pass SUPABASE_TEST_EMAIL / SUPABASE_TEST_PASSWORD through the test environment",
+            session: nil
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, response: SupabaseRefreshSessionResponse, statusCode: Int) -> SupabasePasswordSignInProbe {
+        let accessPreview = response.access_token.map(SupabaseBackendConfig.preview) ?? "missing"
+        let refreshState = response.refresh_token?.isEmpty == false ? "refresh token received" : "refresh token missing"
+        let user = response.user?.id.map { "user \($0)" } ?? "user id missing"
+
+        return SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: response.access_token?.isEmpty == false ? "green" : "orange",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: "seed email \(config.testEmailPreview ?? "set") accepted",
+            sessionState: "access \(accessPreview), \(refreshState), \(user)",
+            nextStep: "Signed profile/classes/children probes can now run with this in-memory seed session",
+            session: response
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabasePasswordSignInProbe {
+        SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: "Supabase Auth rejected seed password sign-in",
+            sessionState: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Check seed user email/password and email confirmation state" : "Check Supabase Auth response before enabling live login",
+            session: nil
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabasePasswordSignInProbe {
+        SupabasePasswordSignInProbe(
+            title: "Password sign-in probe",
+            status: "network",
+            statusColorName: "red",
+            endpoint: "POST \(config.authBaseURL)/token?grant_type=password",
+            credentialState: config.hasTestEmail ? "seed email \(config.testEmailPreview ?? "set") prepared" : "seed email missing",
+            sessionState: message,
+            nextStep: "Keep local onboarding active and retry after backend/network healthcheck",
+            session: nil
+        )
+    }
 }
 
 private struct SupabaseSessionRefreshProbe: Hashable {
@@ -2485,6 +2637,46 @@ private struct SupabaseLiveProbeResult: Hashable {
 }
 
 private struct SupabaseAuthClient {
+    static func signInWithPassword(config: SupabaseBackendConfig) async -> SupabasePasswordSignInProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let email = config.testEmail, email.isEmpty == false,
+              let password = config.testPassword, password.isEmpty == false else {
+            return .missingCredentials(config: config)
+        }
+
+        guard let url = URL(string: "\(config.authBaseURL)/token?grant_type=password") else {
+            return .networkError(config: config, message: "Invalid Supabase Auth password URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(SupabasePasswordSignInRequest(email: email, password: password))
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let decoded = try JSONDecoder().decode(SupabaseRefreshSessionResponse.self, from: data)
+                return .success(config: config, response: decoded, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase Auth returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+
     static func refreshSession(config: SupabaseBackendConfig) async -> SupabaseSessionRefreshProbe {
         guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
             return .missingKey(config: config)
@@ -9117,6 +9309,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseConfig = SupabaseBackendConfig.make()
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
+    @State private var supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
@@ -9502,6 +9695,7 @@ private struct SyncCenterSheet: View {
             }
 
             supabaseAuthSessionCard(supabaseAuthSession)
+            supabasePasswordSignInCard(supabasePasswordSignIn)
             supabaseSessionRefreshCard(supabaseSessionRefresh)
             supabaseSignedProfileCard(supabaseSignedProfile)
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
@@ -9533,6 +9727,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-auth-session")
+
+            Button {
+                Task {
+                    await runSupabasePasswordSignInProbe()
+                }
+            } label: {
+                Label("Войти seed user", systemImage: "key.radiowaves.forward.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.accent)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.accent.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-password-sign-in")
 
             Button {
                 Task {
@@ -10029,6 +10237,44 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(moreColor(for: session.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabasePasswordSignInCard(_ signIn: SupabasePasswordSignInProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(signIn.title, systemImage: "key.radiowaves.forward.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: signIn.status, color: moreColor(for: signIn.statusColorName))
+            }
+
+            Text(signIn.endpoint)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.52)
+
+            Text(signIn.credentialState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: signIn.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(signIn.sessionState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(signIn.nextStep)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .background(moreColor(for: signIn.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func supabaseSessionRefreshCard(_ refresh: SupabaseSessionRefreshProbe) -> some View {
@@ -10875,6 +11121,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -10890,6 +11137,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseAuthSessionReadiness() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -10902,9 +11150,63 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabasePasswordSignInProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase seed sign-in: готовлю password grant без сохранения токенов и без замены локального входа."
+        let signInResult = await SupabaseAuthClient.signInWithPassword(config: supabaseConfig)
+        supabasePasswordSignIn = signInResult
+
+        guard let session = signInResult.session,
+              session.access_token?.isEmpty == false else {
+            syncStatus = signInResult.status == "blocked" || signInResult.status == "credentials missing"
+                ? "Supabase seed sign-in заблокирован: нужен client key, SUPABASE_TEST_EMAIL и SUPABASE_TEST_PASSWORD."
+                : "Supabase seed sign-in завершен без пригодной сессии: \(signInResult.sessionState)"
+            return
+        }
+
+        let signedConfig = supabaseConfig.applying(session: session)
+        supabaseConfig = signedConfig
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: signedConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.success(config: signedConfig, response: session, statusCode: 200)
+
+        let profile = await SupabaseSignedProfileClient.probeProfile(config: signedConfig)
+        supabaseSignedProfile = profile
+
+        let classScope = await SupabaseSignedClassScopeClient.probeClassScope(config: signedConfig)
+        supabaseSignedClassScope = classScope
+        if classScope.mappedContexts.isEmpty == false {
+            let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+            AppSupabaseClassContextBridge.replace(
+                with: classScope.mappedContexts.map { $0.bridgeItem(mappedAt: mappedAt) }
+            )
+        }
+
+        let children = await SupabaseSignedChildrenClient.probeChildren(config: signedConfig)
+        supabaseSignedChildren = children
+        if children.mappedChildren.isEmpty == false {
+            let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+            AppSupabaseChildContextBridge.replace(
+                with: children.mappedChildren.map { $0.bridgeItem(mappedAt: mappedAt) }
+            )
+        }
+
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: signedConfig)
+        syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). Signed probes обновлены без сохранения токенов в Keychain."
+    }
+
+    @MainActor
     private func runSupabaseSessionRefreshProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -10923,6 +11225,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseSignedProfileProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -10941,6 +11244,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseSignedClassScopeProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -10965,6 +11269,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseSignedChildrenProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
@@ -11010,6 +11315,7 @@ private struct SyncCenterSheet: View {
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)

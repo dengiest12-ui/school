@@ -172,6 +172,14 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "SUPABASE_ACCESS_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "seed membership", in: app))
 
+        XCTAssertTrue(findStaticText("Password sign-in probe", in: app))
+        let passwordSignInButton = app.buttons["sync.supabase-password-sign-in"]
+        scrollUntilVisible(passwordSignInButton, in: app)
+        XCTAssertTrue(passwordSignInButton.waitForExistence(timeout: 4))
+        passwordSignInButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "network skipped before credentials", in: app))
+
         let refreshSessionButton = app.buttons["sync.supabase-refresh-session"]
         scrollUntilVisible(refreshSessionButton, in: app)
         XCTAssertTrue(refreshSessionButton.waitForExistence(timeout: 4))
