@@ -237,7 +237,26 @@ struct SupabaseClassContextBridgeItem: Identifiable, Hashable, Codable {
     let mappedAt: String
 
     var summary: String {
-        "\(classTitle) [\(role), \(inviteCode)]"
+        "\(classTitle) [\(roleDisplayTitle), \(inviteCode)]"
+    }
+
+    var roleDisplayTitle: String {
+        switch role {
+        case "parent_committee", "committee":
+            "Родкомитет"
+        case "teacher":
+            "Учитель"
+        case "parent":
+            "Родитель"
+        case "child", "student":
+            "Ребенок"
+        default:
+            role
+        }
+    }
+
+    var handoffText: String {
+        "Supabase готов: \(classTitle), роль \(roleDisplayTitle)"
     }
 }
 
@@ -269,6 +288,10 @@ enum AppSupabaseClassContextBridge {
         }
     }
 
+    static var primaryContext: SupabaseClassContextBridgeItem? {
+        contexts.first
+    }
+
     static var statusText: String {
         contexts.isEmpty
             ? "Bridge waiting: local children untouched"
@@ -283,6 +306,21 @@ enum AppSupabaseClassContextBridge {
 
     static func replace(with contexts: [SupabaseClassContextBridgeItem]) {
         self.contexts = contexts
+    }
+
+    static func seedSmokeContext() {
+        replace(
+            with: [
+                SupabaseClassContextBridgeItem(
+                    classID: "qa-3b-2026",
+                    classTitle: "QA-3B-2026",
+                    role: "parent",
+                    inviteCode: "QA-3B-2026",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
     }
 
     static func clear() {

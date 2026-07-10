@@ -81,7 +81,7 @@ Current verified state:
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
-- Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview and a separate local bridge that does not replace child/class state.
+- Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
 - Current live behavior: blocked until `SUPABASE_PUBLISHABLE_KEY` or legacy `SUPABASE_ANON_KEY` is provided. The live probe sends the client key in the `apikey` header; `Authorization: Bearer <access token>` is sent only when a real user token exists. Legacy anon bearer remains a fallback when no publishable key is configured.
 
 Gate before first signed iOS request:
@@ -101,7 +101,7 @@ Gate before first signed iOS request:
 
 Date: 2026-07-10
 
-- Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed in `.build/SupabaseClassContextBridgeUITest.xcresult`.
+- Targeted UI test: `testSupabaseClassBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseClassBridgeHandoffUITest-2.xcresult`.
 - Full UI suite: 15 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
 - One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
@@ -115,6 +115,7 @@ Additional iOS verification:
 - The app now has a separate signed class scope probe that blocks safely without client key, access token or user id, then expects active `class_members` rows with embedded `class_rooms` before class context mapping.
 - The signed class scope probe now maps active membership rows into a local class context preview and keeps local data untouched when mapper prerequisites are missing.
 - The signed class scope probe now saves mapped active class contexts into a separate local bridge only after a successful signed mapper; current local children and selected child remain untouched until the repository switch is implemented.
+- The saved bridge context now appears as a handoff preview on Today, Class and Profile screens with localized role labels; targeted UI verifies it does not replace the selected local child.
 
 ## Latest Supabase verification
 

@@ -7,9 +7,18 @@ struct AppView: View {
     @State private var selectedTab: AppTab
     @State private var completedForcedOnboarding = false
     @State private var completedChildrenReset = false
+    @State private var completedSupabaseBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
+        if Self.resetsChildren {
+            AppChildStore.clear()
+        }
+        if Self.seedsSupabaseBridge {
+            AppSupabaseClassContextBridge.seedSmokeContext()
+        }
         _selectedTab = State(initialValue: initialTab)
+        _completedChildrenReset = State(initialValue: Self.resetsChildren)
+        _completedSupabaseBridgeSeed = State(initialValue: Self.seedsSupabaseBridge)
     }
 
     var body: some View {
@@ -22,6 +31,7 @@ struct AppView: View {
         }
         .onAppear(perform: resetOnboardingIfNeeded)
         .onAppear(perform: resetChildrenIfNeeded)
+        .onAppear(perform: seedSupabaseBridgeIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
     }
@@ -100,6 +110,15 @@ struct AppView: View {
         completedChildrenReset = true
     }
 
+    private func seedSupabaseBridgeIfNeeded() {
+        guard Self.seedsSupabaseBridge, !completedSupabaseBridgeSeed else {
+            return
+        }
+
+        AppSupabaseClassContextBridge.seedSmokeContext()
+        completedSupabaseBridgeSeed = true
+    }
+
     private func normalizeSelectedTab() {
         guard !visibleTabs.contains(selectedTab) else {
             return
@@ -137,6 +156,10 @@ struct AppView: View {
 
     private static var resetsChildren: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-reset-children-store")
+    }
+
+    private static var seedsSupabaseBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-class-bridge")
     }
 
     private static var launchRole: AppUserRole? {

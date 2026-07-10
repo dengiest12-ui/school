@@ -231,6 +231,25 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Создать сбор"].waitForExistence(timeout: 4))
     }
 
+    func testSupabaseClassBridgeShowsWithoutReplacingSelectedChild() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Миша, 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Supabase готов: QA-3B-2026", in: app))
+        XCTAssertTrue(findStaticText(containing: "роль Родитель", in: app))
+
+        app.buttons["tab.classRoom"].tap()
+
+        XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Миша: родитель, код 3B-1254"].exists)
+        XCTAssertTrue(findStaticText(containing: "Supabase готов: QA-3B-2026", in: app))
+    }
+
     func testAnnouncementAcknowledgementPersistsAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-class-store",

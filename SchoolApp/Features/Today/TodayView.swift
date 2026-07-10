@@ -255,6 +255,7 @@ struct TodayView: View {
             VStack(spacing: 14) {
                 header
                 childCard
+                supabaseBridgeCard
                 tomorrowCard
                 if userRole == .child {
                     childBackpackCard
@@ -518,6 +519,27 @@ struct TodayView: View {
             .accessibilityIdentifier("today.child.add")
 
             Button("Отмена", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var supabaseBridgeCard: some View {
+        if let bridgeContext = AppSupabaseClassContextBridge.primaryContext {
+            HStack(spacing: 8) {
+                Image(systemName: "link.badge.plus")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.accent)
+                Text(bridgeContext.handoffText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .accessibilityIdentifier("today.supabase.bridge")
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(SchoolTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 

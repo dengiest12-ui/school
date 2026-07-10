@@ -368,6 +368,13 @@ struct ClassRoomView: View {
                 Text("\(selectedChild.name): \(selectedChild.parentRoleTitle.lowercased()), код \(selectedChild.classCode)")
                     .font(.subheadline)
                     .foregroundStyle(SchoolTheme.muted)
+                if let bridgeContext = AppSupabaseClassContextBridge.primaryContext {
+                    Text(bridgeContext.handoffText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                }
             }
 
             Spacer()

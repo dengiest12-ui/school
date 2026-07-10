@@ -3967,6 +3967,15 @@ private struct ParentProfileSheet: View {
                                 profileClassRoleRow(child)
                             }
 
+                            if let bridgeContext = AppSupabaseClassContextBridge.primaryContext {
+                                profileInfoRow(
+                                    icon: "link.badge.plus",
+                                    color: SchoolTheme.accent,
+                                    title: bridgeContext.handoffText,
+                                    detail: "Пока хранится отдельно от локальных детей"
+                                )
+                            }
+
                             Button {
                                 openChildrenProfiles()
                             } label: {
