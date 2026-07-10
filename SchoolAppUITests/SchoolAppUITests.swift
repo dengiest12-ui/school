@@ -113,6 +113,25 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Сначала подтвердите аккаунт"].exists)
     }
 
+    func testOnboardingSupabaseHandoffUnlocksRoleAndClassStep() {
+        let app = XCUIApplication(bundleIdentifier: bundleIdentifier)
+        app.launchArguments = [
+            "-qa-reset-onboarding",
+            "-qa-reset-children-store",
+            "-qa-onboarding",
+            "-qa-onboarding-supabase-email",
+            "-qa-onboarding-supabase-handoff-ready"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Вход"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Supabase Auth подключен, найдено детей: 1, классов: 1", in: app))
+        XCTAssertTrue(findStaticText(containing: "Smoke Child, 3Б -> QA-3B-2026", in: app))
+        XCTAssertTrue(app.staticTexts["Ваш статус"].exists)
+        XCTAssertTrue(app.staticTexts["Создать комнату класса"].exists || app.buttons["Создать комнату класса"].exists)
+        XCTAssertFalse(app.buttons["Сначала подтвердите аккаунт"].exists)
+    }
+
     func testMvpMetricsEventPersistsAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-more-store",

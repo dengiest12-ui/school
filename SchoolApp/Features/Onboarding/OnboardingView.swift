@@ -17,8 +17,9 @@ struct OnboardingView: View {
     @State private var appleLinked = OnboardingView.startsAppleLinked
     @State private var supabaseEmail = OnboardingView.initialSupabaseEmail
     @State private var supabasePassword = OnboardingView.initialSupabasePassword
-    @State private var supabaseStatus = "Войдите через Supabase Auth, чтобы связать аккаунт с backend."
-    @State private var supabaseEmailSignedIn = false
+    @State private var supabaseStatus = OnboardingView.initialSupabaseStatus
+    @State private var supabaseEmailSignedIn = OnboardingView.startsSupabaseHandoffReady
+    @State private var didSeedSupabaseHandoffForUITest = false
     @State private var isSupabaseSigningIn = false
     @State private var role: AppUserRole = .parent
     @State private var parentName = "Владимир"
@@ -76,6 +77,7 @@ struct OnboardingView: View {
         .onChange(of: mode) { _, _ in
             didPrepareClass = false
         }
+        .onAppear(perform: seedSupabaseHandoffForUITestIfNeeded)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -128,6 +130,16 @@ struct OnboardingView: View {
         Bundle.main.object(forInfoDictionaryKey: "SupabaseTestPassword") as? String
             ?? ProcessInfo.processInfo.environment["SUPABASE_TEST_PASSWORD"]
             ?? ""
+    }
+
+    private static var startsSupabaseHandoffReady: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-supabase-handoff-ready")
+    }
+
+    private static var initialSupabaseStatus: String {
+        startsSupabaseHandoffReady
+            ? "Supabase Auth подключен, найдено детей: 1, классов: 1. Smoke Child, 3Б -> QA-3B-2026"
+            : "Войдите через Supabase Auth, чтобы связать аккаунт с backend."
     }
 
     private static var startsPrepared: Bool {
@@ -786,7 +798,28 @@ struct OnboardingView: View {
             emailPreview: SupabaseBackendConfig.previewEmail(email)
         )
         supabaseEmailSignedIn = true
-        supabaseStatus = "Supabase Auth подключен: \(storageSource). Теперь выберите статус и класс."
+        supabaseStatus = "Supabase Auth подключен: \(storageSource). Загружаю детей и классы..."
+
+        let handoff = await SupabaseOnboardingHandoffClient.syncAfterAuth(
+            config: SupabaseBackendConfig.make().applying(session: session)
+        )
+        let selected = handoff.selectedChildSummary.map { " \($0)" } ?? ""
+        supabaseStatus = "\(handoff.message)\(selected) Теперь выберите статус и класс."
+    }
+
+    private func seedSupabaseHandoffForUITestIfNeeded() {
+        guard OnboardingView.startsSupabaseHandoffReady, !didSeedSupabaseHandoffForUITest else {
+            return
+        }
+
+        SupabaseSeedSessionStore.seedForUITest()
+        AppSupabaseClassContextBridge.seedSmokeContext()
+        AppSupabaseChildContextBridge.seedSmokeContext()
+        AppChildStore.usesSupabaseChildSourcePreview = true
+        if let selectedChild = AppChildStore.effectiveChildren.first {
+            AppChildStore.select(selectedChild)
+        }
+        didSeedSupabaseHandoffForUITest = true
     }
 }
 

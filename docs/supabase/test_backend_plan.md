@@ -80,7 +80,7 @@ Current verified state:
 - Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Password sign-in probe: `POST /auth/v1/token?grant_type=password` through `URLSession`, with the client key in `apikey`, `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` in the JSON body, and the returned session saved into a Keychain-first seed session store for immediate signed probes and relaunch testing.
-- Onboarding email/password entry: the first onboarding step can now call the same Supabase Auth password grant with user-entered email/password and stores a successful session in the shared Keychain-first seed session store before role/class selection unlocks.
+- Onboarding email/password entry: the first onboarding step can now call the same Supabase Auth password grant with user-entered email/password, stores a successful session in the shared Keychain-first seed session store, then runs signed class/children handoff before role/class selection unlocks.
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
 - Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
@@ -94,6 +94,7 @@ Gate before first signed iOS request:
 - Provide `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` for a seed Auth user when testing password sign-in from the app.
 - Run the password sign-in probe and verify Supabase returns access token, refresh token and user id; the app stores the returned seed session in Keychain, with legacy QA/UserDefaults only as fallback for old local test sessions.
 - Verify the seed session store shows source, token preview, user id and expiry, survives relaunch for test probes, and can be cleared from Sync Center.
+- Verify onboarding email/password success runs signed class/children handoff, saves bridge context and shows the selected child/class context before the user chooses role/class.
 - Provide a signed seed user's access token, refresh token and user id to the iOS test run.
 - Run the Auth refresh probe and verify Supabase returns a refreshed access token before relying on session restore.
 - Run the signed profile probe and verify RLS returns exactly one row for `SUPABASE_USER_ID`.
@@ -121,6 +122,8 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with signed children coverage in `.build/SupabaseSignedChildrenUITest.xcresult`.
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with password sign-in gate coverage in `.build/SupabasePasswordSignInGateUITest-2.xcresult`.
 - Targeted UI test: `testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch` passed in `.build/SupabaseStoredSeedSessionUITest.xcresult`.
+- Targeted UI test: `testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep` passed in `.build/SupabaseOnboardingEmailGateUITest.xcresult`.
+- Targeted UI tests: `testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep` and `testOnboardingSupabaseHandoffUnlocksRoleAndClassStep` passed in `.build/SupabaseOnboardingHandoffUITest.xcresult`.
 - Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
 - Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
@@ -133,6 +136,7 @@ Additional iOS verification:
 - The app now has a separate password sign-in probe for seed Auth users; without client key or seed credentials it blocks before network, and on success it passes the session into signed profile/classes/children probes and stores it in a Keychain-first seed session store.
 - The seed session store now appears in Sync Center, survives relaunch for test probes and can be cleared from the app; Keychain is the primary store, while legacy QA/UserDefaults remains only a fallback during this transition.
 - Onboarding now has a first real Supabase email/password path: without a successful Auth response the app stays on the account step, and after success the returned session is written to Keychain before role/class selection unlocks.
+- Onboarding now runs a post-auth handoff: using the fresh Supabase session it loads signed class memberships and children, saves both bridge contexts, enables the Supabase child source preview for that launch and shows the selected child/class summary before role/class selection.
 - Production Auth is still incomplete: signup/email confirmation, phone OTP, native Apple ID, profile creation and class membership mapping must still be connected to live Supabase data before release.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before local account mapping.

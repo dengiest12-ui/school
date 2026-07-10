@@ -2878,6 +2878,71 @@ struct SupabasePasswordAuthResult: Hashable {
     }
 }
 
+struct SupabaseOnboardingHandoffResult: Hashable {
+    var status: String
+    var message: String
+    var classCount: Int
+    var childCount: Int
+    var selectedChildSummary: String?
+
+    var hasLiveChildContext: Bool {
+        childCount > 0
+    }
+}
+
+struct SupabaseOnboardingHandoffClient {
+    static func syncAfterAuth(config: SupabaseBackendConfig) async -> SupabaseOnboardingHandoffResult {
+        guard config.hasAccessToken, config.userID?.isEmpty == false else {
+            return SupabaseOnboardingHandoffResult(
+                status: "session incomplete",
+                message: "Сессия сохранена, но для загрузки класса нужны access token и user id.",
+                classCount: 0,
+                childCount: 0,
+                selectedChildSummary: nil
+            )
+        }
+
+        async let classScope = SupabaseSignedClassScopeClient.probeClassScope(config: config)
+        async let children = SupabaseSignedChildrenClient.probeChildren(config: config)
+        let (classResult, childResult) = await (classScope, children)
+
+        if classResult.mappedContexts.isEmpty == false {
+            AppSupabaseClassContextBridge.replace(
+                with: classResult.mappedContexts.map { $0.bridgeItem(mappedAt: Date.now.formatted(date: .numeric, time: .shortened)) }
+            )
+        }
+
+        if childResult.mappedChildren.isEmpty == false {
+            AppSupabaseChildContextBridge.replace(
+                with: childResult.mappedChildren.map { $0.bridgeItem(mappedAt: Date.now.formatted(date: .numeric, time: .shortened)) }
+            )
+            AppChildStore.usesSupabaseChildSourcePreview = true
+            if let selectedChild = AppChildStore.effectiveChildren.first {
+                AppChildStore.select(selectedChild)
+            }
+        }
+
+        let selected = AppChildStore.usesSupabaseChildSourcePreview
+            ? AppChildStore.effectiveChildren.first.map { "\($0.name), \($0.className) -> \($0.school)" }
+            : nil
+        let details = [
+            classResult.detail,
+            childResult.detail
+        ].joined(separator: " ")
+        let message = childResult.mappedChildren.isEmpty
+            ? "Supabase Auth подключен, но live-дети пока не найдены. \(details)"
+            : "Supabase Auth подключен, найдено детей: \(childResult.mappedChildren.count), классов: \(classResult.mappedContexts.count)."
+
+        return SupabaseOnboardingHandoffResult(
+            status: childResult.mappedChildren.isEmpty ? "partial" : "ready",
+            message: message,
+            classCount: classResult.mappedContexts.count,
+            childCount: childResult.mappedChildren.count,
+            selectedChildSummary: selected
+        )
+    }
+}
+
 struct SupabaseAuthClient {
     static func signInWithPassword(email: String, password: String, config: SupabaseBackendConfig) async -> SupabasePasswordAuthResult {
         guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
