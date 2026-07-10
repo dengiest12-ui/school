@@ -141,6 +141,7 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabaseCollectionExpenseWriteBlocksBeforeClientKey` passed in `.build/SupabaseCollectionExpenseWriteUITest.xcresult`.
 - Targeted UI test: `testSupabaseClassFileMetadataWriteBlocksBeforeClientKey` passed in `.build/SupabaseClassFileMetadataWriteUITest-2.xcresult`.
 - Targeted UI test: `testSupabaseClassPhotoMetadataWriteBlocksBeforeClientKey` passed in `.build/SupabaseClassPhotoMetadataWriteUITest.xcresult`.
+- Targeted UI test: `testSupabaseCollectionReceiptExpenseWriteBlocksBeforeClientKey` passed in `.build/SupabaseCollectionReceiptExpenseWriteUITest.xcresult`.
 - Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
 - Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
@@ -163,6 +164,7 @@ Additional iOS verification:
 - The app now has a signed collection expense write gate: Sync Center can prepare `POST /collection_expenses` for a teacher/committee signed session and saved collection bridge, while RLS `can_manage_class` remains the authority and receipt files stay behind the separate signed upload/class_files flow.
 - The app now has a signed class file metadata write gate: Sync Center can prepare `POST /class_files` for a signed class member after private storage upload, so receipts and class photos can later link to the returned file row without bypassing class membership RLS.
 - The app now has a signed class photo metadata write gate: Sync Center can prepare `POST /class_photos` from a saved class bridge plus class_files bridge, so uploaded private objects can become album photos only through signed class-member RLS.
+- The app now has a signed collection receipt expense write gate: Sync Center can prepare `POST /collection_expenses` with `receipt_file_id` from the saved receipt `class_files` bridge, while RLS `can_manage_class` remains the authority and photo metadata continues to use a separate class photo file bridge.
 - Production Auth is still incomplete: signup/email confirmation, phone OTP, native Apple ID, profile creation and class membership mapping must still be connected to live Supabase data before release.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before saving the local account profile bridge.

@@ -4185,6 +4185,180 @@ private struct SupabaseCollectionExpenseWriteResult: Hashable {
     }
 }
 
+private struct SupabaseCollectionReceiptExpenseWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        guard AppSupabaseCollectionBridge.primaryCollection != nil else {
+            return missingCollection(config: config)
+        }
+
+        guard AppSupabaseClassFileBridge.primaryReceiptFile != nil else {
+            return missingReceiptFile(config: config)
+        }
+
+        return SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will add a collection expense linked to a receipt file only if RLS confirms class manager rights.",
+            nextStep: "Refresh expenses and receipt files before replacing the local receipt form",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed collection receipt expense write is blocked before network access.",
+            nextStep: "Add client apikey, signed manager session, collection bridge and receipt file bridge",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot add receipt-linked collection expenses.",
+            nextStep: "Inject a teacher or parent-committee Supabase access token before receipt expense proof",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the expense body needs the signed author id.",
+            nextStep: "Provide SUPABASE_USER_ID for the manager seed user and retry receipt expense write",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func missingCollection(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "collection missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase collection bridge item is available for the expense row.",
+            nextStep: "Run signed collections probe first, then retry receipt expense write",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func missingReceiptFile(config: SupabaseBackendConfig) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "file missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase receipt file bridge item is available for receipt_file_id.",
+            nextStep: "Save class_files receipt metadata after private upload, then retry receipt expense write",
+            targetPreview: receiptExpenseTargetPreview
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, body: SupabaseCollectionReceiptExpenseBody, statusCode: Int) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "saved",
+            statusColorName: "green",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "HTTP \(statusCode), manager bearer accepted",
+            detail: "RLS accepted the class manager expense row with receipt_file_id.",
+            nextStep: "Refresh collections, expenses and receipt files before replacing the local receipt form",
+            targetPreview: "\(body.collection_id), receipt \(body.receipt_file_id), amount \(body.amount)"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, body: SupabaseCollectionReceiptExpenseBody?, statusCode: Int, message: String) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: statusCode == 401 || statusCode == 403 ? "manager auth/session required" : "\(config.clientKeyKind) apikey and manager bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Use teacher/committee session or verify can_manage_class RLS" : "Check collection_expenses Data API exposure, receipt_file_id FK and RLS response",
+            targetPreview: body.map { "\($0.collection_id), receipt \($0.receipt_file_id), blocked" } ?? receiptExpenseTargetPreview
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, body: SupabaseCollectionReceiptExpenseBody?, message: String) -> SupabaseCollectionReceiptExpenseWriteResult {
+        SupabaseCollectionReceiptExpenseWriteResult(
+            title: "Collection receipt expense write",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/collection_expenses",
+            url: "\(config.restBaseURL)/collection_expenses",
+            headerState: "\(config.clientKeyKind) apikey and manager bearer prepared",
+            detail: message,
+            nextStep: "Keep local receipt expense queued and retry after network/backend healthcheck",
+            targetPreview: body.map { "\($0.collection_id), receipt \($0.receipt_file_id)" } ?? receiptExpenseTargetPreview
+        )
+    }
+
+    private static var receiptExpenseTargetPreview: String {
+        let collection = AppSupabaseCollectionBridge.primaryCollection?.summary ?? "no saved collection"
+        let receipt = AppSupabaseClassFileBridge.primaryReceiptFile?.summary ?? "no saved receipt file"
+        return "\(collection) -> \(receipt)"
+    }
+}
+
 private struct SupabaseClassFileMetadataWriteResult: Hashable {
     var title: String
     var status: String
@@ -4383,7 +4557,7 @@ private struct SupabaseClassPhotoMetadataWriteResult: Hashable {
             return missingClassContext(config: config)
         }
 
-        guard AppSupabaseClassFileBridge.primaryFile != nil else {
+        guard AppSupabaseClassFileBridge.primaryPhotoFile != nil else {
             return missingFile(config: config)
         }
 
@@ -4523,7 +4697,7 @@ private struct SupabaseClassPhotoMetadataWriteResult: Hashable {
 
     private static var photoTargetPreview: String {
         let classContext = AppSupabaseClassContextBridge.primaryContext?.summary ?? "no saved class"
-        let file = AppSupabaseClassFileBridge.primaryFile?.summary ?? "no saved class file"
+        let file = AppSupabaseClassFileBridge.primaryPhotoFile?.summary ?? "no saved class photo file"
         return "\(classContext) -> \(file)"
     }
 }
@@ -5689,6 +5863,76 @@ private struct SupabaseCollectionExpenseWriteClient {
     }
 }
 
+private struct SupabaseCollectionReceiptExpenseBody: Encodable, Hashable {
+    var collection_id: String
+    var author_user_id: String
+    var title: String
+    var amount: String
+    var receipt_file_id: String
+}
+
+private struct SupabaseCollectionReceiptExpenseWriteClient {
+    static func saveProbeReceiptExpense(config: SupabaseBackendConfig) async -> SupabaseCollectionReceiptExpenseWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let collection = AppSupabaseCollectionBridge.primaryCollection else {
+            return .missingCollection(config: config)
+        }
+
+        guard let receiptFile = AppSupabaseClassFileBridge.primaryReceiptFile else {
+            return .missingReceiptFile(config: config)
+        }
+
+        let body = SupabaseCollectionReceiptExpenseBody(
+            collection_id: collection.id,
+            author_user_id: userID,
+            title: "QA чек с файлом",
+            amount: "2500",
+            receipt_file_id: receiptFile.id
+        )
+
+        guard let url = URL(string: "\(config.restBaseURL)/collection_expenses") else {
+            return .networkError(config: config, body: body, message: "Invalid Supabase collection_expenses URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, body: body, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, body: body, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, body: body, message: error.localizedDescription)
+        }
+    }
+}
+
 private struct SupabaseClassFileMetadataBody: Encodable, Hashable {
     var class_id: String
     var owner_user_id: String
@@ -5791,7 +6035,7 @@ private struct SupabaseClassPhotoMetadataWriteClient {
             return .missingClassContext(config: config)
         }
 
-        guard let file = AppSupabaseClassFileBridge.primaryFile else {
+        guard let file = AppSupabaseClassFileBridge.primaryPhotoFile else {
             return .missingFile(config: config)
         }
 
@@ -12344,6 +12588,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
@@ -12391,6 +12636,7 @@ private struct SyncCenterSheet: View {
         _supabaseSyncMutationWrite = State(initialValue: SupabaseSyncMutationWriteResult.planned(config: launchSupabaseConfig))
         _supabaseCollectionPaymentWrite = State(initialValue: SupabaseCollectionPaymentWriteResult.planned(config: launchSupabaseConfig))
         _supabaseCollectionExpenseWrite = State(initialValue: SupabaseCollectionExpenseWriteResult.planned(config: launchSupabaseConfig))
+        _supabaseCollectionReceiptExpenseWrite = State(initialValue: SupabaseCollectionReceiptExpenseWriteResult.planned(config: launchSupabaseConfig))
         _supabaseClassFileMetadataWrite = State(initialValue: SupabaseClassFileMetadataWriteResult.planned(config: launchSupabaseConfig))
         _supabaseClassPhotoMetadataWrite = State(initialValue: SupabaseClassPhotoMetadataWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
@@ -12771,6 +13017,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedCollectionsCard(supabaseSignedCollections)
             supabaseCollectionPaymentWriteCard(supabaseCollectionPaymentWrite)
             supabaseCollectionExpenseWriteCard(supabaseCollectionExpenseWrite)
+            supabaseCollectionReceiptExpenseWriteCard(supabaseCollectionReceiptExpenseWrite)
             supabaseClassFileMetadataWriteCard(supabaseClassFileMetadataWrite)
             supabaseClassPhotoMetadataWriteCard(supabaseClassPhotoMetadataWrite)
             supabaseSignedPhotosCard(supabaseSignedPhotos)
@@ -14185,6 +14432,70 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseCollectionReceiptExpenseWriteCard(_ result: SupabaseCollectionReceiptExpenseWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "doc.text.image.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text("Receipt expense: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(3)
+                .minimumScaleFactor(0.52)
+
+            Button {
+                Task {
+                    await runSupabaseCollectionReceiptExpenseWrite()
+                }
+            } label: {
+                Label("Записать расход с чеком", systemImage: "doc.text.image.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-collection-receipt-expense-write")
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseClassFileMetadataWriteCard(_ result: SupabaseClassFileMetadataWriteResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -15003,6 +15314,7 @@ private struct SyncCenterSheet: View {
         supabaseSyncMutationWrite = SupabaseSyncMutationWriteResult.planned(config: supabaseConfig)
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: supabaseConfig)
         supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: supabaseConfig)
+        supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: supabaseConfig)
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
@@ -15093,6 +15405,7 @@ private struct SyncCenterSheet: View {
         }
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: signedConfig)
         supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: signedConfig)
+        supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: signedConfig)
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: signedConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: signedConfig)
 
@@ -15232,6 +15545,7 @@ private struct SyncCenterSheet: View {
         }
         supabaseCollectionPaymentWrite = SupabaseCollectionPaymentWriteResult.planned(config: supabaseConfig)
         supabaseCollectionExpenseWrite = SupabaseCollectionExpenseWriteResult.planned(config: supabaseConfig)
+        supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed collections заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed collections завершен: \(result.headerState). \(result.nextStep)"
@@ -15247,6 +15561,7 @@ private struct SyncCenterSheet: View {
             AppSupabasePhotoBridge.replace(with: result.mappedPhotos)
         }
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
+        supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed photos заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
@@ -15287,11 +15602,23 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabaseCollectionReceiptExpenseWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase collection receipt expense: готовлю signed POST /collection_expenses с receipt_file_id."
+        let result = await SupabaseCollectionReceiptExpenseWriteClient.saveProbeReceiptExpense(config: supabaseConfig)
+        supabaseCollectionReceiptExpenseWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "collection missing" || result.status == "file missing"
+            ? "Supabase collection receipt expense заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID, collection bridge и receipt file bridge."
+            : "Supabase collection receipt expense завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
     private func runSupabaseClassFileMetadataWrite() async {
         reloadSupabaseProbeState()
         syncStatus = "Supabase class file metadata: готовлю signed POST /class_files для будущего чека или фото."
         let result = await SupabaseClassFileMetadataWriteClient.saveProbeMetadata(config: supabaseConfig)
         supabaseClassFileMetadataWrite = result
+        supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase class file metadata заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."

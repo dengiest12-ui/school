@@ -1010,6 +1010,14 @@ enum AppSupabaseClassFileBridge {
         files.first
     }
 
+    static var primaryPhotoFile: SupabaseClassFileBridgeItem? {
+        files.first { $0.kind == "class_photo" } ?? primaryFile
+    }
+
+    static var primaryReceiptFile: SupabaseClassFileBridgeItem? {
+        files.first { $0.kind == "receipt" } ?? primaryFile
+    }
+
     static var statusText: String {
         files.isEmpty
             ? "Class file bridge waiting: storage metadata not linked"
@@ -1029,6 +1037,19 @@ enum AppSupabaseClassFileBridge {
     static func seedSmokeFiles() {
         replace(
             with: [
+                SupabaseClassFileBridgeItem(
+                    id: "92000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    ownerUserID: "10000000-0000-4000-8000-000000000001",
+                    kind: "receipt",
+                    bucket: "class-files",
+                    objectPath: "qa/qa-3b-2026/receipts/ios-receipt-metadata-probe.pdf",
+                    fileName: "ios-receipt-metadata-probe.pdf",
+                    mimeType: "application/pdf",
+                    sizeBytes: 120_000,
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                ),
                 SupabaseClassFileBridgeItem(
                     id: "91000000-0000-4000-8000-000000000001",
                     classID: "qa-3b-2026",
