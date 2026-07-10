@@ -1503,6 +1503,8 @@ private struct SupabaseBackendConfig: Hashable {
     var hasTestEmail: Bool
     var testPassword: String?
     var hasTestPassword: Bool
+    var storedSeedSession: StoredSupabaseSeedSession?
+    var sessionSource: String
     var migrationFile: String
     var expectedTableCount: Int
     var expectedPolicyCount: Int
@@ -1547,6 +1549,13 @@ private struct SupabaseBackendConfig: Hashable {
             ?? Self.readValue(named: "SupabaseTestEmail")
         let testPassword = Self.readValue(named: "SUPABASE_TEST_PASSWORD")
             ?? Self.readValue(named: "SupabaseTestPassword")
+        let storedSeedSession = SupabaseSeedSessionStore.session
+        let resolvedAccessToken = accessToken ?? storedSeedSession?.accessToken
+        let resolvedRefreshToken = refreshToken ?? storedSeedSession?.refreshToken
+        let resolvedUserID = userID ?? storedSeedSession?.userID
+        let sessionSource = accessToken?.isEmpty == false
+            ? "build environment"
+            : (storedSeedSession == nil ? "none" : "stored seed session")
 
         return SupabaseBackendConfig(
             projectRef: projectRef,
@@ -1560,17 +1569,19 @@ private struct SupabaseBackendConfig: Hashable {
             anonKey: anonKey,
             anonKeyPreview: anonKey.map(Self.preview),
             hasAnonKey: anonKey?.isEmpty == false,
-            accessToken: accessToken,
-            accessTokenPreview: accessToken.map(Self.preview),
-            hasAccessToken: accessToken?.isEmpty == false,
-            refreshToken: refreshToken,
-            hasRefreshToken: refreshToken?.isEmpty == false,
-            userID: userID,
+            accessToken: resolvedAccessToken,
+            accessTokenPreview: resolvedAccessToken.map(Self.preview),
+            hasAccessToken: resolvedAccessToken?.isEmpty == false,
+            refreshToken: resolvedRefreshToken,
+            hasRefreshToken: resolvedRefreshToken?.isEmpty == false,
+            userID: resolvedUserID,
             testEmail: testEmail,
             testEmailPreview: testEmail.map(Self.previewEmail),
             hasTestEmail: testEmail?.isEmpty == false,
             testPassword: testPassword,
             hasTestPassword: testPassword?.isEmpty == false,
+            storedSeedSession: storedSeedSession,
+            sessionSource: sessionSource,
             migrationFile: "supabase/migrations/20260704190000_initial_school_schema.sql",
             expectedTableCount: 14,
             expectedPolicyCount: 44,
@@ -1592,6 +1603,7 @@ private struct SupabaseBackendConfig: Hashable {
         if let userID = response.user?.id, userID.isEmpty == false {
             copy.userID = userID
         }
+        copy.sessionSource = "in-memory sign-in response"
         return copy
     }
 
@@ -1855,6 +1867,136 @@ private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
 
 private struct SupabaseRefreshSessionUser: Decodable, Hashable {
     var id: String?
+}
+
+private struct StoredSupabaseSeedSession: Codable, Hashable {
+    var accessToken: String
+    var refreshToken: String?
+    var userID: String
+    var emailPreview: String?
+    var savedAt: Date
+    var expiresAt: Date?
+
+    var accessTokenPreview: String {
+        SupabaseBackendConfig.preview(accessToken)
+    }
+
+    var refreshState: String {
+        refreshToken?.isEmpty == false ? "refresh token saved" : "refresh token missing"
+    }
+
+    var expiryState: String {
+        guard let expiresAt else {
+            return "expiry unknown"
+        }
+
+        return expiresAt <= Date.now
+            ? "expired \(expiresAt.formatted(date: .numeric, time: .shortened))"
+            : "expires \(expiresAt.formatted(date: .numeric, time: .shortened))"
+    }
+}
+
+private enum SupabaseSeedSessionStore {
+    private static let defaultsKey = "school.supabase.seedSession.v1"
+    private static let defaults = UserDefaults.standard
+
+    static var session: StoredSupabaseSeedSession? {
+        guard
+            let data = defaults.data(forKey: defaultsKey),
+            let session = try? JSONDecoder().decode(StoredSupabaseSeedSession.self, from: data)
+        else {
+            return nil
+        }
+
+        return session
+    }
+
+    static func save(response: SupabaseRefreshSessionResponse, emailPreview: String?) {
+        guard
+            let accessToken = response.access_token,
+            accessToken.isEmpty == false,
+            let userID = response.user?.id,
+            userID.isEmpty == false
+        else {
+            return
+        }
+
+        let savedAt = Date.now
+        let expiresAt = response.expires_in.map { savedAt.addingTimeInterval(TimeInterval($0)) }
+        save(
+            StoredSupabaseSeedSession(
+                accessToken: accessToken,
+                refreshToken: response.refresh_token,
+                userID: userID,
+                emailPreview: emailPreview,
+                savedAt: savedAt,
+                expiresAt: expiresAt
+            )
+        )
+    }
+
+    static func seedForUITest() {
+        save(
+            StoredSupabaseSeedSession(
+                accessToken: "qa-access-token-0000",
+                refreshToken: "qa-refresh-token-0000",
+                userID: "qa-user-0000",
+                emailPreview: "qa...@example.test",
+                savedAt: Date.now,
+                expiresAt: Date.now.addingTimeInterval(3600)
+            )
+        )
+    }
+
+    static func clear() {
+        defaults.removeObject(forKey: defaultsKey)
+    }
+
+    private static func save(_ session: StoredSupabaseSeedSession) {
+        guard let data = try? JSONEncoder().encode(session) else {
+            return
+        }
+
+        defaults.set(data, forKey: defaultsKey)
+    }
+}
+
+private struct SupabaseStoredSeedSessionProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var sourceState: String
+    var tokenState: String
+    var userState: String
+    var expiryState: String
+    var nextStep: String
+
+    static func make(config: SupabaseBackendConfig) -> SupabaseStoredSeedSessionProbe {
+        guard let session = config.storedSeedSession else {
+            return SupabaseStoredSeedSessionProbe(
+                title: "Stored seed session",
+                status: "empty",
+                statusColorName: "orange",
+                sourceState: "QA session store empty",
+                tokenState: "no local seed token saved",
+                userState: "local onboarding only",
+                expiryState: "no expiry",
+                nextStep: "Run password sign-in with seed credentials; production storage must move to Keychain"
+            )
+        }
+
+        let isExpired = session.expiresAt.map { $0 <= Date.now } ?? false
+        return SupabaseStoredSeedSessionProbe(
+            title: "Stored seed session",
+            status: isExpired ? "expired" : "saved",
+            statusColorName: isExpired ? "orange" : "green",
+            sourceState: "source: \(config.sessionSource)",
+            tokenState: "access \(session.accessTokenPreview), \(session.refreshState)",
+            userState: "user \(session.userID), email \(session.emailPreview ?? "not saved")",
+            expiryState: "\(session.expiryState), saved \(session.savedAt.formatted(date: .numeric, time: .shortened))",
+            nextStep: "Temporary QA/UserDefaults storage only; replace with Keychain before real auth rollout"
+        )
+    }
 }
 
 private struct SupabasePasswordSignInProbe: Hashable {
@@ -9309,6 +9451,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseConfig = SupabaseBackendConfig.make()
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
+    @State private var supabaseStoredSeedSession = SupabaseStoredSeedSessionProbe.make(config: SupabaseBackendConfig.make())
     @State private var supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
@@ -9319,12 +9462,20 @@ private struct SyncCenterSheet: View {
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-qa-reset-supabase-session-store") {
+            SupabaseSeedSessionStore.clear()
+        }
+        if arguments.contains("-qa-seed-supabase-session-store") {
+            SupabaseSeedSessionStore.seedForUITest()
+        }
+
         var launchOperations = operations
-        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline"), !launchOperations.isEmpty {
+        if arguments.contains("-qa-more-sync-offline"), !launchOperations.isEmpty {
             launchOperations[0].status = "Offline"
             launchOperations[0].colorName = "orange"
         }
-        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error"), !launchOperations.isEmpty {
+        if arguments.contains("-qa-more-sync-network-error"), !launchOperations.isEmpty {
             launchOperations[0].status = "Retry 1/5"
             launchOperations[0].colorName = "orange"
             launchOperations[0].retryPolicy = "Timeout: сохранить mutationId, повторить через 15 секунд"
@@ -9332,14 +9483,26 @@ private struct SyncCenterSheet: View {
         }
 
         _operations = State(initialValue: launchOperations)
-        if ProcessInfo.processInfo.arguments.contains("-qa-more-sync") {
+        let launchSupabaseConfig = SupabaseBackendConfig.make()
+        _supabaseConfig = State(initialValue: launchSupabaseConfig)
+        _supabaseLiveProbe = State(initialValue: SupabaseLiveProbeResult.planned(config: launchSupabaseConfig))
+        _supabaseAuthSession = State(initialValue: SupabaseAuthSessionProbe.make(config: launchSupabaseConfig))
+        _supabaseStoredSeedSession = State(initialValue: SupabaseStoredSeedSessionProbe.make(config: launchSupabaseConfig))
+        _supabasePasswordSignIn = State(initialValue: SupabasePasswordSignInProbe.planned(config: launchSupabaseConfig))
+        _supabaseSessionRefresh = State(initialValue: SupabaseSessionRefreshProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedProfile = State(initialValue: SupabaseSignedProfileProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedClassScope = State(initialValue: SupabaseSignedClassScopeProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedChildren = State(initialValue: SupabaseSignedChildrenProbe.planned(config: launchSupabaseConfig))
+        _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
+
+        if arguments.contains("-qa-more-sync") {
             _dryRunResult = State(initialValue: SyncDryRunResult.make(environment: .staging, operations: launchOperations))
-            if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-network-error") {
+            if arguments.contains("-qa-more-sync-network-error") {
                 _syncStatus = State(initialValue: "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован.")
-            } else if ProcessInfo.processInfo.arguments.contains("-qa-more-sync-supabase") {
+            } else if arguments.contains("-qa-more-sync-supabase") {
                 _syncStatus = State(initialValue: "Supabase test backend подключен на уровне схемы: live iOS-запрос ждет publishable/client key и тестовых пользователей.")
             } else {
-                _syncStatus = State(initialValue: ProcessInfo.processInfo.arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
+                _syncStatus = State(initialValue: arguments.contains("-qa-more-sync-offline") ? "Offline-сценарий: операция остается в очереди, пользовательские данные не теряются." : "Dry-run подготовил запросы для Staging: сеть не вызывается, но операции разложены по готовности.")
             }
         }
     }
@@ -9695,6 +9858,7 @@ private struct SyncCenterSheet: View {
             }
 
             supabaseAuthSessionCard(supabaseAuthSession)
+            supabaseStoredSeedSessionCard(supabaseStoredSeedSession)
             supabasePasswordSignInCard(supabasePasswordSignIn)
             supabaseSessionRefreshCard(supabaseSessionRefresh)
             supabaseSignedProfileCard(supabaseSignedProfile)
@@ -9741,6 +9905,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-password-sign-in")
+
+            if supabaseConfig.storedSeedSession != nil {
+                Button {
+                    clearSupabaseStoredSeedSession()
+                } label: {
+                    Label("Очистить seed session", systemImage: "trash.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.danger)
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .background(SchoolTheme.danger.opacity(0.10), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("sync.supabase-session-clear")
+            }
 
             Button {
                 Task {
@@ -10224,6 +10402,50 @@ private struct SyncCenterSheet: View {
                 .minimumScaleFactor(0.74)
 
             Text(session.rlsState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(session.nextStep)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .background(moreColor(for: session.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseStoredSeedSessionCard(_ session: SupabaseStoredSeedSessionProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(session.title, systemImage: "internaldrive.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: session.status, color: moreColor(for: session.statusColorName))
+            }
+
+            Text(session.sourceState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: session.statusColorName))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Text(session.tokenState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(session.userState)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(session.expiryState)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(SchoolTheme.muted)
                 .lineLimit(2)
@@ -11118,9 +11340,10 @@ private struct SyncCenterSheet: View {
         syncStatus = "Timeout-сценарий: операция остается в очереди, данные сохранены локально, повтор запланирован."
     }
 
-    private func runSupabaseReadiness() {
+    private func reloadSupabaseProbeState() {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseStoredSeedSession = SupabaseStoredSeedSessionProbe.make(config: supabaseConfig)
         supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
@@ -11128,6 +11351,10 @@ private struct SyncCenterSheet: View {
         supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+    }
+
+    private func runSupabaseReadiness() {
+        reloadSupabaseProbeState()
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
         syncStatus = supabaseConfig.hasClientApiKey
             ? "Supabase readiness готов: URL, client apikey, schema и private storage подготовлены для первого live-запроса."
@@ -11135,15 +11362,7 @@ private struct SyncCenterSheet: View {
     }
 
     private func runSupabaseAuthSessionReadiness() {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = supabaseConfig.hasAccessToken
             ? "Supabase auth session готовится к RLS-проверке: live probe пойдет с user bearer token."
             : "Supabase auth session не подключен: нужен SUPABASE_ACCESS_TOKEN, refresh token и seed membership."
@@ -11151,16 +11370,8 @@ private struct SyncCenterSheet: View {
 
     @MainActor
     private func runSupabasePasswordSignInProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
-        syncStatus = "Supabase seed sign-in: готовлю password grant без сохранения токенов и без замены локального входа."
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase seed sign-in: готовлю password grant без замены локального входа; QA-сессия будет сохранена временно до Keychain."
         let signInResult = await SupabaseAuthClient.signInWithPassword(config: supabaseConfig)
         supabasePasswordSignIn = signInResult
 
@@ -11172,7 +11383,9 @@ private struct SyncCenterSheet: View {
             return
         }
 
+        SupabaseSeedSessionStore.save(response: session, emailPreview: supabaseConfig.testEmailPreview)
         let signedConfig = supabaseConfig.applying(session: session)
+        supabaseStoredSeedSession = SupabaseStoredSeedSessionProbe.make(config: SupabaseBackendConfig.make())
         supabaseConfig = signedConfig
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: signedConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.success(config: signedConfig, response: session, statusCode: 200)
@@ -11199,20 +11412,12 @@ private struct SyncCenterSheet: View {
         }
 
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: signedConfig)
-        syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). Signed probes обновлены без сохранения токенов в Keychain."
+        syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). QA-сессия сохранена во временный UserDefaults store; Keychain еще нужен перед релизом."
     }
 
     @MainActor
     private func runSupabaseSessionRefreshProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
         let result = await SupabaseAuthClient.refreshSession(config: supabaseConfig)
         supabaseSessionRefresh = result
@@ -11223,15 +11428,7 @@ private struct SyncCenterSheet: View {
 
     @MainActor
     private func runSupabaseSignedProfileProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = "Supabase signed profile: готовлю GET /profiles с user bearer token без замены локального профиля."
         let result = await SupabaseSignedProfileClient.probeProfile(config: supabaseConfig)
         supabaseSignedProfile = result
@@ -11242,15 +11439,7 @@ private struct SyncCenterSheet: View {
 
     @MainActor
     private func runSupabaseSignedClassScopeProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = "Supabase signed classes: готовлю GET /class_members с embedded class_rooms без замены локальных классов."
         let result = await SupabaseSignedClassScopeClient.probeClassScope(config: supabaseConfig)
         supabaseSignedClassScope = result
@@ -11267,15 +11456,7 @@ private struct SyncCenterSheet: View {
 
     @MainActor
     private func runSupabaseSignedChildrenProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = "Supabase signed children: готовлю GET /children с embedded class_rooms без замены локального выбора ребенка."
         let result = await SupabaseSignedChildrenClient.probeChildren(config: supabaseConfig)
         supabaseSignedChildren = result
@@ -11313,21 +11494,19 @@ private struct SyncCenterSheet: View {
 
     @MainActor
     private func runSupabaseLiveProbe() async {
-        supabaseConfig = SupabaseBackendConfig.make()
-        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
-        supabasePasswordSignIn = SupabasePasswordSignInProbe.planned(config: supabaseConfig)
-        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
-        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
-        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
-        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
-        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
-        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        reloadSupabaseProbeState()
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
         let result = await SupabaseLiveClient.probeClassRooms(config: supabaseConfig)
         supabaseLiveProbe = result
         syncStatus = result.status == "blocked"
             ? "Supabase live probe заблокирован: нужен SUPABASE_PUBLISHABLE_KEY или SUPABASE_ANON_KEY."
             : "Supabase live probe завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    private func clearSupabaseStoredSeedSession() {
+        SupabaseSeedSessionStore.clear()
+        reloadSupabaseProbeState()
+        syncStatus = "Stored seed session очищена: приложение снова зависит только от env/Info.plist токенов или нового seed sign-in."
     }
 
     private func save() {

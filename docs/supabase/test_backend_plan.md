@@ -79,7 +79,7 @@ Current verified state:
 - RLS write checks: `supabase/tests/rls_write_smoke.sql`.
 - Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
-- Password sign-in probe: `POST /auth/v1/token?grant_type=password` through `URLSession`, with the client key in `apikey`, `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` in the JSON body, and the returned session kept in memory for immediate signed probes only.
+- Password sign-in probe: `POST /auth/v1/token?grant_type=password` through `URLSession`, with the client key in `apikey`, `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` in the JSON body, and the returned session saved into a temporary QA/UserDefaults seed session store for immediate signed probes and relaunch testing.
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
 - Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
@@ -91,7 +91,8 @@ Gate before first signed iOS request:
 - Add `SUPABASE_PUBLISHABLE_KEY` through build config or test launch environment. Legacy `SUPABASE_ANON_KEY` still works as fallback.
 - Seed test auth users, profiles, class rooms, class members and children. Current smoke seed is applied for `QA-3B-2026` and `QA-4A-2026`.
 - Provide `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` for a seed Auth user when testing password sign-in from the app.
-- Run the password sign-in probe and verify Supabase returns access token, refresh token and user id; keep the returned tokens in memory until Keychain storage is wired.
+- Run the password sign-in probe and verify Supabase returns access token, refresh token and user id; the app may keep the returned tokens in the temporary QA/UserDefaults seed session store until Keychain storage is wired.
+- Verify the QA seed session store shows source, token preview, user id and expiry, survives relaunch for test probes, and can be cleared from Sync Center.
 - Provide a signed seed user's access token, refresh token and user id to the iOS test run.
 - Run the Auth refresh probe and verify Supabase returns a refreshed access token before relying on session restore.
 - Run the signed profile probe and verify RLS returns exactly one row for `SUPABASE_USER_ID`.
@@ -118,7 +119,9 @@ Date: 2026-07-10
 - Targeted UI retest: `testSupabaseChildBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseChildBridgeDefaultRetest.xcresult`.
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with signed children coverage in `.build/SupabaseSignedChildrenUITest.xcresult`.
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with password sign-in gate coverage in `.build/SupabasePasswordSignInGateUITest-2.xcresult`.
-- Full UI suite: 19 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
+- Targeted UI test: `testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch` passed in `.build/SupabaseStoredSeedSessionUITest.xcresult`.
+- Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
+- Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
 - One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
 
@@ -126,7 +129,8 @@ Additional iOS verification:
 
 - MVP metrics persistence retest passed in `.build/MvpMetricsUITest-3.xcresult` after making the test-event action explicit and visible.
 - The app now reports RLS as unproven until a signed user request returns only the seeded user's class rows.
-- The app now has a separate password sign-in probe for seed Auth users; without client key or seed credentials it blocks before network, and on success it passes the in-memory session into signed profile/classes/children probes without persisting tokens.
+- The app now has a separate password sign-in probe for seed Auth users; without client key or seed credentials it blocks before network, and on success it passes the session into signed profile/classes/children probes and stores it in a temporary QA/UserDefaults seed session store.
+- The QA seed session store now appears in Sync Center, survives relaunch for test probes and can be cleared from the app; it is not production-secure storage, so Keychain remains the next auth-storage gate.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before local account mapping.
 - The app now has a separate signed class scope probe that blocks safely without client key, access token or user id, then expects active `class_members` rows with embedded `class_rooms` before class context mapping.

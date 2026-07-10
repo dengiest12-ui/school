@@ -18,6 +18,7 @@ TESTS=(
   "testMvpMetricsEventPersistsAfterRelaunch"
   "testSyncNetworkErrorKeepsQueuedMutation"
   "testSupabaseReadinessShowsSchemaAndMissingKeyGate"
+  "testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testSupabaseChildBridgeShowsWithoutReplacingSelectedChild"
   "testSupabaseChildSourcePreviewSwitchesSelectedChildContext"

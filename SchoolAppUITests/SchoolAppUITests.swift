@@ -118,8 +118,8 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(secondLaunch.navigationBars["Метрики"].waitForExistence(timeout: 4))
-        XCTAssertTrue(secondLaunch.staticTexts["metrics.latest-event.qa_smoke_passed"].waitForExistence(timeout: 4))
-        XCTAssertTrue(secondLaunch.staticTexts["Локальная проверка ключевого сценария"].exists)
+        XCTAssertTrue(findStaticText("metrics.latest-event.qa_smoke_passed", in: secondLaunch, attempts: 6))
+        XCTAssertTrue(findStaticText("Локальная проверка ключевого сценария", in: secondLaunch, attempts: 3))
     }
 
     func testSyncNetworkErrorKeepsQueuedMutation() {
@@ -234,6 +234,47 @@ final class SchoolAppUITests: XCTestCase {
         liveProbeButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "Live URLSession request is intentionally blocked", in: app))
+    }
+
+    func testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-supabase-session-store",
+            "-qa-seed-supabase-session-store",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Stored seed session", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "source: stored seed session", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "access qa-acc...0000", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "user qa-user-0000", in: firstLaunch))
+
+        let authSessionButton = firstLaunch.buttons["sync.supabase-auth-session"]
+        scrollUntilVisible(authSessionButton, in: firstLaunch, attempts: 8)
+        XCTAssertTrue(authSessionButton.waitForExistence(timeout: 4))
+        authSessionButton.tap()
+        XCTAssertTrue(findStaticText(containing: "Bearer qa-acc...0000", in: firstLaunch))
+
+        let clearButton = firstLaunch.buttons["sync.supabase-session-clear"]
+        scrollUntilVisible(clearButton, in: firstLaunch, attempts: 8)
+        XCTAssertTrue(clearButton.waitForExistence(timeout: 4))
+        clearButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "Stored seed session очищена", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "QA session store empty", in: firstLaunch))
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(secondLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "QA session store empty", in: secondLaunch))
+        XCTAssertTrue(findStaticText(containing: "missing SUPABASE_ACCESS_TOKEN", in: secondLaunch))
     }
 
     func testSelectedChildPersistsAcrossTabsAndChangesClassContext() {
