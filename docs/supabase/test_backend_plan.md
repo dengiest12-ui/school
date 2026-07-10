@@ -80,6 +80,7 @@ Current verified state:
 - Live REST probe: `GET /class_rooms?select=id,title,invite_code&limit=3` through `URLSession`.
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Password sign-in probe: `POST /auth/v1/token?grant_type=password` through `URLSession`, with the client key in `apikey`, `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` in the JSON body, and the returned session saved into a Keychain-first seed session store for immediate signed probes and relaunch testing.
+- Onboarding email/password entry: the first onboarding step can now call the same Supabase Auth password grant with user-entered email/password and stores a successful session in the shared Keychain-first seed session store before role/class selection unlocks.
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
 - Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
@@ -131,7 +132,8 @@ Additional iOS verification:
 - The app now reports RLS as unproven until a signed user request returns only the seeded user's class rows.
 - The app now has a separate password sign-in probe for seed Auth users; without client key or seed credentials it blocks before network, and on success it passes the session into signed profile/classes/children probes and stores it in a Keychain-first seed session store.
 - The seed session store now appears in Sync Center, survives relaunch for test probes and can be cleared from the app; Keychain is the primary store, while legacy QA/UserDefaults remains only a fallback during this transition.
-- Production Auth flow is still separate from the seed probe: onboarding/login must still be mapped to real Supabase Auth accounts before release.
+- Onboarding now has a first real Supabase email/password path: without a successful Auth response the app stays on the account step, and after success the returned session is written to Keychain before role/class selection unlocks.
+- Production Auth is still incomplete: signup/email confirmation, phone OTP, native Apple ID, profile creation and class membership mapping must still be connected to live Supabase data before release.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before local account mapping.
 - The app now has a separate signed class scope probe that blocks safely without client key, access token or user id, then expects active `class_members` rows with embedded `class_rooms` before class context mapping.

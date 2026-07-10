@@ -1481,7 +1481,7 @@ private struct SyncNetworkReadiness: Hashable {
     }
 }
 
-private struct SupabaseBackendConfig: Hashable {
+struct SupabaseBackendConfig: Hashable {
     var projectRef: String
     var region: String
     var restBaseURL: String
@@ -1858,7 +1858,7 @@ private struct SupabasePasswordSignInRequest: Encodable {
     var password: String
 }
 
-private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
+struct SupabaseRefreshSessionResponse: Decodable, Hashable {
     var access_token: String?
     var refresh_token: String?
     var expires_in: Int?
@@ -1866,11 +1866,11 @@ private struct SupabaseRefreshSessionResponse: Decodable, Hashable {
     var user: SupabaseRefreshSessionUser?
 }
 
-private struct SupabaseRefreshSessionUser: Decodable, Hashable {
+struct SupabaseRefreshSessionUser: Decodable, Hashable {
     var id: String?
 }
 
-private struct StoredSupabaseSeedSession: Codable, Hashable {
+struct StoredSupabaseSeedSession: Codable, Hashable {
     var accessToken: String
     var refreshToken: String?
     var userID: String
@@ -1897,7 +1897,7 @@ private struct StoredSupabaseSeedSession: Codable, Hashable {
     }
 }
 
-private enum SupabaseSeedSessionStore {
+enum SupabaseSeedSessionStore {
     private static let legacyDefaultsKey = "school.supabase.seedSession.v1"
     private static let defaults = UserDefaults.standard
     private static let keychainService = "ru.codex.schoolclass.supabase"
@@ -2868,8 +2868,65 @@ private struct SupabaseLiveProbeResult: Hashable {
     }
 }
 
-private struct SupabaseAuthClient {
-    static func signInWithPassword(config: SupabaseBackendConfig) async -> SupabasePasswordSignInProbe {
+struct SupabasePasswordAuthResult: Hashable {
+    var status: String
+    var message: String
+    var session: SupabaseRefreshSessionResponse?
+
+    var isSuccess: Bool {
+        session?.access_token?.isEmpty == false
+    }
+}
+
+struct SupabaseAuthClient {
+    static func signInWithPassword(email: String, password: String, config: SupabaseBackendConfig) async -> SupabasePasswordAuthResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return SupabasePasswordAuthResult(
+                status: "key missing",
+                message: "Нужен SUPABASE_PUBLISHABLE_KEY или SUPABASE_ANON_KEY в конфигурации приложения.",
+                session: nil
+            )
+        }
+
+        guard email.isEmpty == false, password.isEmpty == false else {
+            return SupabasePasswordAuthResult(
+                status: "credentials missing",
+                message: "Введите email и пароль Supabase Auth.",
+                session: nil
+            )
+        }
+
+        guard let url = URL(string: "\(config.authBaseURL)/token?grant_type=password") else {
+            return SupabasePasswordAuthResult(status: "invalid URL", message: "Некорректный Supabase Auth URL.", session: nil)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 10
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(SupabasePasswordSignInRequest(email: email, password: password))
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let decoded = try JSONDecoder().decode(SupabaseRefreshSessionResponse.self, from: data)
+                return SupabasePasswordAuthResult(status: "HTTP \(statusCode)", message: "Supabase Auth принял email/password.", session: decoded)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase Auth вернул HTTP \(statusCode)."
+            return SupabasePasswordAuthResult(status: "HTTP \(statusCode)", message: message, session: nil)
+        } catch {
+            return SupabasePasswordAuthResult(status: "network", message: error.localizedDescription, session: nil)
+        }
+    }
+
+    fileprivate static func signInWithPassword(config: SupabaseBackendConfig) async -> SupabasePasswordSignInProbe {
         guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
             return .missingKey(config: config)
         }
@@ -2909,7 +2966,7 @@ private struct SupabaseAuthClient {
         }
     }
 
-    static func refreshSession(config: SupabaseBackendConfig) async -> SupabaseSessionRefreshProbe {
+    fileprivate static func refreshSession(config: SupabaseBackendConfig) async -> SupabaseSessionRefreshProbe {
         guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
             return .missingKey(config: config)
         }

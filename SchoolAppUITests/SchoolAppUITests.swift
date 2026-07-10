@@ -95,6 +95,24 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Следующий уровень автоматизации"].exists)
     }
 
+    func testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep() {
+        let app = XCUIApplication(bundleIdentifier: bundleIdentifier)
+        app.launchArguments = [
+            "-qa-reset-onboarding",
+            "-qa-onboarding",
+            "-qa-onboarding-supabase-email"
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Вход"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Email"].exists)
+        XCTAssertTrue(findStaticText("Войдите через Supabase Auth, чтобы связать аккаунт с backend.", in: app))
+        XCTAssertTrue(app.buttons["Войти через Supabase"].exists)
+        XCTAssertTrue(app.staticTexts["Сначала войдите в аккаунт"].exists)
+        XCTAssertFalse(app.staticTexts["Ваш статус"].exists)
+        XCTAssertTrue(app.buttons["Сначала подтвердите аккаунт"].exists)
+    }
+
     func testMvpMetricsEventPersistsAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-more-store",

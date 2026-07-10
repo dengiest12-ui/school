@@ -15,6 +15,11 @@ struct OnboardingView: View {
     @State private var phoneStatus = OnboardingView.initialPhoneStatus
     @State private var appleEmail = "vladimir@example.com"
     @State private var appleLinked = OnboardingView.startsAppleLinked
+    @State private var supabaseEmail = OnboardingView.initialSupabaseEmail
+    @State private var supabasePassword = OnboardingView.initialSupabasePassword
+    @State private var supabaseStatus = "Войдите через Supabase Auth, чтобы связать аккаунт с backend."
+    @State private var supabaseEmailSignedIn = false
+    @State private var isSupabaseSigningIn = false
     @State private var role: AppUserRole = .parent
     @State private var parentName = "Владимир"
     @State private var childName = "Миша"
@@ -90,7 +95,11 @@ struct OnboardingView: View {
     }
 
     private static var initialAuthMethod: OnboardingAuthMethod {
-        ProcessInfo.processInfo.arguments.contains("-qa-onboarding-apple") ? .apple : .phone
+        if ProcessInfo.processInfo.arguments.contains("-qa-onboarding-supabase-email") {
+            return .supabaseEmail
+        }
+
+        return ProcessInfo.processInfo.arguments.contains("-qa-onboarding-apple") ? OnboardingAuthMethod.apple : OnboardingAuthMethod.phone
     }
 
     private static var startsPhoneVerified: Bool {
@@ -107,6 +116,18 @@ struct OnboardingView: View {
 
     private static var startsAppleLinked: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-onboarding-apple")
+    }
+
+    private static var initialSupabaseEmail: String {
+        Bundle.main.object(forInfoDictionaryKey: "SupabaseTestEmail") as? String
+            ?? ProcessInfo.processInfo.environment["SUPABASE_TEST_EMAIL"]
+            ?? ""
+    }
+
+    private static var initialSupabasePassword: String {
+        Bundle.main.object(forInfoDictionaryKey: "SupabaseTestPassword") as? String
+            ?? ProcessInfo.processInfo.environment["SUPABASE_TEST_PASSWORD"]
+            ?? ""
     }
 
     private static var startsPrepared: Bool {
@@ -208,8 +229,10 @@ struct OnboardingView: View {
 
                 if authMethod == .phone {
                     phoneAuthFields
-                } else {
+                } else if authMethod == .apple {
                     appleAuthFields
+                } else {
+                    supabaseEmailAuthFields
                 }
             }
         }
@@ -291,6 +314,56 @@ struct OnboardingView: View {
             Text("Сейчас это локальная привязка. Настоящий Sign in with Apple подключается через Apple ID entitlement, nonce и backend-связку аккаунта.")
                 .font(.caption)
                 .foregroundStyle(SchoolTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var supabaseEmailAuthFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            OnboardingTextField(
+                title: "Email",
+                placeholder: "name@example.com",
+                iconName: "envelope.badge.fill",
+                color: supabaseEmailSignedIn ? SchoolTheme.success : SchoolTheme.accent,
+                text: $supabaseEmail,
+                keyboardType: .emailAddress,
+                textInputAutocapitalization: .never,
+                autocorrectionDisabled: true
+            )
+            .focused($focusedField, equals: .supabaseEmail)
+
+            OnboardingSecureField(
+                title: "Пароль",
+                placeholder: "Пароль Supabase",
+                iconName: "key.fill",
+                color: supabaseEmailSignedIn ? SchoolTheme.success : SchoolTheme.warning,
+                text: $supabasePassword
+            )
+            .focused($focusedField, equals: .supabasePassword)
+
+            Button {
+                Task {
+                    await signInWithSupabaseEmail()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSupabaseSigningIn {
+                        ProgressView()
+                            .tint(SchoolTheme.success)
+                    }
+                    Label(supabaseEmailSignedIn ? "Supabase подключен" : "Войти через Supabase", systemImage: supabaseEmailSignedIn ? "checkmark.seal.fill" : "person.badge.key.fill")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(supabaseEmailSignedIn ? SchoolTheme.success : SchoolTheme.accent)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background((supabaseEmailSignedIn ? SchoolTheme.success : SchoolTheme.accent).opacity(0.10), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isSupabaseSigningIn || supabaseEmail.trimmed.isEmpty || supabasePassword.isEmpty)
+
+            Text(supabaseStatus)
+                .font(.caption)
+                .foregroundStyle(supabaseEmailSignedIn ? SchoolTheme.success : SchoolTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -620,6 +693,8 @@ struct OnboardingView: View {
             return phoneLooksValid && phoneCodeIsValid
         case .apple:
             return appleLinked && appleEmail.trimmed.contains("@")
+        case .supabaseEmail:
+            return supabaseEmailSignedIn
         }
     }
 
@@ -670,13 +745,48 @@ struct OnboardingView: View {
 
     private func persistAuthIfNeeded() {
         storedAuthMethod = authMethod.rawValue
-        storedAuthContact = authMethod == .phone ? phoneNumber.trimmed : appleEmail.trimmed
+        switch authMethod {
+        case .phone:
+            storedAuthContact = phoneNumber.trimmed
+        case .apple:
+            storedAuthContact = appleEmail.trimmed
+        case .supabaseEmail:
+            storedAuthContact = supabaseEmail.trimmed
+        }
         storedAuthVerifiedAt = Date.now.formatted(date: .numeric, time: .shortened)
         AppPrivacyConsentStore.save(
             childDataConsent: childDataConsent,
             policyAccepted: privacyPolicyAccepted,
             actor: parentName
         )
+    }
+
+    @MainActor
+    private func signInWithSupabaseEmail() async {
+        focusedField = nil
+        isSupabaseSigningIn = true
+        supabaseEmailSignedIn = false
+        supabaseStatus = "Проверяю email/password в Supabase Auth..."
+
+        let email = supabaseEmail.trimmed
+        let result = await SupabaseAuthClient.signInWithPassword(
+            email: email,
+            password: supabasePassword,
+            config: SupabaseBackendConfig.make()
+        )
+
+        isSupabaseSigningIn = false
+        guard let session = result.session, result.isSuccess else {
+            supabaseStatus = "Supabase Auth: \(result.message)"
+            return
+        }
+
+        let storageSource = SupabaseSeedSessionStore.save(
+            response: session,
+            emailPreview: SupabaseBackendConfig.previewEmail(email)
+        )
+        supabaseEmailSignedIn = true
+        supabaseStatus = "Supabase Auth подключен: \(storageSource). Теперь выберите статус и класс."
     }
 }
 
@@ -715,9 +825,41 @@ private struct OnboardingTextField: View {
     }
 }
 
+private struct OnboardingSecureField: View {
+    let title: String
+    let placeholder: String
+    let iconName: String
+    let color: Color
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconBadge(systemName: iconName, color: color, size: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.muted)
+                SecureField(placeholder, text: $text)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+            }
+        }
+        .padding(12)
+        .background(SchoolTheme.page, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(SchoolTheme.line, lineWidth: 1)
+        }
+    }
+}
+
 private enum OnboardingAuthMethod: String, CaseIterable, Identifiable {
     case phone
     case apple
+    case supabaseEmail
 
     var id: String { rawValue }
 
@@ -727,6 +869,8 @@ private enum OnboardingAuthMethod: String, CaseIterable, Identifiable {
             "Телефон"
         case .apple:
             "Apple"
+        case .supabaseEmail:
+            "Email"
         }
     }
 
@@ -736,6 +880,8 @@ private enum OnboardingAuthMethod: String, CaseIterable, Identifiable {
             "phone.fill"
         case .apple:
             "apple.logo"
+        case .supabaseEmail:
+            "envelope.badge.fill"
         }
     }
 
@@ -745,6 +891,8 @@ private enum OnboardingAuthMethod: String, CaseIterable, Identifiable {
             SchoolTheme.success
         case .apple:
             SchoolTheme.graphite
+        case .supabaseEmail:
+            SchoolTheme.accent
         }
     }
 }
@@ -805,6 +953,8 @@ private enum OnboardingField: Hashable {
     case phone
     case phoneCode
     case appleEmail
+    case supabaseEmail
+    case supabasePassword
     case parentName
     case childName
     case className
