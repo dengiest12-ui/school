@@ -97,7 +97,7 @@ Gate before first signed iOS request:
 - Verify the mapper preview produces class id/title, role and invite code, then saves the context into the local bridge while keeping local child/class state untouched.
 - Verify the child mapper preview produces child id/name/grade, class id/title and invite code, then saves the context into the local child bridge while keeping the selected local child untouched by default.
 - Verify the QA-gated child source preview can switch the Today child selector and Class context to the saved Supabase child bridge without enabling it in normal launches.
-- Verify the sync-center child source toggle can enable and disable the saved Supabase child bridge from the app UI.
+- Verify the sync-center child source toggle can enable and disable the saved Supabase child bridge from the app UI, and that both source choices survive app relaunch.
 - Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -110,9 +110,11 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabaseChildBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseChildBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabaseChildSourcePreviewSwitchesSelectedChildContext` passed in `.build/SupabaseChildSourcePreviewUITest.xcresult`.
 - Targeted UI test: `testSupabaseChildSourceCanBeEnabledFromSyncCenter` passed in `.build/SupabaseChildSourceSyncToggleUITest.xcresult`.
+- Targeted UI test: `testSupabaseChildSourcePersistsAndCanReturnLocalAfterRelaunch` passed in `.build/SupabaseChildSourcePersistenceToggleUITest.xcresult`.
+- Targeted UI retest: `testSupabaseChildSourceCanBeEnabledFromSyncCenter` and `testSupabaseChildSourcePersistsAndCanReturnLocalAfterRelaunch` passed in `.build/SupabaseChildSourceEnableAndPersistRetest.xcresult`.
 - Targeted UI retest: `testSupabaseChildBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseChildBridgeDefaultRetest.xcresult`.
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with signed children coverage in `.build/SupabaseSignedChildrenUITest.xcresult`.
-- Full UI suite: 18 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
+- Full UI suite: 19 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
 - One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
 
@@ -129,6 +131,7 @@ Additional iOS verification:
 - The signed children probe now maps parent-owned child rows into a separate local child bridge after successful signed RLS proof; QA seed verifies `Smoke Child -> QA-3B-2026` appears on Today/Class/Profile while the selected local child remains `Миша, 3Б`.
 - The QA-gated Supabase child source preview now lets Today/Class use the saved child bridge as the effective child source: QA seed verifies `Smoke Child, 3Б` and class code `QA-3B-2026`, while the default launch still keeps `Миша, 3Б`.
 - The sync-center now exposes a child source toggle: "Включить источник" switches the app to the saved Supabase child bridge, and "Локальные дети" returns Today/Class to the local child store.
+- The app-controlled child source toggle now has relaunch coverage: enabled Supabase source survives app restart, and disabling it survives restart back to local children.
 
 ## Latest Supabase verification
 

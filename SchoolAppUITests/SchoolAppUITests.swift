@@ -326,9 +326,6 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(enableButton.waitForExistence(timeout: 4))
         enableButton.tap()
 
-        XCTAssertTrue(findStaticText(containing: "Источник: Supabase child bridge preview", in: app))
-        XCTAssertTrue(findStaticText(containing: "Smoke Child, 3Б", in: app))
-
         app.buttons["Закрыть"].tap()
         app.buttons["tab.today"].tap()
 
@@ -339,6 +336,59 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Smoke Child: родитель, код QA-3B-2026"].exists)
+    }
+
+    func testSupabaseChildSourcePersistsAndCanReturnLocalAfterRelaunch() {
+        let firstLaunch = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-child-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(firstLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        let enableButton = firstLaunch.buttons["sync.supabase-child-source-enable"]
+        scrollUntilVisible(enableButton, in: firstLaunch, attempts: 8)
+        XCTAssertTrue(enableButton.waitForExistence(timeout: 4))
+        enableButton.tap()
+        firstLaunch.terminate()
+
+        let secondLaunch = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(secondLaunch.staticTexts["Smoke Child, 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "код QA-3B-2026", in: secondLaunch))
+        XCTAssertTrue(findStaticText(containing: "Источник: Supabase child bridge preview", in: secondLaunch))
+        secondLaunch.terminate()
+
+        let thirdLaunch = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(thirdLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Источник: Supabase child bridge preview", in: thirdLaunch))
+        let disableButton = thirdLaunch.buttons["sync.supabase-child-source-disable"]
+        scrollUntilVisible(disableButton, in: thirdLaunch, attempts: 8)
+        XCTAssertTrue(disableButton.waitForExistence(timeout: 4))
+        disableButton.tap()
+        thirdLaunch.terminate()
+
+        let fourthLaunch = launchApp(arguments: [
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(fourthLaunch.staticTexts["Миша, 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "код 3B-1254", in: fourthLaunch))
+        XCTAssertTrue(findStaticText(containing: "Источник: локальные дети", in: fourthLaunch))
     }
 
     func testAnnouncementAcknowledgementPersistsAfterRelaunch() {

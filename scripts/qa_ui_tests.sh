@@ -22,6 +22,7 @@ TESTS=(
   "testSupabaseChildBridgeShowsWithoutReplacingSelectedChild"
   "testSupabaseChildSourcePreviewSwitchesSelectedChildContext"
   "testSupabaseChildSourceCanBeEnabledFromSyncCenter"
+  "testSupabaseChildSourcePersistsAndCanReturnLocalAfterRelaunch"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"
   "testManualHomeworkPersistsAfterRelaunch"
