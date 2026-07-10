@@ -1814,6 +1814,32 @@ private struct SupabaseCalendarEventRow: Decodable, Hashable {
     }
 }
 
+private struct SupabaseCollectionRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var title: String
+    var amount_per_family: Double
+    var total_count: Int
+    var paid_count: Int
+    var status: String
+    var due_at: String?
+
+    func bridgeItem(mappedAt: String) -> SupabaseCollectionBridgeItem {
+        SupabaseCollectionBridgeItem(
+            id: id,
+            classID: class_id,
+            title: title,
+            amountPerFamily: "\(Int(amount_per_family.rounded())) руб.",
+            totalCount: total_count,
+            paidCount: paid_count,
+            status: status,
+            dueAt: due_at ?? "",
+            source: "signed collections RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+}
+
 private struct SupabaseLocalClassContextPreview: Hashable {
     var classID: String
     var classTitle: String
@@ -3330,6 +3356,156 @@ private struct SupabaseSignedCalendarEventsProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedCollectionsProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+    var bridgePreview: String
+    var mappedCollections: [SupabaseCollectionBridgeItem]
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedCollectionsProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if AppSupabaseClassContextBridge.contexts.isEmpty {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>&select=id,class_id,title,amount_per_family,total_count,paid_count,status,due_at",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will read class collections under RLS.",
+            nextStep: "Run signed collections probe before replacing the local collections repository",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedCollectionsProbe {
+        SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed collections request is blocked before network access.",
+            nextStep: "Add client apikey, signed session and class bridge",
+            rowsPreview: "0 rows",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedCollectionsProbe {
+        SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove class collections RLS.",
+            nextStep: "Inject a seed user's Supabase access token before signed collections proof",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseSignedCollectionsProbe {
+        SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "The app has no saved Supabase class bridge to scope collection rows.",
+            nextStep: "Run signed class scope probe first, then retry collections",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseCollectionRow], statusCode: Int) -> SupabaseSignedCollectionsProbe {
+        let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+        let collections = rows.map { $0.bridgeItem(mappedAt: mappedAt) }
+        let preview = collections.isEmpty ? "[]" : collections.map(\.summary).joined(separator: ", ")
+
+        return SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: collections.isEmpty ? "empty" : "mapped",
+            statusColorName: collections.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>&select=id,class_id,title,amount_per_family,total_count,paid_count,status,due_at",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: collections.isEmpty ? "RLS returned no collections for saved class context." : "Mapped \(collections.count) collection(s) from signed RLS rows.",
+            nextStep: collections.isEmpty ? "Seed class collections or verify RLS before collections switch" : "Keep bridge preview until the local collections repository can switch safely",
+            rowsPreview: preview,
+            bridgePreview: collections.isEmpty ? "Collection bridge waiting: local collections active" : "Collection bridge ready: \(collections.count) collection(s), local collections still active",
+            mappedCollections: collections
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedCollectionsProbe {
+        SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/collections",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure and collections RLS response",
+            rowsPreview: "not decoded",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedCollectionsProbe {
+        SupabaseSignedCollectionsProbe(
+            title: "Signed collections probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/collections?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/collections",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local collections active and retry after network/backend healthcheck",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseCollectionBridge.statusText,
+            mappedCollections: []
+        )
+    }
+}
+
 private struct SupabaseAnnouncementReadAckResult: Hashable {
     var title: String
     var status: String
@@ -4139,6 +4315,62 @@ private struct SupabaseSignedCalendarEventsClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseCalendarEventRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedCollectionsClient {
+    static func probeCollections(config: SupabaseBackendConfig) async -> SupabaseSignedCollectionsProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        let classIDs = AppSupabaseClassContextBridge.contexts.map(\.classID)
+        guard classIDs.isEmpty == false else {
+            return .missingClassContext(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/collections") else {
+            return .networkError(config: config, message: "Invalid Supabase collections URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "class_id", value: "in.(\(classIDs.joined(separator: ",")))"),
+            URLQueryItem(name: "select", value: "id,class_id,title,amount_per_family,total_count,paid_count,status,due_at"),
+            URLQueryItem(name: "order", value: "due_at.asc"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase collections query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseCollectionRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -10658,6 +10890,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -10698,6 +10931,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedAnnouncements = State(initialValue: SupabaseSignedAnnouncementsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedHomework = State(initialValue: SupabaseSignedHomeworkProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedCalendarEvents = State(initialValue: SupabaseSignedCalendarEventsProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedCollections = State(initialValue: SupabaseSignedCollectionsProbe.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -11073,6 +11307,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
             supabaseSignedHomeworkCard(supabaseSignedHomework)
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
+            supabaseSignedCollectionsCard(supabaseSignedCollections)
             supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
@@ -11227,6 +11462,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-calendar-events")
+
+            Button {
+                Task {
+                    await runSupabaseSignedCollectionsProbe()
+                }
+            } label: {
+                Label("Проверить signed collections", systemImage: "rublesign.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-collections")
 
             Button {
                 Task {
@@ -12151,6 +12400,62 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSignedCollectionsCard(_ result: SupabaseSignedCollectionsProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "rublesign.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.46)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -12836,6 +13141,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
         supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: supabaseConfig)
         supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: supabaseConfig)
+        supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -12915,6 +13221,12 @@ private struct SyncCenterSheet: View {
         supabaseSignedCalendarEvents = calendarEvents
         if calendarEvents.mappedEvents.isEmpty == false {
             AppSupabaseCalendarEventBridge.replace(with: calendarEvents.mappedEvents)
+        }
+
+        let collections = await SupabaseSignedCollectionsClient.probeCollections(config: signedConfig)
+        supabaseSignedCollections = collections
+        if collections.mappedCollections.isEmpty == false {
+            AppSupabaseCollectionBridge.replace(with: collections.mappedCollections)
         }
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: signedConfig)
 
@@ -13032,6 +13344,20 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed calendar заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed calendar завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseSignedCollectionsProbe() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase signed collections: готовлю GET /collections без замены локальных сборов и без прав на управление."
+        let result = await SupabaseSignedCollectionsClient.probeCollections(config: supabaseConfig)
+        supabaseSignedCollections = result
+        if result.mappedCollections.isEmpty == false {
+            AppSupabaseCollectionBridge.replace(with: result.mappedCollections)
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
+            ? "Supabase signed collections заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
+            : "Supabase signed collections завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor

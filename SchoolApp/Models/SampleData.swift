@@ -249,6 +249,7 @@ enum AppChildStore {
         AppSupabaseAnnouncementBridge.clear()
         AppSupabaseHomeworkBridge.clear()
         AppSupabaseCalendarEventBridge.clear()
+        AppSupabaseCollectionBridge.clear()
     }
 }
 
@@ -818,6 +819,114 @@ enum AppSupabaseCalendarEventBridge {
                     details: "Сбор у школы в 09:10, взять воду и согласие.",
                     startsAt: "QA пятница 09:10",
                     linkedCollectionID: nil,
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseCollectionBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let title: String
+    let amountPerFamily: String
+    let totalCount: Int
+    let paidCount: Int
+    let status: String
+    let dueAt: String
+    let source: String
+    let mappedAt: String
+
+    var statusDisplayTitle: String {
+        switch status {
+        case "active":
+            "Идет сбор"
+        case "soon":
+            "Срок близко"
+        case "closed":
+            "Закрыт"
+        case "draft":
+            "Черновик"
+        default:
+            status
+        }
+    }
+
+    var summary: String {
+        "\(title) [\(amountPerFamily), \(paidCount)/\(totalCount), \(statusDisplayTitle)]"
+    }
+
+    var handoffText: String {
+        "Supabase сбор: \(summary)"
+    }
+}
+
+enum AppSupabaseCollectionBridge {
+    private static let bridgeKey = "school.supabase.collectionBridge.v1"
+
+    static var collections: [SupabaseCollectionBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseCollectionBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryCollection: SupabaseCollectionBridgeItem? {
+        collections.first
+    }
+
+    static var statusText: String {
+        collections.isEmpty
+            ? "Collection bridge waiting: local collections active"
+            : "Collection bridge ready: \(collections.count) collection(s), local collections still active"
+    }
+
+    static var previewText: String {
+        collections.isEmpty
+            ? "no saved collections"
+            : collections.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with collections: [SupabaseCollectionBridgeItem]) {
+        self.collections = collections
+    }
+
+    static func seedSmokeCollections() {
+        replace(
+            with: [
+                SupabaseCollectionBridgeItem(
+                    id: "80000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    title: "Supabase: сбор на театр",
+                    amountPerFamily: "750 руб.",
+                    totalCount: 25,
+                    paidCount: 12,
+                    status: "soon",
+                    dueAt: "QA до пятницы",
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )

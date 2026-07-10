@@ -12,6 +12,7 @@ struct AppView: View {
     @State private var completedSupabaseAnnouncementBridgeSeed = false
     @State private var completedSupabaseHomeworkBridgeSeed = false
     @State private var completedSupabaseCalendarEventBridgeSeed = false
+    @State private var completedSupabaseCollectionBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -32,6 +33,9 @@ struct AppView: View {
         if Self.seedsSupabaseCalendarEventBridge {
             AppSupabaseCalendarEventBridge.seedSmokeEvents()
         }
+        if Self.seedsSupabaseCollectionBridge {
+            AppSupabaseCollectionBridge.seedSmokeCollections()
+        }
         if Self.usesSupabaseChildSourcePreview {
             AppChildStore.usesSupabaseChildSourcePreview = true
         }
@@ -42,6 +46,7 @@ struct AppView: View {
         _completedSupabaseAnnouncementBridgeSeed = State(initialValue: Self.seedsSupabaseAnnouncementBridge)
         _completedSupabaseHomeworkBridgeSeed = State(initialValue: Self.seedsSupabaseHomeworkBridge)
         _completedSupabaseCalendarEventBridgeSeed = State(initialValue: Self.seedsSupabaseCalendarEventBridge)
+        _completedSupabaseCollectionBridgeSeed = State(initialValue: Self.seedsSupabaseCollectionBridge)
     }
 
     var body: some View {
@@ -59,6 +64,7 @@ struct AppView: View {
         .onAppear(perform: seedSupabaseAnnouncementBridgeIfNeeded)
         .onAppear(perform: seedSupabaseHomeworkBridgeIfNeeded)
         .onAppear(perform: seedSupabaseCalendarEventBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseCollectionBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
@@ -183,6 +189,15 @@ struct AppView: View {
         completedSupabaseCalendarEventBridgeSeed = true
     }
 
+    private func seedSupabaseCollectionBridgeIfNeeded() {
+        guard Self.seedsSupabaseCollectionBridge, !completedSupabaseCollectionBridgeSeed else {
+            return
+        }
+
+        AppSupabaseCollectionBridge.seedSmokeCollections()
+        completedSupabaseCollectionBridgeSeed = true
+    }
+
     private func enableSupabaseChildSourcePreviewIfNeeded() {
         guard Self.usesSupabaseChildSourcePreview else {
             return
@@ -248,6 +263,10 @@ struct AppView: View {
 
     private static var seedsSupabaseCalendarEventBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-calendar-event-bridge")
+    }
+
+    private static var seedsSupabaseCollectionBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-collection-bridge")
     }
 
     private static var usesSupabaseChildSourcePreview: Bool {

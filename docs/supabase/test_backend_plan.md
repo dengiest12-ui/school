@@ -134,6 +134,7 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabaseAnnouncementReadAckBlocksBeforeClientKey` passed in `.build/SupabaseAnnouncementReadAckOnlyUITest.xcresult`.
 - Targeted UI test: `testSupabaseHomeworkBridgeShowsWithoutReplacingLocalHomework` passed in `.build/SupabaseHomeworkBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabaseCalendarBridgeShowsWithoutReplacingLocalEvents` passed in `.build/SupabaseCalendarBridgeUITest.xcresult`.
+- Targeted UI test: `testSupabaseCollectionBridgeShowsWithoutGrantingParentManageRights` passed in `.build/SupabaseCollectionsBridgeUITest.xcresult`.
 - Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
 - Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
@@ -149,6 +150,7 @@ Additional iOS verification:
 - Onboarding now runs a post-auth handoff: using the fresh Supabase session it loads signed profile, class memberships and children, saves account/class/child bridge contexts, enables the Supabase child source preview for that launch and shows the selected account/child/class summary before role/class selection.
 - The app now has a signed homework bridge: Sync Center can request `GET /homework_items` by saved Supabase class context and the Homework screen shows the mapped preview separately from local homework until a full repository switch is ready.
 - The app now has a signed calendar bridge: Sync Center can request `GET /calendar_events` by saved Supabase class context and the Calendar screen shows the mapped preview separately from local events until a full repository switch is ready.
+- The app now has a signed collections bridge: Sync Center can request `GET /collections` by saved Supabase class context and the Class collections screen shows the mapped preview separately from local collections while preserving parent no-manage restrictions.
 - Production Auth is still incomplete: signup/email confirmation, phone OTP, native Apple ID, profile creation and class membership mapping must still be connected to live Supabase data before release.
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before saving the local account profile bridge.

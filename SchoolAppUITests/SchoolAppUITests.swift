@@ -443,6 +443,26 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["calendar.event.date.Чт, 9 июля"].exists)
     }
 
+    func testSupabaseCollectionBridgeShowsWithoutGrantingParentManageRights() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-collection-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom"
+        ])
+
+        XCTAssertTrue(app.buttons["class.section.collections"].waitForExistence(timeout: 4))
+        app.buttons["class.section.collections"].tap()
+
+        XCTAssertTrue(findStaticText("Supabase сборы", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase сбор: Supabase: сбор на театр", in: app))
+        XCTAssertTrue(findStaticText(containing: "Collection bridge ready: 1 collection", in: app))
+        XCTAssertTrue(findStaticText("Вы вошли как родитель", in: app))
+        XCTAssertFalse(app.buttons["Создать сбор"].exists)
+        XCTAssertTrue(findStaticText("Театр", in: app))
+    }
+
     func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

@@ -650,6 +650,7 @@ struct ClassRoomView: View {
     private var collectionsContent: some View {
         VStack(spacing: 12) {
             collectionSummaryCard
+            supabaseCollectionBridgeCard
             if !activeUserRole.canManageCollections {
                 roleRestrictionCard(
                     title: "Вы вошли как родитель",
@@ -678,6 +679,41 @@ struct ClassRoomView: View {
                     collectionCard(collection)
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var supabaseCollectionBridgeCard: some View {
+        if let collection = AppSupabaseCollectionBridge.primaryCollection {
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "rublesign.circle.fill", color: SchoolTheme.accent, size: 42)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Supabase сборы")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .accessibilityIdentifier("collections.supabase.title")
+                            Text(AppSupabaseCollectionBridge.statusText)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(collection.handoffText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Срок: \(collection.dueAt.isEmpty ? "не указан" : collection.dueAt)")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
