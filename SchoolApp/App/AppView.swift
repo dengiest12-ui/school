@@ -9,6 +9,7 @@ struct AppView: View {
     @State private var completedChildrenReset = false
     @State private var completedSupabaseBridgeSeed = false
     @State private var completedSupabaseChildBridgeSeed = false
+    @State private var completedSupabaseAnnouncementBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -20,6 +21,9 @@ struct AppView: View {
         if Self.seedsSupabaseChildBridge {
             AppSupabaseChildContextBridge.seedSmokeContext()
         }
+        if Self.seedsSupabaseAnnouncementBridge {
+            AppSupabaseAnnouncementBridge.seedSmokeAnnouncements()
+        }
         if Self.usesSupabaseChildSourcePreview {
             AppChildStore.usesSupabaseChildSourcePreview = true
         }
@@ -27,6 +31,7 @@ struct AppView: View {
         _completedChildrenReset = State(initialValue: Self.resetsChildren)
         _completedSupabaseBridgeSeed = State(initialValue: Self.seedsSupabaseBridge)
         _completedSupabaseChildBridgeSeed = State(initialValue: Self.seedsSupabaseChildBridge)
+        _completedSupabaseAnnouncementBridgeSeed = State(initialValue: Self.seedsSupabaseAnnouncementBridge)
     }
 
     var body: some View {
@@ -41,6 +46,7 @@ struct AppView: View {
         .onAppear(perform: resetChildrenIfNeeded)
         .onAppear(perform: seedSupabaseBridgeIfNeeded)
         .onAppear(perform: seedSupabaseChildBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseAnnouncementBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
@@ -138,6 +144,15 @@ struct AppView: View {
         completedSupabaseChildBridgeSeed = true
     }
 
+    private func seedSupabaseAnnouncementBridgeIfNeeded() {
+        guard Self.seedsSupabaseAnnouncementBridge, !completedSupabaseAnnouncementBridgeSeed else {
+            return
+        }
+
+        AppSupabaseAnnouncementBridge.seedSmokeAnnouncements()
+        completedSupabaseAnnouncementBridgeSeed = true
+    }
+
     private func enableSupabaseChildSourcePreviewIfNeeded() {
         guard Self.usesSupabaseChildSourcePreview else {
             return
@@ -191,6 +206,10 @@ struct AppView: View {
 
     private static var seedsSupabaseChildBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-child-bridge")
+    }
+
+    private static var seedsSupabaseAnnouncementBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-announcement-bridge")
     }
 
     private static var usesSupabaseChildSourcePreview: Bool {

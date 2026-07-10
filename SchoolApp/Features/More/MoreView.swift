@@ -1739,6 +1739,35 @@ private struct SupabaseChildRow: Decodable, Hashable {
     var class_rooms: SupabaseClassRoomRow?
 }
 
+private struct SupabaseAnnouncementReadRow: Decodable, Hashable {
+    var user_id: String
+    var read_at: String
+}
+
+private struct SupabaseAnnouncementRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var title: String
+    var body: String
+    var is_urgent: Bool
+    var published_at: String
+    var announcement_reads: [SupabaseAnnouncementReadRow]?
+
+    func bridgeItem(userID: String, mappedAt: String) -> SupabaseAnnouncementBridgeItem {
+        SupabaseAnnouncementBridgeItem(
+            id: id,
+            classID: class_id,
+            title: title,
+            body: body,
+            isUrgent: is_urgent,
+            publishedAt: published_at,
+            isReadByMe: announcement_reads?.contains { $0.user_id == userID } ?? false,
+            source: "signed announcements RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+}
+
 private struct SupabaseLocalClassContextPreview: Hashable {
     var classID: String
     var classTitle: String
@@ -2781,6 +2810,180 @@ private struct SupabaseSignedChildrenProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedAnnouncementsProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+    var bridgePreview: String
+    var mappedAnnouncements: [SupabaseAnnouncementBridgeItem]
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedAnnouncementsProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        if AppSupabaseClassContextBridge.contexts.isEmpty {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>&select=id,class_id,title,body,is_urgent,published_at,announcement_reads(user_id,read_at)",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will read class announcements and current-user read state under RLS.",
+            nextStep: "Run signed announcements probe before replacing the local class feed",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed announcements request is blocked before network access.",
+            nextStep: "Add client apikey, then provide signed session and class bridge",
+            rowsPreview: "0 rows",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove class announcement RLS.",
+            nextStep: "Inject a seed user's Supabase access token before signed announcements proof",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but current-user read state cannot be mapped yet.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed announcements probe",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "The app has no saved Supabase class bridge to scope announcement rows.",
+            nextStep: "Run signed class scope probe first, then retry announcements",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseAnnouncementRow], statusCode: Int) -> SupabaseSignedAnnouncementsProbe {
+        let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+        let userID = config.userID ?? ""
+        let announcements = rows.map { $0.bridgeItem(userID: userID, mappedAt: mappedAt) }
+        let preview = announcements.isEmpty
+            ? "[]"
+            : announcements.map(\.summary).joined(separator: ", ")
+
+        return SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: announcements.isEmpty ? "empty" : "mapped",
+            statusColorName: announcements.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>&select=id,class_id,title,body,is_urgent,published_at,announcement_reads(user_id,read_at)",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: announcements.isEmpty ? "RLS returned no announcements for saved class context." : "Mapped \(announcements.count) announcement(s) from signed RLS rows.",
+            nextStep: announcements.isEmpty ? "Seed class announcements or verify RLS before feed switch" : "Keep bridge preview until the local class feed repository can switch safely",
+            rowsPreview: preview,
+            bridgePreview: announcements.isEmpty ? "Announcement bridge waiting: local feed active" : "Announcement bridge ready: \(announcements.count) item(s), local feed still active",
+            mappedAnnouncements: announcements
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, embeds and announcements RLS response",
+            rowsPreview: "not decoded",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedAnnouncementsProbe {
+        SupabaseSignedAnnouncementsProbe(
+            title: "Signed announcements probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/announcements?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local class feed active and retry after network/backend healthcheck",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabaseAnnouncementBridge.statusText,
+            mappedAnnouncements: []
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -3253,6 +3456,67 @@ private struct SupabaseSignedChildrenClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseChildRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedAnnouncementsClient {
+    static func probeAnnouncements(config: SupabaseBackendConfig) async -> SupabaseSignedAnnouncementsProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        let classIDs = AppSupabaseClassContextBridge.contexts.map(\.classID)
+        guard classIDs.isEmpty == false else {
+            return .missingClassContext(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/announcements") else {
+            return .networkError(config: config, message: "Invalid Supabase announcements URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "class_id", value: "in.(\(classIDs.joined(separator: ",")))"),
+            URLQueryItem(name: "select", value: "id,class_id,title,body,is_urgent,published_at,announcement_reads(user_id,read_at)"),
+            URLQueryItem(name: "announcement_reads.user_id", value: "eq.\(userID)"),
+            URLQueryItem(name: "order", value: "published_at.desc"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase announcements query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseAnnouncementRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -9704,6 +9968,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
 
@@ -9740,6 +10005,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedProfile = State(initialValue: SupabaseSignedProfileProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedClassScope = State(initialValue: SupabaseSignedClassScopeProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedChildren = State(initialValue: SupabaseSignedChildrenProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedAnnouncements = State(initialValue: SupabaseSignedAnnouncementsProbe.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
         if arguments.contains("-qa-more-sync") {
@@ -10111,6 +10377,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedProfileCard(supabaseSignedProfile)
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseSignedChildrenCard(supabaseSignedChildren)
+            supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
@@ -10222,6 +10489,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-children")
+
+            Button {
+                Task {
+                    await runSupabaseSignedAnnouncementsProbe()
+                }
+            } label: {
+                Label("Проверить signed announcements", systemImage: "megaphone.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-announcements")
 
             Button {
                 Task {
@@ -10964,6 +11245,62 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSignedAnnouncementsCard(_ result: SupabaseSignedAnnouncementsProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "megaphone.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.46)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private var supabaseChildSourcePreviewCard: some View {
         let bridgeChildren = AppSupabaseChildContextBridge.childSummaries(
             classContexts: AppSupabaseClassContextBridge.contexts
@@ -11596,6 +11933,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
         supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
+        supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
     }
@@ -11656,6 +11994,12 @@ private struct SyncCenterSheet: View {
             AppSupabaseChildContextBridge.replace(
                 with: children.mappedChildren.map { $0.bridgeItem(mappedAt: mappedAt) }
             )
+        }
+
+        let announcements = await SupabaseSignedAnnouncementsClient.probeAnnouncements(config: signedConfig)
+        supabaseSignedAnnouncements = announcements
+        if announcements.mappedAnnouncements.isEmpty == false {
+            AppSupabaseAnnouncementBridge.replace(with: announcements.mappedAnnouncements)
         }
 
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: signedConfig)
@@ -11730,6 +12074,20 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed children заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed children завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseSignedAnnouncementsProbe() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase signed announcements: готовлю GET /announcements с read-state preview без замены локальной ленты."
+        let result = await SupabaseSignedAnnouncementsClient.probeAnnouncements(config: supabaseConfig)
+        supabaseSignedAnnouncements = result
+        if result.mappedAnnouncements.isEmpty == false {
+            AppSupabaseAnnouncementBridge.replace(with: result.mappedAnnouncements)
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
+            ? "Supabase signed announcements заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
+            : "Supabase signed announcements завершен: \(result.headerState). \(result.nextStep)"
     }
 
     private func enableSupabaseChildSourcePreview() {

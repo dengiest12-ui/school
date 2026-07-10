@@ -372,6 +372,23 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "Supabase ребенок готов: Smoke Child", in: app))
     }
 
+    func testSupabaseAnnouncementBridgeShowsInClassFeedPreview() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-announcement-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Supabase объявление: Supabase: форма на физкультуру", in: app))
+        XCTAssertTrue(findStaticText("Supabase объявления", in: app))
+        XCTAssertTrue(findStaticText(containing: "Announcement bridge ready: 1 item", in: app))
+        XCTAssertTrue(findStaticText("Supabase: форма на физкультуру", in: app))
+        XCTAssertTrue(findStaticText("Не прочитано", in: app))
+    }
+
     func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

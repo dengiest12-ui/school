@@ -85,6 +85,7 @@ Current verified state:
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey`, the user access token in `Authorization`, and a separate local account profile bridge after exactly one RLS-filtered row.
 - Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
 - Signed children probe: `GET /children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local child context mapper preview, a separate local bridge, a visible handoff preview that does not replace the selected local child, a QA-gated child source preview, and an app-controlled sync-center toggle for selecting the Supabase-backed child/class context.
+- Signed announcements probe: `GET /announcements?class_id=in.(...)&select=id,class_id,title,body,is_urgent,published_at,announcement_reads(user_id,read_at)` through `URLSession`, scoped by saved Supabase class bridge context and the signed user read-state relation; mapped rows are stored in a separate local announcement bridge and shown as a preview in the class feed without replacing the local feed.
 - Current live behavior: blocked until `SUPABASE_PUBLISHABLE_KEY` or legacy `SUPABASE_ANON_KEY` is provided. The live probe sends the client key in the `apikey` header; `Authorization: Bearer <access token>` is sent only when a real user token exists. Legacy anon bearer remains a fallback when no publishable key is configured. The password sign-in probe is also blocked until seed credentials are passed through the test environment.
 
 Gate before first signed iOS request:
@@ -104,6 +105,8 @@ Gate before first signed iOS request:
 - Verify the child mapper preview produces child id/name/grade, class id/title and invite code, then saves the context into the local child bridge while keeping the selected local child untouched by default.
 - Verify the QA-gated child source preview can switch the Today child selector and Class context to the saved Supabase child bridge without enabling it in normal launches.
 - Verify the sync-center child source toggle can enable and disable the saved Supabase child bridge from the app UI, and that both source choices survive app relaunch.
+- Run the signed announcements probe after class bridge is available and verify RLS returns only announcements for the signed user's saved classes, including read-state preview from `announcement_reads`.
+- Keep announcement read/write actions behind a separate signed write path before replacing the local announcement feed.
 - Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -125,6 +128,7 @@ Date: 2026-07-10
 - Targeted UI test: `testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep` passed in `.build/SupabaseOnboardingEmailGateUITest.xcresult`.
 - Targeted UI tests: `testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep` and `testOnboardingSupabaseHandoffUnlocksRoleAndClassStep` passed in `.build/SupabaseOnboardingHandoffUITest.xcresult`.
 - Targeted UI test: `testOnboardingSupabaseHandoffUnlocksRoleAndClassStep` passed with account profile handoff coverage in `.build/SupabaseOnboardingProfileHandoffUITest.xcresult`.
+- Targeted UI test: `testSupabaseAnnouncementBridgeShowsInClassFeedPreview` passed in `.build/SupabaseAnnouncementBridgeUITest-2.xcresult`.
 - Partial current UI rerun: first 7 tests in `scripts/qa_ui_tests.sh` passed before `testMvpMetricsEventPersistsAfterRelaunch` exposed a viewport-sensitive assertion; the stabilized retest passed in `.build/MvpMetricsUITest-4.xcresult`, and the remaining rerun confirmed `testSyncNetworkErrorKeepsQueuedMutation` plus `testSupabaseReadinessShowsSchemaAndMissingKeyGate` in `.build/SchoolAppUITestsRemaining/`. Further tail reruns were blocked by CoreSimulator/xcodebuild hanging before test output, not by an app assertion.
 - Full UI suite: 20 tests expected after adding seed session store coverage; rerun when CoreSimulator is stable to refresh `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
@@ -149,6 +153,7 @@ Additional iOS verification:
 - The QA-gated Supabase child source preview now lets Today/Class use the saved child bridge as the effective child source: QA seed verifies `Smoke Child, 3Б` and class code `QA-3B-2026`, while the default launch still keeps `Миша, 3Б`.
 - The sync-center now exposes a child source toggle: "Включить источник" switches the app to the saved Supabase child bridge, and "Локальные дети" returns Today/Class to the local child store.
 - The app-controlled child source toggle now has relaunch coverage: enabled Supabase source survives app restart, and disabling it survives restart back to local children.
+- The signed announcements probe now maps Supabase class announcements plus per-user read-state into a separate local bridge; the Class feed shows a Supabase announcement preview while the existing local announcement feed remains active until signed read/write flows are connected.
 
 ## Latest Supabase verification
 

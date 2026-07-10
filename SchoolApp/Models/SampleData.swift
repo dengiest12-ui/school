@@ -246,6 +246,7 @@ enum AppChildStore {
         AppSupabaseAccountProfileBridge.clear()
         AppSupabaseClassContextBridge.clear()
         AppSupabaseChildContextBridge.clear()
+        AppSupabaseAnnouncementBridge.clear()
     }
 }
 
@@ -523,6 +524,97 @@ enum AppSupabaseChildContextBridge {
                     classID: "qa-3b-2026",
                     classTitle: "QA-3B-2026",
                     inviteCode: "QA-3B-2026",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseAnnouncementBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let title: String
+    let body: String
+    let isUrgent: Bool
+    let publishedAt: String
+    let isReadByMe: Bool
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        "\(title) [\(isUrgent ? "срочно" : "обычно"), \(isReadByMe ? "прочитано" : "не прочитано")]"
+    }
+
+    var handoffText: String {
+        "Supabase объявление: \(summary)"
+    }
+}
+
+enum AppSupabaseAnnouncementBridge {
+    private static let bridgeKey = "school.supabase.announcementBridge.v1"
+
+    static var announcements: [SupabaseAnnouncementBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseAnnouncementBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryAnnouncement: SupabaseAnnouncementBridgeItem? {
+        announcements.first
+    }
+
+    static var statusText: String {
+        announcements.isEmpty
+            ? "Announcement bridge waiting: local feed active"
+            : "Announcement bridge ready: \(announcements.count) item(s), local feed still active"
+    }
+
+    static var previewText: String {
+        announcements.isEmpty
+            ? "no saved announcements"
+            : announcements.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with announcements: [SupabaseAnnouncementBridgeItem]) {
+        self.announcements = announcements
+    }
+
+    static func seedSmokeAnnouncements() {
+        replace(
+            with: [
+                SupabaseAnnouncementBridgeItem(
+                    id: "50000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    title: "Supabase: форма на физкультуру",
+                    body: "Проверьте форму и сменную обувь на завтра.",
+                    isUrgent: true,
+                    publishedAt: "QA",
+                    isReadByMe: false,
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )

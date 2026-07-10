@@ -388,6 +388,13 @@ struct ClassRoomView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.70)
                 }
+                if let announcement = AppSupabaseAnnouncementBridge.primaryAnnouncement {
+                    Text(announcement.handoffText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.warning)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                }
             }
 
             Spacer()
@@ -467,6 +474,10 @@ struct ClassRoomView: View {
 
     private var feedContent: some View {
         VStack(spacing: 12) {
+            if AppSupabaseAnnouncementBridge.announcements.isEmpty == false {
+                supabaseAnnouncementBridgeCard
+            }
+
             ForEach(feedItems) { item in
                 DashboardCard {
                     VStack(alignment: .leading, spacing: 10) {
@@ -494,6 +505,47 @@ struct ClassRoomView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+        }
+    }
+
+    private var supabaseAnnouncementBridgeCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    IconBadge(systemName: "dot.radiowaves.left.and.right", color: SchoolTheme.warning, size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Supabase объявления")
+                            .font(.headline)
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(AppSupabaseAnnouncementBridge.statusText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.warning)
+                    }
+                    Spacer()
+                    InfoPill(text: "\(AppSupabaseAnnouncementBridge.announcements.count)", color: SchoolTheme.warning)
+                }
+
+                ForEach(AppSupabaseAnnouncementBridge.announcements.prefix(2)) { announcement in
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 7) {
+                            StatusBadge(text: announcement.isUrgent ? "Срочно" : "Объявление", color: announcement.isUrgent ? SchoolTheme.danger : SchoolTheme.accent)
+                            StatusBadge(text: announcement.isReadByMe ? "Прочитано" : "Не прочитано", color: announcement.isReadByMe ? SchoolTheme.success : SchoolTheme.warning)
+                        }
+                        Text(announcement.title)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                        Text(announcement.body)
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(9)
+                    .background(SchoolTheme.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .accessibilityIdentifier("class.supabase-announcement.\(announcement.id)")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
