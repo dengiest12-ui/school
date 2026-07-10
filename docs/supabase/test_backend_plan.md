@@ -108,7 +108,7 @@ Gate before first signed iOS request:
 - Verify the sync-center child source toggle can enable and disable the saved Supabase child bridge from the app UI, and that both source choices survive app relaunch.
 - Run the signed announcements probe after class bridge is available and verify RLS returns only announcements for the signed user's saved classes, including read-state preview from `announcement_reads`.
 - Run the signed announcement read ack and verify the server accepts own-class read-state, rejects foreign-class read-state and treats duplicate read rows as already saved in the app.
-- Keep announcement publishing/editing behind separate signed write paths before replacing the local announcement feed.
+- Keep announcement editing behind a separate signed write path before replacing the local announcement feed; publishing now has a signed write gate.
 - Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -131,6 +131,7 @@ Date: 2026-07-10
 - Targeted UI tests: `testOnboardingSupabaseEmailRequiresSuccessfulAuthBeforeRoleStep` and `testOnboardingSupabaseHandoffUnlocksRoleAndClassStep` passed in `.build/SupabaseOnboardingHandoffUITest.xcresult`.
 - Targeted UI test: `testOnboardingSupabaseHandoffUnlocksRoleAndClassStep` passed with account profile handoff coverage in `.build/SupabaseOnboardingProfileHandoffUITest.xcresult`.
 - Targeted UI test: `testSupabaseAnnouncementBridgeShowsInClassFeedPreview` passed in `.build/SupabaseAnnouncementBridgeUITest-2.xcresult`.
+- Targeted UI test: `testSupabaseAnnouncementPublishWriteBlocksBeforeClientKey` passed in `.build/SupabaseAnnouncementPublishWriteUITest.xcresult`.
 - Targeted UI test: `testSupabaseAnnouncementReadAckBlocksBeforeClientKey` passed in `.build/SupabaseAnnouncementReadAckOnlyUITest.xcresult`.
 - Targeted UI test: `testSupabaseHomeworkBridgeShowsWithoutReplacingLocalHomework` passed in `.build/SupabaseHomeworkBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabaseCalendarBridgeShowsWithoutReplacingLocalEvents` passed in `.build/SupabaseCalendarBridgeUITest.xcresult`.
@@ -177,6 +178,7 @@ Additional iOS verification:
 - The sync-center now exposes a child source toggle: "Включить источник" switches the app to the saved Supabase child bridge, and "Локальные дети" returns Today/Class to the local child store.
 - The app-controlled child source toggle now has relaunch coverage: enabled Supabase source survives app restart, and disabling it survives restart back to local children.
 - The signed announcements probe now maps Supabase class announcements plus per-user read-state into a separate local bridge; the Class feed shows a Supabase announcement preview while the existing local announcement feed remains active until signed read/write flows are connected.
+- The sync-center now has a signed announcement publish gate: without client key/session/user id/class bridge it blocks before network, and with a signed teacher or parent-committee session it prepares `POST /announcements` while RLS `announcements_insert_manager` remains the authority.
 - The sync-center now has a signed announcement read ack gate: without client key/session it blocks before network, and with a signed session it is prepared to insert into `announcement_reads`; successful or duplicate inserts mark the local announcement bridge as read.
 
 ## Latest Supabase verification

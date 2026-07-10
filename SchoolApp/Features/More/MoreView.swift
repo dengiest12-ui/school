@@ -3078,6 +3078,159 @@ private struct SupabaseSignedAnnouncementsProbe: Hashable {
     }
 }
 
+private struct SupabaseAnnouncementPublishWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseAnnouncementPublishWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        guard AppSupabaseClassContextBridge.primaryContext != nil else {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will publish a class announcement only if RLS confirms teacher or parent-committee rights.",
+            nextStep: "Refresh signed announcements before replacing the local announcement composer",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed announcement publish write is blocked before network access.",
+            nextStep: "Add client apikey, signed manager session and class bridge",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot publish class announcements.",
+            nextStep: "Inject a teacher or parent-committee Supabase access token before publish proof",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the announcement body needs the signed author id.",
+            nextStep: "Provide SUPABASE_USER_ID for the manager seed user and retry publish write",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase class bridge item is available for the announcement.",
+            nextStep: "Run signed class scope probe first, then retry publish write",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, body: SupabaseAnnouncementPublishBody, statusCode: Int) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "published",
+            statusColorName: "green",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "HTTP \(statusCode), manager bearer accepted",
+            detail: "RLS accepted the teacher/committee announcement row.",
+            nextStep: "Refresh signed announcements before replacing the local class feed composer",
+            targetPreview: "\(body.class_id), urgent \(body.is_urgent)"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, body: SupabaseAnnouncementPublishBody?, statusCode: Int, message: String) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: statusCode == 401 || statusCode == 403 ? "manager auth/session required" : "\(config.clientKeyKind) apikey and manager bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Use teacher/committee session or verify announcements_insert_manager RLS" : "Check announcements Data API exposure and RLS response",
+            targetPreview: body.map { "\($0.class_id), publish blocked" } ?? announcementTargetPreview
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, body: SupabaseAnnouncementPublishBody?, message: String) -> SupabaseAnnouncementPublishWriteResult {
+        SupabaseAnnouncementPublishWriteResult(
+            title: "Announcement publish write",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/announcements",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "\(config.clientKeyKind) apikey and manager bearer prepared",
+            detail: message,
+            nextStep: "Keep local announcement queued and retry after network/backend healthcheck",
+            targetPreview: body.map { "\($0.class_id), queued publish" } ?? announcementTargetPreview
+        )
+    }
+
+    private static var announcementTargetPreview: String {
+        AppSupabaseClassContextBridge.primaryContext?.summary ?? "no saved class"
+    }
+}
+
 private struct SupabaseSignedHomeworkProbe: Hashable {
     var title: String
     var status: String
@@ -6048,6 +6201,72 @@ private struct SupabaseClassPhotoMetadataWriteClient {
 
         guard let url = URL(string: "\(config.restBaseURL)/class_photos") else {
             return .networkError(config: config, body: body, message: "Invalid Supabase class_photos URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, body: body, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, body: body, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, body: body, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseAnnouncementPublishBody: Encodable, Hashable {
+    var class_id: String
+    var author_user_id: String
+    var title: String
+    var body: String
+    var is_urgent: Bool
+}
+
+private struct SupabaseAnnouncementPublishWriteClient {
+    static func publishProbeAnnouncement(config: SupabaseBackendConfig) async -> SupabaseAnnouncementPublishWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let classContext = AppSupabaseClassContextBridge.primaryContext else {
+            return .missingClassContext(config: config)
+        }
+
+        let body = SupabaseAnnouncementPublishBody(
+            class_id: classContext.classID,
+            author_user_id: userID,
+            title: "QA срочное объявление",
+            body: "Проверка signed publish gate из iOS Sync Center.",
+            is_urgent: true
+        )
+
+        guard let url = URL(string: "\(config.restBaseURL)/announcements") else {
+            return .networkError(config: config, body: body, message: "Invalid Supabase announcements URL")
         }
 
         var request = URLRequest(url: url)
@@ -12591,6 +12810,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -12639,6 +12859,7 @@ private struct SyncCenterSheet: View {
         _supabaseCollectionReceiptExpenseWrite = State(initialValue: SupabaseCollectionReceiptExpenseWriteResult.planned(config: launchSupabaseConfig))
         _supabaseClassFileMetadataWrite = State(initialValue: SupabaseClassFileMetadataWriteResult.planned(config: launchSupabaseConfig))
         _supabaseClassPhotoMetadataWrite = State(initialValue: SupabaseClassPhotoMetadataWriteResult.planned(config: launchSupabaseConfig))
+        _supabaseAnnouncementPublishWrite = State(initialValue: SupabaseAnnouncementPublishWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -13012,6 +13233,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseSignedChildrenCard(supabaseSignedChildren)
             supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
+            supabaseAnnouncementPublishWriteCard(supabaseAnnouncementPublishWrite)
             supabaseSignedHomeworkCard(supabaseSignedHomework)
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
@@ -14011,6 +14233,70 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                 .lineLimit(2)
                 .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseAnnouncementPublishWriteCard(_ result: SupabaseAnnouncementPublishWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "megaphone.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text("Announcement: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(3)
+                .minimumScaleFactor(0.54)
+
+            Button {
+                Task {
+                    await runSupabaseAnnouncementPublishWrite()
+                }
+            } label: {
+                Label("Опубликовать объявление", systemImage: "megaphone.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-announcement-publish-write")
         }
         .padding(10)
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -15317,6 +15603,7 @@ private struct SyncCenterSheet: View {
         supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: supabaseConfig)
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
+        supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -15408,6 +15695,7 @@ private struct SyncCenterSheet: View {
         supabaseCollectionReceiptExpenseWrite = SupabaseCollectionReceiptExpenseWriteResult.planned(config: signedConfig)
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: signedConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: signedConfig)
+        supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: signedConfig)
 
         let photos = await SupabaseSignedPhotosClient.probePhotos(config: signedConfig)
         supabaseSignedPhotos = photos
@@ -15470,6 +15758,7 @@ private struct SyncCenterSheet: View {
         }
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
+        supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed classes заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed classes завершен: \(result.headerState). \(result.nextStep)"
@@ -15501,6 +15790,7 @@ private struct SyncCenterSheet: View {
         if result.mappedAnnouncements.isEmpty == false {
             AppSupabaseAnnouncementBridge.replace(with: result.mappedAnnouncements)
         }
+        supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase signed announcements заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
             : "Supabase signed announcements завершен: \(result.headerState). \(result.nextStep)"
@@ -15634,6 +15924,17 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing" || result.status == "file missing"
             ? "Supabase class photo metadata заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID, class bridge и file bridge."
             : "Supabase class photo metadata завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseAnnouncementPublishWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase announcement publish: готовлю signed POST /announcements для учителя/родкомитета."
+        let result = await SupabaseAnnouncementPublishWriteClient.publishProbeAnnouncement(config: supabaseConfig)
+        supabaseAnnouncementPublishWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
+            ? "Supabase announcement publish заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
+            : "Supabase announcement publish завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor
