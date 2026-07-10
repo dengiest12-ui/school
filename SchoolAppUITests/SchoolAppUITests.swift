@@ -313,6 +313,29 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "no mutation built", in: app, attempts: 6))
     }
 
+    func testSupabaseCollectionPaymentWriteBlocksBeforeClientKey() {
+        let app = launchApp(arguments: [
+            "-qa-seed-supabase-child-bridge",
+            "-qa-seed-supabase-collection-bridge",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(findStaticText("Collection payment write", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "/collection_payments", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "Signed collection payment write is blocked", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "Supabase: сбор на театр", in: app, attempts: 6))
+        XCTAssertTrue(findStaticText(containing: "Smoke Child", in: app, attempts: 6))
+
+        let writeButton = app.buttons["sync.supabase-collection-payment-write"]
+        scrollUntilVisible(writeButton, in: app, attempts: 10)
+        XCTAssertTrue(writeButton.waitForExistence(timeout: 4))
+        writeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "collection payment заблокирован", in: app, attempts: 6))
+    }
+
     func testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-supabase-session-store",
