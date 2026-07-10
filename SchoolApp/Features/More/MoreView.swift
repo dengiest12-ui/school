@@ -1840,6 +1840,28 @@ private struct SupabaseCollectionRow: Decodable, Hashable {
     }
 }
 
+private struct SupabasePhotoRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var author_user_id: String
+    var file_id: String
+    var caption: String?
+    var created_at: String
+
+    func bridgeItem(mappedAt: String) -> SupabasePhotoBridgeItem {
+        SupabasePhotoBridgeItem(
+            id: id,
+            classID: class_id,
+            fileID: file_id,
+            caption: caption ?? "",
+            authorUserID: author_user_id,
+            createdAt: created_at,
+            source: "signed class_photos RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+}
+
 private struct SupabaseLocalClassContextPreview: Hashable {
     var classID: String
     var classTitle: String
@@ -3506,6 +3528,156 @@ private struct SupabaseSignedCollectionsProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedPhotosProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+    var bridgePreview: String
+    var mappedPhotos: [SupabasePhotoBridgeItem]
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedPhotosProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if AppSupabaseClassContextBridge.contexts.isEmpty {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>&select=id,class_id,author_user_id,file_id,caption,created_at",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will read class photo metadata under RLS without downloading storage objects.",
+            nextStep: "Run signed photos probe before replacing the local photo albums repository",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedPhotosProbe {
+        SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed photos request is blocked before network access.",
+            nextStep: "Add client apikey, signed session and class bridge",
+            rowsPreview: "0 rows",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedPhotosProbe {
+        SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove class photo RLS.",
+            nextStep: "Inject a seed user's Supabase access token before signed photos proof",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseSignedPhotosProbe {
+        SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "The app has no saved Supabase class bridge to scope photo rows.",
+            nextStep: "Run signed class scope probe first, then retry photos",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabasePhotoRow], statusCode: Int) -> SupabaseSignedPhotosProbe {
+        let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+        let photos = rows.map { $0.bridgeItem(mappedAt: mappedAt) }
+        let preview = photos.isEmpty ? "[]" : photos.map(\.summary).joined(separator: ", ")
+
+        return SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: photos.isEmpty ? "empty" : "mapped",
+            statusColorName: photos.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>&select=id,class_id,author_user_id,file_id,caption,created_at",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: photos.isEmpty ? "RLS returned no photos for saved class context." : "Mapped \(photos.count) photo metadata row(s) from signed RLS rows.",
+            nextStep: photos.isEmpty ? "Seed class photos or verify RLS before photo repository switch" : "Keep bridge preview until local albums can switch safely",
+            rowsPreview: preview,
+            bridgePreview: photos.isEmpty ? "Photo bridge waiting: local albums active" : "Photo bridge ready: \(photos.count) photo(s), local albums still active",
+            mappedPhotos: photos
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedPhotosProbe {
+        SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure and class_photos RLS response",
+            rowsPreview: "not decoded",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedPhotosProbe {
+        SupabaseSignedPhotosProbe(
+            title: "Signed photos probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/class_photos?class_id=in.<bridge>",
+            url: "\(config.restBaseURL)/class_photos",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local photo albums active and retry after network/backend healthcheck",
+            rowsPreview: "not requested",
+            bridgePreview: AppSupabasePhotoBridge.statusText,
+            mappedPhotos: []
+        )
+    }
+}
+
 private struct SupabaseAnnouncementReadAckResult: Hashable {
     var title: String
     var status: String
@@ -4371,6 +4543,62 @@ private struct SupabaseSignedCollectionsClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseCollectionRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedPhotosClient {
+    static func probePhotos(config: SupabaseBackendConfig) async -> SupabaseSignedPhotosProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        let classIDs = AppSupabaseClassContextBridge.contexts.map(\.classID)
+        guard classIDs.isEmpty == false else {
+            return .missingClassContext(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/class_photos") else {
+            return .networkError(config: config, message: "Invalid Supabase class_photos URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "class_id", value: "in.(\(classIDs.joined(separator: ",")))"),
+            URLQueryItem(name: "select", value: "id,class_id,author_user_id,file_id,caption,created_at"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase class_photos query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabasePhotoRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -10891,6 +11119,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -10932,6 +11161,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedHomework = State(initialValue: SupabaseSignedHomeworkProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedCalendarEvents = State(initialValue: SupabaseSignedCalendarEventsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedCollections = State(initialValue: SupabaseSignedCollectionsProbe.planned(config: launchSupabaseConfig))
+        _supabaseSignedPhotos = State(initialValue: SupabaseSignedPhotosProbe.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -11308,6 +11538,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedHomeworkCard(supabaseSignedHomework)
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
+            supabaseSignedPhotosCard(supabaseSignedPhotos)
             supabaseAnnouncementReadAckCard(supabaseAnnouncementReadAck)
             supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
@@ -11476,6 +11707,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-collections")
+
+            Button {
+                Task {
+                    await runSupabaseSignedPhotosProbe()
+                }
+            } label: {
+                Label("Проверить signed photos", systemImage: "photo.stack.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-photos")
 
             Button {
                 Task {
@@ -12456,6 +12701,62 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSignedPhotosCard(_ result: SupabaseSignedPhotosProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "photo.stack.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.42)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseAnnouncementReadAckCard(_ result: SupabaseAnnouncementReadAckResult) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -13142,6 +13443,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: supabaseConfig)
         supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: supabaseConfig)
         supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: supabaseConfig)
+        supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -13227,6 +13529,12 @@ private struct SyncCenterSheet: View {
         supabaseSignedCollections = collections
         if collections.mappedCollections.isEmpty == false {
             AppSupabaseCollectionBridge.replace(with: collections.mappedCollections)
+        }
+
+        let photos = await SupabaseSignedPhotosClient.probePhotos(config: signedConfig)
+        supabaseSignedPhotos = photos
+        if photos.mappedPhotos.isEmpty == false {
+            AppSupabasePhotoBridge.replace(with: photos.mappedPhotos)
         }
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: signedConfig)
 
@@ -13358,6 +13666,20 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed collections заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed collections завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseSignedPhotosProbe() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase signed photos: готовлю GET /class_photos без замены локальных альбомов и без скачивания storage."
+        let result = await SupabaseSignedPhotosClient.probePhotos(config: supabaseConfig)
+        supabaseSignedPhotos = result
+        if result.mappedPhotos.isEmpty == false {
+            AppSupabasePhotoBridge.replace(with: result.mappedPhotos)
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
+            ? "Supabase signed photos заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
+            : "Supabase signed photos завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor

@@ -13,6 +13,7 @@ struct AppView: View {
     @State private var completedSupabaseHomeworkBridgeSeed = false
     @State private var completedSupabaseCalendarEventBridgeSeed = false
     @State private var completedSupabaseCollectionBridgeSeed = false
+    @State private var completedSupabasePhotoBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -36,6 +37,9 @@ struct AppView: View {
         if Self.seedsSupabaseCollectionBridge {
             AppSupabaseCollectionBridge.seedSmokeCollections()
         }
+        if Self.seedsSupabasePhotoBridge {
+            AppSupabasePhotoBridge.seedSmokePhotos()
+        }
         if Self.usesSupabaseChildSourcePreview {
             AppChildStore.usesSupabaseChildSourcePreview = true
         }
@@ -47,6 +51,7 @@ struct AppView: View {
         _completedSupabaseHomeworkBridgeSeed = State(initialValue: Self.seedsSupabaseHomeworkBridge)
         _completedSupabaseCalendarEventBridgeSeed = State(initialValue: Self.seedsSupabaseCalendarEventBridge)
         _completedSupabaseCollectionBridgeSeed = State(initialValue: Self.seedsSupabaseCollectionBridge)
+        _completedSupabasePhotoBridgeSeed = State(initialValue: Self.seedsSupabasePhotoBridge)
     }
 
     var body: some View {
@@ -65,6 +70,7 @@ struct AppView: View {
         .onAppear(perform: seedSupabaseHomeworkBridgeIfNeeded)
         .onAppear(perform: seedSupabaseCalendarEventBridgeIfNeeded)
         .onAppear(perform: seedSupabaseCollectionBridgeIfNeeded)
+        .onAppear(perform: seedSupabasePhotoBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
@@ -198,6 +204,15 @@ struct AppView: View {
         completedSupabaseCollectionBridgeSeed = true
     }
 
+    private func seedSupabasePhotoBridgeIfNeeded() {
+        guard Self.seedsSupabasePhotoBridge, !completedSupabasePhotoBridgeSeed else {
+            return
+        }
+
+        AppSupabasePhotoBridge.seedSmokePhotos()
+        completedSupabasePhotoBridgeSeed = true
+    }
+
     private func enableSupabaseChildSourcePreviewIfNeeded() {
         guard Self.usesSupabaseChildSourcePreview else {
             return
@@ -267,6 +282,10 @@ struct AppView: View {
 
     private static var seedsSupabaseCollectionBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-collection-bridge")
+    }
+
+    private static var seedsSupabasePhotoBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-photo-bridge")
     }
 
     private static var usesSupabaseChildSourcePreview: Bool {

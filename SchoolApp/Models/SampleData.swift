@@ -250,6 +250,7 @@ enum AppChildStore {
         AppSupabaseHomeworkBridge.clear()
         AppSupabaseCalendarEventBridge.clear()
         AppSupabaseCollectionBridge.clear()
+        AppSupabasePhotoBridge.clear()
     }
 }
 
@@ -927,6 +928,99 @@ enum AppSupabaseCollectionBridge {
                     paidCount: 12,
                     status: "soon",
                     dueAt: "QA до пятницы",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabasePhotoBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let fileID: String
+    let caption: String
+    let authorUserID: String
+    let createdAt: String
+    let source: String
+    let mappedAt: String
+
+    var displayTitle: String {
+        caption.isEmpty ? "Фото класса" : caption
+    }
+
+    var summary: String {
+        "\(displayTitle) [\(createdAt.isEmpty ? "без даты" : createdAt)]"
+    }
+
+    var handoffText: String {
+        "Supabase фото: \(summary)"
+    }
+}
+
+enum AppSupabasePhotoBridge {
+    private static let bridgeKey = "school.supabase.photoBridge.v1"
+
+    static var photos: [SupabasePhotoBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabasePhotoBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryPhoto: SupabasePhotoBridgeItem? {
+        photos.first
+    }
+
+    static var statusText: String {
+        photos.isEmpty
+            ? "Photo bridge waiting: local albums active"
+            : "Photo bridge ready: \(photos.count) photo(s), local albums still active"
+    }
+
+    static var previewText: String {
+        photos.isEmpty
+            ? "no saved photos"
+            : photos.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with photos: [SupabasePhotoBridgeItem]) {
+        self.photos = photos
+    }
+
+    static func seedSmokePhotos() {
+        replace(
+            with: [
+                SupabasePhotoBridgeItem(
+                    id: "90000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    fileID: "91000000-0000-4000-8000-000000000001",
+                    caption: "Supabase: фото с экскурсии",
+                    authorUserID: "10000000-0000-4000-8000-000000000001",
+                    createdAt: "QA сегодня",
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )

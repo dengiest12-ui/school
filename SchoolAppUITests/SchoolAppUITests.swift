@@ -463,6 +463,26 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Театр", in: app))
     }
 
+    func testSupabasePhotoBridgeShowsWithoutGrantingParentDeleteRights() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-photo-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "classRoom"
+        ])
+
+        XCTAssertTrue(app.buttons["class.section.photos"].waitForExistence(timeout: 4))
+        app.buttons["class.section.photos"].tap()
+
+        XCTAssertTrue(findStaticText("Supabase фото", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase фото: Supabase: фото с экскурсии", in: app))
+        XCTAssertTrue(findStaticText(containing: "Photo bridge ready: 1 photo", in: app))
+        XCTAssertTrue(findStaticText(containing: "Родителю доступны просмотр, скачивание и жалоба", in: app))
+        XCTAssertFalse(app.buttons["Создать альбом"].exists)
+        XCTAssertTrue(findStaticText("Экскурсии", in: app))
+    }
+
     func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

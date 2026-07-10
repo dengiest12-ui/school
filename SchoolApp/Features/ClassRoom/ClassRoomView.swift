@@ -806,6 +806,8 @@ struct ClassRoomView: View {
                 color: SchoolTheme.teal
             )
 
+            supabasePhotoBridgeCard
+
             if canManagePhotoAlbums {
                 Button {
                     activeSheet = .newPhotoAlbum
@@ -833,6 +835,42 @@ struct ClassRoomView: View {
                         photoTile(album)
                     }
                     .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var supabasePhotoBridgeCard: some View {
+        if let photo = AppSupabasePhotoBridge.primaryPhoto {
+            DashboardCard {
+                HStack(alignment: .top, spacing: 12) {
+                    IconBadge(systemName: "photo.stack.fill", color: SchoolTheme.accent, size: 42)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("Supabase фото")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .accessibilityIdentifier("photos.supabase.title")
+                            StatusBadge(text: "\(AppSupabasePhotoBridge.photos.count)", color: SchoolTheme.accent)
+                        }
+
+                        Text(AppSupabasePhotoBridge.statusText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.accent)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(photo.handoffText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(canManagePhotoAlbums ? "Удаление доступно доверенным ролям" : "Родителю доступны просмотр, скачивание и жалоба")
+                            .font(.caption)
+                            .foregroundStyle(SchoolTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
                 }
             }
         }
