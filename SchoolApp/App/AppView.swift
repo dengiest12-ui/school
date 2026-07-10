@@ -11,6 +11,7 @@ struct AppView: View {
     @State private var completedSupabaseChildBridgeSeed = false
     @State private var completedSupabaseAnnouncementBridgeSeed = false
     @State private var completedSupabaseHomeworkBridgeSeed = false
+    @State private var completedSupabaseCalendarEventBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -28,6 +29,9 @@ struct AppView: View {
         if Self.seedsSupabaseHomeworkBridge {
             AppSupabaseHomeworkBridge.seedSmokeHomework()
         }
+        if Self.seedsSupabaseCalendarEventBridge {
+            AppSupabaseCalendarEventBridge.seedSmokeEvents()
+        }
         if Self.usesSupabaseChildSourcePreview {
             AppChildStore.usesSupabaseChildSourcePreview = true
         }
@@ -37,6 +41,7 @@ struct AppView: View {
         _completedSupabaseChildBridgeSeed = State(initialValue: Self.seedsSupabaseChildBridge)
         _completedSupabaseAnnouncementBridgeSeed = State(initialValue: Self.seedsSupabaseAnnouncementBridge)
         _completedSupabaseHomeworkBridgeSeed = State(initialValue: Self.seedsSupabaseHomeworkBridge)
+        _completedSupabaseCalendarEventBridgeSeed = State(initialValue: Self.seedsSupabaseCalendarEventBridge)
     }
 
     var body: some View {
@@ -53,6 +58,7 @@ struct AppView: View {
         .onAppear(perform: seedSupabaseChildBridgeIfNeeded)
         .onAppear(perform: seedSupabaseAnnouncementBridgeIfNeeded)
         .onAppear(perform: seedSupabaseHomeworkBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseCalendarEventBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
@@ -168,6 +174,15 @@ struct AppView: View {
         completedSupabaseHomeworkBridgeSeed = true
     }
 
+    private func seedSupabaseCalendarEventBridgeIfNeeded() {
+        guard Self.seedsSupabaseCalendarEventBridge, !completedSupabaseCalendarEventBridgeSeed else {
+            return
+        }
+
+        AppSupabaseCalendarEventBridge.seedSmokeEvents()
+        completedSupabaseCalendarEventBridgeSeed = true
+    }
+
     private func enableSupabaseChildSourcePreviewIfNeeded() {
         guard Self.usesSupabaseChildSourcePreview else {
             return
@@ -229,6 +244,10 @@ struct AppView: View {
 
     private static var seedsSupabaseHomeworkBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-homework-bridge")
+    }
+
+    private static var seedsSupabaseCalendarEventBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-calendar-event-bridge")
     }
 
     private static var usesSupabaseChildSourcePreview: Bool {

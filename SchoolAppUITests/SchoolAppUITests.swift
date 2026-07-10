@@ -425,6 +425,24 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["homework.title.№ 47, 48 (с. 78)"].exists)
     }
 
+    func testSupabaseCalendarBridgeShowsWithoutReplacingLocalEvents() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-reset-calendar-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-calendar-event-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "calendar"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Календарь"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText("Supabase события", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase событие: Supabase: экскурсия в планетарий", in: app))
+        XCTAssertTrue(findStaticText(containing: "Calendar bridge ready: 1 event", in: app))
+        XCTAssertTrue(app.staticTexts["calendar.event.title.Экскурсия в музей"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["calendar.event.date.Чт, 9 июля"].exists)
+    }
+
     func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
         let app = launchApp(arguments: [
             "-qa-reset-children-store",

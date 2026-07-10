@@ -248,6 +248,7 @@ enum AppChildStore {
         AppSupabaseChildContextBridge.clear()
         AppSupabaseAnnouncementBridge.clear()
         AppSupabaseHomeworkBridge.clear()
+        AppSupabaseCalendarEventBridge.clear()
     }
 }
 
@@ -728,6 +729,95 @@ enum AppSupabaseHomeworkBridge {
                     details: "Проверить решение и принести тетрадь.",
                     dueAt: "QA завтра",
                     assigneeChildID: "40000000-0000-4000-8000-000000000001",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseCalendarEventBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let title: String
+    let details: String
+    let startsAt: String
+    let linkedCollectionID: String?
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        "\(title) [\(startsAt)]"
+    }
+
+    var handoffText: String {
+        "Supabase событие: \(summary)"
+    }
+}
+
+enum AppSupabaseCalendarEventBridge {
+    private static let bridgeKey = "school.supabase.calendarEventBridge.v1"
+
+    static var events: [SupabaseCalendarEventBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseCalendarEventBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryEvent: SupabaseCalendarEventBridgeItem? {
+        events.first
+    }
+
+    static var statusText: String {
+        events.isEmpty
+            ? "Calendar bridge waiting: local calendar active"
+            : "Calendar bridge ready: \(events.count) event(s), local calendar still active"
+    }
+
+    static var previewText: String {
+        events.isEmpty
+            ? "no saved calendar events"
+            : events.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with events: [SupabaseCalendarEventBridgeItem]) {
+        self.events = events
+    }
+
+    static func seedSmokeEvents() {
+        replace(
+            with: [
+                SupabaseCalendarEventBridgeItem(
+                    id: "70000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    title: "Supabase: экскурсия в планетарий",
+                    details: "Сбор у школы в 09:10, взять воду и согласие.",
+                    startsAt: "QA пятница 09:10",
+                    linkedCollectionID: nil,
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )

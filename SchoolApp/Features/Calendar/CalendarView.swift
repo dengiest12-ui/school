@@ -58,6 +58,7 @@ struct CalendarView: View {
             VStack(spacing: 14) {
                 header
                 modePicker
+                supabaseCalendarEventBridgeCard
                 weekCard
                 eventSummaryCard
                 eventsList
@@ -111,6 +112,44 @@ struct CalendarView: View {
             }
         }
         .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var supabaseCalendarEventBridgeCard: some View {
+        if let event = AppSupabaseCalendarEventBridge.primaryEvent {
+            DashboardCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        IconBadge(systemName: "calendar.badge.checkmark", color: SchoolTheme.accent, size: 42)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Supabase события")
+                                .font(.headline)
+                                .foregroundStyle(SchoolTheme.graphite)
+                                .accessibilityIdentifier("calendar.supabase.title")
+                            Text(AppSupabaseCalendarEventBridge.statusText)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(event.handoffText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.graphite)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if event.details.isEmpty == false {
+                            Text(event.details)
+                                .font(.caption)
+                                .foregroundStyle(SchoolTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var weekCard: some View {
