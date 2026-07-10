@@ -247,7 +247,7 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(firstLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
         XCTAssertTrue(findStaticText("Stored seed session", in: firstLaunch))
-        XCTAssertTrue(findStaticText(containing: "source: stored seed session", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "source: keychain seed session", in: firstLaunch))
         XCTAssertTrue(findStaticText(containing: "access qa-acc...0000", in: firstLaunch))
         XCTAssertTrue(findStaticText(containing: "user qa-user-0000", in: firstLaunch))
 
@@ -263,7 +263,7 @@ final class SchoolAppUITests: XCTestCase {
         clearButton.tap()
 
         XCTAssertTrue(findStaticText(containing: "Stored seed session очищена", in: firstLaunch))
-        XCTAssertTrue(findStaticText(containing: "QA session store empty", in: firstLaunch))
+        XCTAssertTrue(findStaticText(containing: "Keychain session store empty", in: firstLaunch))
         firstLaunch.terminate()
 
         let secondLaunch = launchApp(arguments: [
@@ -273,7 +273,7 @@ final class SchoolAppUITests: XCTestCase {
         ])
 
         XCTAssertTrue(secondLaunch.navigationBars["Синхронизация"].waitForExistence(timeout: 4))
-        XCTAssertTrue(findStaticText(containing: "QA session store empty", in: secondLaunch))
+        XCTAssertTrue(findStaticText(containing: "Keychain session store empty", in: secondLaunch))
         XCTAssertTrue(findStaticText(containing: "missing SUPABASE_ACCESS_TOKEN", in: secondLaunch))
     }
 

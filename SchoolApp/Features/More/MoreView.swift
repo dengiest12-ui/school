@@ -4,6 +4,7 @@ import UserNotifications
 import UIKit
 import CoreImage.CIFilterBuiltins
 import StoreKit
+import Security
 
 private struct NotificationSettingsState: Codable, Hashable {
     static let scheduledIdentifiers = [
@@ -1555,7 +1556,7 @@ private struct SupabaseBackendConfig: Hashable {
         let resolvedUserID = userID ?? storedSeedSession?.userID
         let sessionSource = accessToken?.isEmpty == false
             ? "build environment"
-            : (storedSeedSession == nil ? "none" : "stored seed session")
+            : SupabaseSeedSessionStore.sessionSource
 
         return SupabaseBackendConfig(
             projectRef: projectRef,
@@ -1897,12 +1898,30 @@ private struct StoredSupabaseSeedSession: Codable, Hashable {
 }
 
 private enum SupabaseSeedSessionStore {
-    private static let defaultsKey = "school.supabase.seedSession.v1"
+    private static let legacyDefaultsKey = "school.supabase.seedSession.v1"
     private static let defaults = UserDefaults.standard
+    private static let keychainService = "ru.codex.schoolclass.supabase"
+    private static let keychainAccount = "seed-session"
 
     static var session: StoredSupabaseSeedSession? {
+        keychainSession ?? legacySession
+    }
+
+    static var sessionSource: String {
+        if keychainSession != nil {
+            return "keychain seed session"
+        }
+
+        if legacySession != nil {
+            return "legacy QA/UserDefaults seed session"
+        }
+
+        return "none"
+    }
+
+    private static var keychainSession: StoredSupabaseSeedSession? {
         guard
-            let data = defaults.data(forKey: defaultsKey),
+            let data = readKeychainData(),
             let session = try? JSONDecoder().decode(StoredSupabaseSeedSession.self, from: data)
         else {
             return nil
@@ -1911,19 +1930,31 @@ private enum SupabaseSeedSessionStore {
         return session
     }
 
-    static func save(response: SupabaseRefreshSessionResponse, emailPreview: String?) {
+    private static var legacySession: StoredSupabaseSeedSession? {
+        guard
+            let data = defaults.data(forKey: legacyDefaultsKey),
+            let session = try? JSONDecoder().decode(StoredSupabaseSeedSession.self, from: data)
+        else {
+            return nil
+        }
+
+        return session
+    }
+
+    @discardableResult
+    static func save(response: SupabaseRefreshSessionResponse, emailPreview: String?, fallbackUserID: String? = nil) -> String {
         guard
             let accessToken = response.access_token,
             accessToken.isEmpty == false,
-            let userID = response.user?.id,
+            let userID = response.user?.id ?? fallbackUserID,
             userID.isEmpty == false
         else {
-            return
+            return sessionSource
         }
 
         let savedAt = Date.now
         let expiresAt = response.expires_in.map { savedAt.addingTimeInterval(TimeInterval($0)) }
-        save(
+        return save(
             StoredSupabaseSeedSession(
                 accessToken: accessToken,
                 refreshToken: response.refresh_token,
@@ -1936,7 +1967,7 @@ private enum SupabaseSeedSessionStore {
     }
 
     static func seedForUITest() {
-        save(
+        _ = save(
             StoredSupabaseSeedSession(
                 accessToken: "qa-access-token-0000",
                 refreshToken: "qa-refresh-token-0000",
@@ -1949,15 +1980,67 @@ private enum SupabaseSeedSessionStore {
     }
 
     static func clear() {
-        defaults.removeObject(forKey: defaultsKey)
+        deleteKeychainData()
+        defaults.removeObject(forKey: legacyDefaultsKey)
     }
 
-    private static func save(_ session: StoredSupabaseSeedSession) {
+    @discardableResult
+    private static func save(_ session: StoredSupabaseSeedSession) -> String {
         guard let data = try? JSONEncoder().encode(session) else {
-            return
+            return sessionSource
         }
 
-        defaults.set(data, forKey: defaultsKey)
+        if writeKeychainData(data) {
+            defaults.removeObject(forKey: legacyDefaultsKey)
+            return "keychain seed session"
+        }
+
+        defaults.set(data, forKey: legacyDefaultsKey)
+        return "legacy QA/UserDefaults seed session"
+    }
+
+    private static func readKeychainData() -> Data? {
+        var query = baseKeychainQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else {
+            return nil
+        }
+
+        return result as? Data
+    }
+
+    private static func writeKeychainData(_ data: Data) -> Bool {
+        let query = baseKeychainQuery()
+        let update: [String: Any] = [kSecValueData as String: data]
+        let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return true
+        }
+
+        guard updateStatus == errSecItemNotFound else {
+            return false
+        }
+
+        var insert = query
+        insert[kSecValueData as String] = data
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
+    }
+
+    private static func deleteKeychainData() {
+        SecItemDelete(baseKeychainQuery() as CFDictionary)
+    }
+
+    private static func baseKeychainQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
     }
 }
 
@@ -1977,11 +2060,11 @@ private struct SupabaseStoredSeedSessionProbe: Hashable {
                 title: "Stored seed session",
                 status: "empty",
                 statusColorName: "orange",
-                sourceState: "QA session store empty",
+                sourceState: "Keychain session store empty",
                 tokenState: "no local seed token saved",
                 userState: "local onboarding only",
                 expiryState: "no expiry",
-                nextStep: "Run password sign-in with seed credentials; production storage must move to Keychain"
+                nextStep: "Run password sign-in with seed credentials; production auth still needs full account flow"
             )
         }
 
@@ -1994,7 +2077,7 @@ private struct SupabaseStoredSeedSessionProbe: Hashable {
             tokenState: "access \(session.accessTokenPreview), \(session.refreshState)",
             userState: "user \(session.userID), email \(session.emailPreview ?? "not saved")",
             expiryState: "\(session.expiryState), saved \(session.savedAt.formatted(date: .numeric, time: .shortened))",
-            nextStep: "Temporary QA/UserDefaults storage only; replace with Keychain before real auth rollout"
+            nextStep: config.sessionSource == "keychain seed session" ? "Keychain seed session is ready for QA probes; next step is full production auth flow" : "Legacy QA/UserDefaults fallback detected; run seed sign-in again to move session into Keychain"
         )
     }
 }
@@ -2112,6 +2195,7 @@ private struct SupabaseSessionRefreshProbe: Hashable {
     var tokenState: String
     var refreshState: String
     var nextStep: String
+    var session: SupabaseRefreshSessionResponse?
 
     static func planned(config: SupabaseBackendConfig) -> SupabaseSessionRefreshProbe {
         if config.hasClientApiKey == false {
@@ -2130,7 +2214,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready; no bearer fallback",
             tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "access token optional for refresh",
             refreshState: "SUPABASE_REFRESH_TOKEN ready",
-            nextStep: "Run refresh exchange, then use returned access token for signed class_rooms probe"
+            nextStep: "Run refresh exchange, then use returned access token for signed class_rooms probe",
+            session: nil
         )
     }
 
@@ -2143,7 +2228,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
             tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "missing SUPABASE_ACCESS_TOKEN",
             refreshState: config.hasRefreshToken ? "SUPABASE_REFRESH_TOKEN ready" : "missing SUPABASE_REFRESH_TOKEN",
-            nextStep: "Add client apikey before calling Supabase Auth refresh endpoint"
+            nextStep: "Add client apikey before calling Supabase Auth refresh endpoint",
+            session: nil
         )
     }
 
@@ -2156,7 +2242,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready",
             tokenState: config.hasAccessToken ? "current access \(config.accessTokenPreview ?? "set")" : "missing SUPABASE_ACCESS_TOKEN",
             refreshState: "missing SUPABASE_REFRESH_TOKEN",
-            nextStep: "Sign in seed user and pass refresh token through build config/test environment"
+            nextStep: "Sign in seed user and pass refresh token through build config/test environment",
+            session: nil
         )
     }
 
@@ -2174,7 +2261,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "HTTP \(statusCode), \(config.clientKeyKind) apikey accepted",
             tokenState: "access \(accessPreview)\(expires)\(user)",
             refreshState: refreshState,
-            nextStep: "Use refreshed access token for signed class_rooms/profile probe; persist only after Keychain storage is wired"
+            nextStep: "Use refreshed access token for signed probes and update the Keychain seed session before relying on restore",
+            session: response
         )
     }
 
@@ -2187,7 +2275,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "Supabase Auth rejected refresh request",
             tokenState: message,
             refreshState: "SUPABASE_REFRESH_TOKEN was sent in JSON body",
-            nextStep: statusCode == 401 || statusCode == 403 ? "Issue a fresh seed-user session and retry" : "Check Supabase Auth response before enabling session restore"
+            nextStep: statusCode == 401 || statusCode == 403 ? "Issue a fresh seed-user session and retry" : "Check Supabase Auth response before enabling session restore",
+            session: nil
         )
     }
 
@@ -2200,7 +2289,8 @@ private struct SupabaseSessionRefreshProbe: Hashable {
             headerState: "\(config.clientKeyKind) apikey prepared",
             tokenState: message,
             refreshState: config.hasRefreshToken ? "SUPABASE_REFRESH_TOKEN ready" : "missing SUPABASE_REFRESH_TOKEN",
-            nextStep: "Keep local session state active and retry after backend/network healthcheck"
+            nextStep: "Keep local session state active and retry after backend/network healthcheck",
+            session: nil
         )
     }
 }
@@ -11371,7 +11461,7 @@ private struct SyncCenterSheet: View {
     @MainActor
     private func runSupabasePasswordSignInProbe() async {
         reloadSupabaseProbeState()
-        syncStatus = "Supabase seed sign-in: готовлю password grant без замены локального входа; QA-сессия будет сохранена временно до Keychain."
+        syncStatus = "Supabase seed sign-in: готовлю password grant без замены локального входа; seed-сессия будет сохранена в Keychain для QA-probes."
         let signInResult = await SupabaseAuthClient.signInWithPassword(config: supabaseConfig)
         supabasePasswordSignIn = signInResult
 
@@ -11383,7 +11473,7 @@ private struct SyncCenterSheet: View {
             return
         }
 
-        SupabaseSeedSessionStore.save(response: session, emailPreview: supabaseConfig.testEmailPreview)
+        let storageSource = SupabaseSeedSessionStore.save(response: session, emailPreview: supabaseConfig.testEmailPreview)
         let signedConfig = supabaseConfig.applying(session: session)
         supabaseStoredSeedSession = SupabaseStoredSeedSessionProbe.make(config: SupabaseBackendConfig.make())
         supabaseConfig = signedConfig
@@ -11412,7 +11502,7 @@ private struct SyncCenterSheet: View {
         }
 
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: signedConfig)
-        syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). QA-сессия сохранена во временный UserDefaults store; Keychain еще нужен перед релизом."
+        syncStatus = "Supabase seed sign-in завершен: \(signInResult.sessionState). Seed-сессия сохранена: \(storageSource)."
     }
 
     @MainActor
@@ -11421,6 +11511,20 @@ private struct SyncCenterSheet: View {
         syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
         let result = await SupabaseAuthClient.refreshSession(config: supabaseConfig)
         supabaseSessionRefresh = result
+        if let session = result.session,
+           session.access_token?.isEmpty == false {
+            let storageSource = SupabaseSeedSessionStore.save(
+                response: session,
+                emailPreview: supabaseConfig.storedSeedSession?.emailPreview,
+                fallbackUserID: supabaseConfig.userID
+            )
+            supabaseConfig = SupabaseBackendConfig.make()
+            supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+            supabaseStoredSeedSession = SupabaseStoredSeedSessionProbe.make(config: supabaseConfig)
+            supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+            syncStatus = "Supabase auth refresh завершен: \(result.headerState). Seed-сессия обновлена: \(storageSource)."
+            return
+        }
         syncStatus = result.status == "blocked" || result.status == "refresh missing"
             ? "Supabase auth refresh заблокирован: нужен client key и SUPABASE_REFRESH_TOKEN."
             : "Supabase auth refresh завершен: \(result.headerState). \(result.nextStep)"
@@ -11506,7 +11610,7 @@ private struct SyncCenterSheet: View {
     private func clearSupabaseStoredSeedSession() {
         SupabaseSeedSessionStore.clear()
         reloadSupabaseProbeState()
-        syncStatus = "Stored seed session очищена: приложение снова зависит только от env/Info.plist токенов или нового seed sign-in."
+        syncStatus = "Stored seed session очищена из Keychain и legacy QA store: приложение снова зависит только от env/Info.plist токенов или нового seed sign-in."
     }
 
     private func save() {
