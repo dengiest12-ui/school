@@ -21,6 +21,7 @@ TESTS=(
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testSupabaseChildBridgeShowsWithoutReplacingSelectedChild"
   "testSupabaseChildSourcePreviewSwitchesSelectedChildContext"
+  "testSupabaseChildSourceCanBeEnabledFromSyncCenter"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"
   "testManualHomeworkPersistsAfterRelaunch"

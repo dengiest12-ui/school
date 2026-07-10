@@ -9122,6 +9122,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
+    @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
         self.onSave = onSave
@@ -9505,6 +9506,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedProfileCard(supabaseSignedProfile)
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
             supabaseSignedChildrenCard(supabaseSignedChildren)
+            supabaseChildSourcePreviewCard
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
@@ -10247,6 +10249,68 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private var supabaseChildSourcePreviewCard: some View {
+        let bridgeChildren = AppSupabaseChildContextBridge.childSummaries(
+            classContexts: AppSupabaseClassContextBridge.contexts
+        )
+        let primaryChild = bridgeChildren.first
+        let isReady = primaryChild != nil
+
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Supabase child source", systemImage: "arrow.triangle.branch")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(
+                    text: usesSupabaseChildSourcePreview && isReady ? "preview on" : "local",
+                    color: usesSupabaseChildSourcePreview && isReady ? SchoolTheme.success : SchoolTheme.warning
+                )
+            }
+
+            Text(AppChildStore.sourceModeText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(usesSupabaseChildSourcePreview && isReady ? SchoolTheme.success : SchoolTheme.muted)
+                .accessibilityIdentifier("sync.supabase-child-source-state")
+
+            Text(primaryChild.map { "\($0.name), \($0.className), код \($0.classCode)" } ?? "Bridge пуст: сначала нужен signed children probe или QA seed")
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 8) {
+                Button {
+                    enableSupabaseChildSourcePreview()
+                } label: {
+                    Label("Включить источник", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.success)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isReady)
+                .opacity(isReady ? 1 : 0.55)
+                .accessibilityIdentifier("sync.supabase-child-source-enable")
+
+                Button {
+                    disableSupabaseChildSourcePreview()
+                } label: {
+                    Label("Локальные дети", systemImage: "arrow.uturn.left.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.warning)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .background(SchoolTheme.warning.opacity(0.11), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("sync.supabase-child-source-disable")
+            }
+        }
+        .padding(10)
+        .background((usesSupabaseChildSourcePreview && isReady ? SchoolTheme.success : SchoolTheme.warning).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseRlsSmokeCard(_ smoke: SupabaseRlsSmokeProbe) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -10919,6 +10983,27 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed children заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed children завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    private func enableSupabaseChildSourcePreview() {
+        guard AppSupabaseChildContextBridge.contexts.isEmpty == false else {
+            usesSupabaseChildSourcePreview = false
+            AppChildStore.usesSupabaseChildSourcePreview = false
+            syncStatus = "Supabase child source preview заблокирован: bridge пуст, сначала нужен signed children probe или QA seed."
+            return
+        }
+
+        AppChildStore.usesSupabaseChildSourcePreview = true
+        usesSupabaseChildSourcePreview = true
+        let selectedChild = AppChildStore.selectedChild
+        syncStatus = "Supabase child source preview включен: \(selectedChild.name), \(selectedChild.className), код \(selectedChild.classCode)."
+    }
+
+    private func disableSupabaseChildSourcePreview() {
+        AppChildStore.usesSupabaseChildSourcePreview = false
+        usesSupabaseChildSourcePreview = false
+        let selectedChild = AppChildStore.selectedChild
+        syncStatus = "Supabase child source preview выключен: снова используются локальные дети, текущий ребенок \(selectedChild.name), \(selectedChild.className)."
     }
 
     @MainActor
