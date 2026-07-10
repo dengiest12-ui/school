@@ -191,6 +191,7 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Signed class scope probe", in: app))
         XCTAssertTrue(findStaticText(containing: "/class_members", in: app))
         XCTAssertTrue(findStaticText(containing: "class_rooms", in: app))
+        XCTAssertTrue(findStaticText(containing: "Mapped context", in: app))
 
         let signedClassScopeButton = app.buttons["sync.supabase-signed-class-scope"]
         scrollUntilVisible(signedClassScopeButton, in: app, attempts: 8)
@@ -199,6 +200,7 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(findStaticText(containing: "signed classes заблокирован", in: app))
         XCTAssertTrue(findStaticText(containing: "Signed class scope request is blocked", in: app))
+        XCTAssertTrue(findStaticText(containing: "blocked before mapper", in: app))
 
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)

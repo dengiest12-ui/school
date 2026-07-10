@@ -1664,6 +1664,30 @@ private struct SupabaseClassMembershipRow: Decodable, Hashable {
     var class_rooms: SupabaseClassRoomRow?
 }
 
+private struct SupabaseLocalClassContextPreview: Hashable {
+    var classID: String
+    var classTitle: String
+    var role: String
+    var inviteCode: String
+
+    var summary: String {
+        "\(classTitle) [\(role), \(inviteCode)]"
+    }
+
+    static func make(from rows: [SupabaseClassMembershipRow]) -> [SupabaseLocalClassContextPreview] {
+        rows
+            .filter { $0.status == "active" }
+            .map { row in
+                SupabaseLocalClassContextPreview(
+                    classID: row.class_id,
+                    classTitle: row.class_rooms?.title ?? row.class_id,
+                    role: row.role,
+                    inviteCode: row.class_rooms?.invite_code ?? "no code"
+                )
+            }
+    }
+}
+
 private struct SupabaseErrorResponse: Decodable, Hashable {
     var code: String?
     var message: String?
@@ -1975,6 +1999,7 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
     var detail: String
     var nextStep: String
     var rowsPreview: String
+    var localContextPreview: String
 
     static func planned(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
         if config.hasClientApiKey == false {
@@ -1999,7 +2024,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
             detail: "Signed request will check class membership rows and embedded class_rooms under RLS.",
             nextStep: "Run signed class scope probe before mapping Supabase classes into local repository",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for signed class rows"
         )
     }
 
@@ -2014,7 +2040,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
             detail: "Signed class scope request is blocked before network access.",
             nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
-            rowsPreview: "0 rows"
+            rowsPreview: "0 rows",
+            localContextPreview: "blocked before mapper"
         )
     }
 
@@ -2029,7 +2056,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
             detail: "Client key alone cannot prove membership RLS for class rows.",
             nextStep: "Inject a seed user's Supabase access token before signed class proof",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for user bearer token"
         )
     }
 
@@ -2044,13 +2072,14 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
             detail: "Access token exists, but the app cannot target the expected class membership rows yet.",
             nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed class scope probe",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for Supabase user id"
         )
     }
 
     static func success(config: SupabaseBackendConfig, rows: [SupabaseClassMembershipRow], statusCode: Int) -> SupabaseSignedClassScopeProbe {
-        let activeRows = rows.filter { $0.status == "active" }
-        let status = activeRows.isEmpty ? "no classes" : "scoped"
+        let contexts = SupabaseLocalClassContextPreview.make(from: rows)
+        let status = contexts.isEmpty ? "no classes" : "mapped"
         let preview = rows.isEmpty
             ? "[]"
             : rows.map { row in
@@ -2058,18 +2087,20 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
                 let invite = row.class_rooms?.invite_code ?? "no code"
                 return "\(classTitle) [\(row.role), \(row.status), \(invite)]"
             }.joined(separator: ", ")
+        let mappedPreview = contexts.isEmpty ? "no active class context" : contexts.map(\.summary).joined(separator: ", ")
 
         return SupabaseSignedClassScopeProbe(
             title: "Signed class scope probe",
             status: status,
-            statusColorName: activeRows.isEmpty ? "orange" : "green",
+            statusColorName: contexts.isEmpty ? "orange" : "green",
             method: "GET",
             path: "/class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)",
             url: "\(config.restBaseURL)/class_members",
             headerState: "HTTP \(statusCode), user bearer accepted",
-            detail: activeRows.isEmpty ? "RLS returned no active class memberships for this user." : "RLS returned \(activeRows.count) active class membership row(s).",
-            nextStep: activeRows.isEmpty ? "Check seed membership and class_members RLS before trusting session" : "Map returned class roles into child/class context repository",
-            rowsPreview: preview
+            detail: contexts.isEmpty ? "RLS returned no active class memberships for this user." : "Mapped \(contexts.count) active class context(s) from signed RLS rows.",
+            nextStep: contexts.isEmpty ? "Check seed membership and class_members RLS before trusting session" : "Use mapped class contexts as the source for child/class switching after repository wiring",
+            rowsPreview: preview,
+            localContextPreview: mappedPreview
         )
     }
 
@@ -2084,7 +2115,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
             detail: message,
             nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, grants, embeds and class_members RLS response",
-            rowsPreview: "not decoded"
+            rowsPreview: "not decoded",
+            localContextPreview: "mapper skipped after server error"
         )
     }
 
@@ -2099,7 +2131,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
             detail: message,
             nextStep: "Keep local class state active and retry after network/backend healthcheck",
-            rowsPreview: "not requested"
+            rowsPreview: "not requested",
+            localContextPreview: "mapper skipped after network error"
         )
     }
 }
@@ -9805,6 +9838,12 @@ private struct SyncCenterSheet: View {
                 .minimumScaleFactor(0.72)
 
             Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text("Mapped context: \(result.localContextPreview)")
                 .font(.caption2.monospaced())
                 .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                 .lineLimit(2)

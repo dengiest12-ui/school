@@ -81,7 +81,7 @@ Current verified state:
 - Auth session gate: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_REFRESH_TOKEN`, `SUPABASE_USER_ID`.
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
-- Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS.
+- Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS and a local class context mapper preview.
 - Current live behavior: blocked until `SUPABASE_PUBLISHABLE_KEY` or legacy `SUPABASE_ANON_KEY` is provided. The live probe sends the client key in the `apikey` header; `Authorization: Bearer <access token>` is sent only when a real user token exists. Legacy anon bearer remains a fallback when no publishable key is configured.
 
 Gate before first signed iOS request:
@@ -92,6 +92,7 @@ Gate before first signed iOS request:
 - Run the Auth refresh probe and verify Supabase returns a refreshed access token before relying on session restore.
 - Run the signed profile probe and verify RLS returns exactly one row for `SUPABASE_USER_ID`.
 - Run the signed class scope probe and verify RLS returns only active `class_members` rows and embedded classes for the signed user.
+- Verify the mapper preview produces class id/title, role and invite code before replacing local child/class state.
 - Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -112,6 +113,7 @@ Additional iOS verification:
 - The app now has a separate Auth refresh probe that blocks safely without client key/refresh token and accepts any 2xx Supabase Auth token response as success.
 - The app now has a separate signed profile probe that blocks safely without client key, access token or user id, then expects exactly one RLS-filtered profile row before local account mapping.
 - The app now has a separate signed class scope probe that blocks safely without client key, access token or user id, then expects active `class_members` rows with embedded `class_rooms` before class context mapping.
+- The signed class scope probe now maps active membership rows into a local class context preview and keeps local data untouched when mapper prerequisites are missing.
 
 ## Latest Supabase verification
 
