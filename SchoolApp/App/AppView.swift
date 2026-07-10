@@ -13,6 +13,7 @@ struct AppView: View {
     @State private var completedSupabaseHomeworkBridgeSeed = false
     @State private var completedSupabaseCalendarEventBridgeSeed = false
     @State private var completedSupabaseCollectionBridgeSeed = false
+    @State private var completedSupabaseClassFileBridgeSeed = false
     @State private var completedSupabasePhotoBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
@@ -37,6 +38,9 @@ struct AppView: View {
         if Self.seedsSupabaseCollectionBridge {
             AppSupabaseCollectionBridge.seedSmokeCollections()
         }
+        if Self.seedsSupabaseClassFileBridge {
+            AppSupabaseClassFileBridge.seedSmokeFiles()
+        }
         if Self.seedsSupabasePhotoBridge {
             AppSupabasePhotoBridge.seedSmokePhotos()
         }
@@ -51,6 +55,7 @@ struct AppView: View {
         _completedSupabaseHomeworkBridgeSeed = State(initialValue: Self.seedsSupabaseHomeworkBridge)
         _completedSupabaseCalendarEventBridgeSeed = State(initialValue: Self.seedsSupabaseCalendarEventBridge)
         _completedSupabaseCollectionBridgeSeed = State(initialValue: Self.seedsSupabaseCollectionBridge)
+        _completedSupabaseClassFileBridgeSeed = State(initialValue: Self.seedsSupabaseClassFileBridge)
         _completedSupabasePhotoBridgeSeed = State(initialValue: Self.seedsSupabasePhotoBridge)
     }
 
@@ -70,6 +75,7 @@ struct AppView: View {
         .onAppear(perform: seedSupabaseHomeworkBridgeIfNeeded)
         .onAppear(perform: seedSupabaseCalendarEventBridgeIfNeeded)
         .onAppear(perform: seedSupabaseCollectionBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseClassFileBridgeIfNeeded)
         .onAppear(perform: seedSupabasePhotoBridgeIfNeeded)
         .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
@@ -204,6 +210,15 @@ struct AppView: View {
         completedSupabaseCollectionBridgeSeed = true
     }
 
+    private func seedSupabaseClassFileBridgeIfNeeded() {
+        guard Self.seedsSupabaseClassFileBridge, !completedSupabaseClassFileBridgeSeed else {
+            return
+        }
+
+        AppSupabaseClassFileBridge.seedSmokeFiles()
+        completedSupabaseClassFileBridgeSeed = true
+    }
+
     private func seedSupabasePhotoBridgeIfNeeded() {
         guard Self.seedsSupabasePhotoBridge, !completedSupabasePhotoBridgeSeed else {
             return
@@ -282,6 +297,10 @@ struct AppView: View {
 
     private static var seedsSupabaseCollectionBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-collection-bridge")
+    }
+
+    private static var seedsSupabaseClassFileBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-class-file-bridge")
     }
 
     private static var seedsSupabasePhotoBridge: Bool {

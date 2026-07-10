@@ -250,6 +250,7 @@ enum AppChildStore {
         AppSupabaseHomeworkBridge.clear()
         AppSupabaseCalendarEventBridge.clear()
         AppSupabaseCollectionBridge.clear()
+        AppSupabaseClassFileBridge.clear()
         AppSupabasePhotoBridge.clear()
     }
 }
@@ -928,6 +929,116 @@ enum AppSupabaseCollectionBridge {
                     paidCount: 12,
                     status: "soon",
                     dueAt: "QA до пятницы",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseClassFileBridgeItem: Identifiable, Hashable, Codable {
+    let id: String
+    let classID: String
+    let ownerUserID: String
+    let kind: String
+    let bucket: String
+    let objectPath: String
+    let fileName: String
+    let mimeType: String
+    let sizeBytes: Int
+    let source: String
+    let mappedAt: String
+
+    var displayKind: String {
+        switch kind {
+        case "class_photo":
+            "Фото"
+        case "receipt":
+            "Чек"
+        case "homework_attachment":
+            "Вложение ДЗ"
+        case "profile_avatar":
+            "Аватар"
+        default:
+            kind
+        }
+    }
+
+    var summary: String {
+        "\(displayKind): \(fileName) [\(bucket)/\(objectPath)]"
+    }
+
+    var handoffText: String {
+        "Supabase файл готов: \(summary)"
+    }
+}
+
+enum AppSupabaseClassFileBridge {
+    private static let bridgeKey = "school.supabase.classFileBridge.v1"
+
+    static var files: [SupabaseClassFileBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseClassFileBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryFile: SupabaseClassFileBridgeItem? {
+        files.first
+    }
+
+    static var statusText: String {
+        files.isEmpty
+            ? "Class file bridge waiting: storage metadata not linked"
+            : "Class file bridge ready: \(files.count) file(s), local files still active"
+    }
+
+    static var previewText: String {
+        files.isEmpty
+            ? "no saved class files"
+            : files.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with files: [SupabaseClassFileBridgeItem]) {
+        self.files = files
+    }
+
+    static func seedSmokeFiles() {
+        replace(
+            with: [
+                SupabaseClassFileBridgeItem(
+                    id: "91000000-0000-4000-8000-000000000001",
+                    classID: "qa-3b-2026",
+                    ownerUserID: "10000000-0000-4000-8000-000000000001",
+                    kind: "class_photo",
+                    bucket: "class-files",
+                    objectPath: "qa/qa-3b-2026/photos/ios-photo-metadata-probe.jpg",
+                    fileName: "ios-photo-metadata-probe.jpg",
+                    mimeType: "image/jpeg",
+                    sizeBytes: 240_000,
                     source: "qa launch argument",
                     mappedAt: "QA"
                 )
