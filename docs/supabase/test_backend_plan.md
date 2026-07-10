@@ -82,7 +82,7 @@ Current verified state:
 - Auth refresh probe: `POST /auth/v1/token?grant_type=refresh_token` through `URLSession`, with the client key in `apikey` and `SUPABASE_REFRESH_TOKEN` in the JSON body.
 - Signed profile probe: `GET /profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone` through `URLSession`, with the client key in `apikey` and the user access token in `Authorization`.
 - Signed class scope probe: `GET /class_members?user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,role,status,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local class context mapper preview, a separate local bridge and a visible handoff preview that does not replace child/class state.
-- Signed children probe: `GET /children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local child context mapper preview, a separate local bridge and a visible handoff preview that does not replace the selected local child.
+- Signed children probe: `GET /children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)` through `URLSession`, with embedded `class_rooms` rows under RLS, a local child context mapper preview, a separate local bridge, a visible handoff preview that does not replace the selected local child, and a QA-gated child source preview for selecting the Supabase-backed child/class context.
 - Current live behavior: blocked until `SUPABASE_PUBLISHABLE_KEY` or legacy `SUPABASE_ANON_KEY` is provided. The live probe sends the client key in the `apikey` header; `Authorization: Bearer <access token>` is sent only when a real user token exists. Legacy anon bearer remains a fallback when no publishable key is configured.
 
 Gate before first signed iOS request:
@@ -95,7 +95,8 @@ Gate before first signed iOS request:
 - Run the signed class scope probe and verify RLS returns only active `class_members` rows and embedded classes for the signed user.
 - Run the signed children probe and verify RLS returns only children where `parent_user_id = SUPABASE_USER_ID`, with embedded class rows for child/class switching.
 - Verify the mapper preview produces class id/title, role and invite code, then saves the context into the local bridge while keeping local child/class state untouched.
-- Verify the child mapper preview produces child id/name/grade, class id/title and invite code, then saves the context into the local child bridge while keeping the selected local child untouched.
+- Verify the child mapper preview produces child id/name/grade, class id/title and invite code, then saves the context into the local child bridge while keeping the selected local child untouched by default.
+- Verify the QA-gated child source preview can switch the Today child selector and Class context to the saved Supabase child bridge without enabling it in normal launches.
 - Run the live `class_rooms` probe with the publishable key, then repeat with a real Supabase Auth session token.
 - Run a signed request smoke against `profiles` / `class_rooms` and verify RLS returns only the current user's class.
 - Keep file uploads behind signed upload flow before creating file metadata.
@@ -106,8 +107,10 @@ Date: 2026-07-10
 
 - Targeted UI test: `testSupabaseClassBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseClassBridgeHandoffUITest-2.xcresult`.
 - Targeted UI test: `testSupabaseChildBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseChildBridgeUITest.xcresult`.
+- Targeted UI test: `testSupabaseChildSourcePreviewSwitchesSelectedChildContext` passed in `.build/SupabaseChildSourcePreviewUITest.xcresult`.
+- Targeted UI retest: `testSupabaseChildBridgeShowsWithoutReplacingSelectedChild` passed in `.build/SupabaseChildBridgeDefaultRetest.xcresult`.
 - Targeted UI test: `testSupabaseReadinessShowsSchemaAndMissingKeyGate` passed with signed children coverage in `.build/SupabaseSignedChildrenUITest.xcresult`.
-- Full UI suite: 16 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
+- Full UI suite: 17 tests, 0 failures, summary in `.build/SchoolAppUITests/summary.txt`.
 - Full smoke suite: 50 scenarios, screenshots in `.build/screenshots/qa-smoke`, including `more-sync-supabase.png`.
 - One earlier targeted UI run was interrupted by the Simulator/Xcode runner; the same test passed after rerun on the concrete Simulator ID.
 
@@ -122,6 +125,7 @@ Additional iOS verification:
 - The signed class scope probe now saves mapped active class contexts into a separate local bridge only after a successful signed mapper; current local children and selected child remain untouched until the repository switch is implemented.
 - The saved bridge context now appears as a handoff preview on Today, Class and Profile screens with localized role labels; targeted UI verifies it does not replace the selected local child.
 - The signed children probe now maps parent-owned child rows into a separate local child bridge after successful signed RLS proof; QA seed verifies `Smoke Child -> QA-3B-2026` appears on Today/Class/Profile while the selected local child remains `Миша, 3Б`.
+- The QA-gated Supabase child source preview now lets Today/Class use the saved child bridge as the effective child source: QA seed verifies `Smoke Child, 3Б` and class code `QA-3B-2026`, while the default launch still keeps `Миша, 3Б`.
 
 ## Latest Supabase verification
 

@@ -368,6 +368,12 @@ struct ClassRoomView: View {
                 Text("\(selectedChild.name): \(selectedChild.parentRoleTitle.lowercased()), код \(selectedChild.classCode)")
                     .font(.subheadline)
                     .foregroundStyle(SchoolTheme.muted)
+                if AppChildStore.usesSupabaseChildSourcePreview {
+                    Text(AppChildStore.sourceModeText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.success)
+                        .accessibilityIdentifier("class.child.sourceMode")
+                }
                 if let bridgeContext = AppSupabaseClassContextBridge.primaryContext {
                     Text(bridgeContext.handoffText)
                         .font(.caption.weight(.semibold))

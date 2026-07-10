@@ -285,6 +285,28 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "Supabase ребенок готов: Smoke Child", in: app))
     }
 
+    func testSupabaseChildSourcePreviewSwitchesSelectedChildContext() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-class-bridge",
+            "-qa-seed-supabase-child-bridge",
+            "-qa-use-supabase-child-source",
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Smoke Child, 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Источник: Supabase child bridge preview", in: app))
+        XCTAssertTrue(findStaticText(containing: "код QA-3B-2026", in: app))
+
+        app.buttons["tab.classRoom"].tap()
+
+        XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Smoke Child: родитель, код QA-3B-2026"].exists)
+        XCTAssertTrue(findStaticText(containing: "Источник: Supabase child bridge preview", in: app))
+        XCTAssertTrue(findStaticText(containing: "Supabase ребенок готов: Smoke Child", in: app))
+    }
+
     func testAnnouncementAcknowledgementPersistsAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-class-store",

@@ -20,6 +20,7 @@ TESTS=(
   "testSupabaseReadinessShowsSchemaAndMissingKeyGate"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
   "testSupabaseChildBridgeShowsWithoutReplacingSelectedChild"
+  "testSupabaseChildSourcePreviewSwitchesSelectedChildContext"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"
   "testManualHomeworkPersistsAfterRelaunch"

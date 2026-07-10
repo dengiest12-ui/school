@@ -241,7 +241,7 @@ struct TodayView: View {
     init(userRole: AppUserRole = .parent) {
         self.userRole = userRole
         TodayLocalStore.resetIfRequested()
-        _children = State(initialValue: AppChildStore.children)
+        _children = State(initialValue: AppChildStore.effectiveChildren)
         _homework = State(initialValue: TodayLocalStore.homework)
         _parentTasks = State(initialValue: TodayLocalStore.parentTasks)
         _importantMessages = State(initialValue: TodayLocalStore.importantMessages)
@@ -332,9 +332,11 @@ struct TodayView: View {
                 TodayPaywallSheet()
             case .addChild:
                 AddChildToClassSheet { child in
-                    children.append(child)
-                    AppChildStore.children = children
+                    var localChildren = AppChildStore.children
+                    localChildren.append(child)
+                    AppChildStore.children = localChildren
                     AppChildStore.select(child)
+                    children = AppChildStore.effectiveChildren
                     selectedChildID = child.id.uuidString
                 }
             case .notifications:
@@ -492,6 +494,10 @@ struct TodayView: View {
                         Text("\(selectedChild.school) - \(selectedChild.parentRoleTitle.lowercased()), код \(selectedChild.classCode)")
                             .font(.caption)
                             .foregroundStyle(SchoolTheme.muted)
+                        Text(AppChildStore.sourceModeText)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppChildStore.usesSupabaseChildSourcePreview ? SchoolTheme.success : SchoolTheme.muted)
+                            .accessibilityIdentifier("today.child.sourceMode")
                     }
 
                     Image(systemName: "chevron.down")
@@ -509,6 +515,7 @@ struct TodayView: View {
                 Button("\(child.name), \(child.className)") {
                     selectedChildID = child.id.uuidString
                     AppChildStore.select(child)
+                    children = AppChildStore.effectiveChildren
                 }
                 .accessibilityIdentifier("today.child.option.\(child.name).\(child.className)")
             }

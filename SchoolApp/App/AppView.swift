@@ -20,6 +20,9 @@ struct AppView: View {
         if Self.seedsSupabaseChildBridge {
             AppSupabaseChildContextBridge.seedSmokeContext()
         }
+        if Self.usesSupabaseChildSourcePreview {
+            AppChildStore.usesSupabaseChildSourcePreview = true
+        }
         _selectedTab = State(initialValue: initialTab)
         _completedChildrenReset = State(initialValue: Self.resetsChildren)
         _completedSupabaseBridgeSeed = State(initialValue: Self.seedsSupabaseBridge)
@@ -38,6 +41,7 @@ struct AppView: View {
         .onAppear(perform: resetChildrenIfNeeded)
         .onAppear(perform: seedSupabaseBridgeIfNeeded)
         .onAppear(perform: seedSupabaseChildBridgeIfNeeded)
+        .onAppear(perform: enableSupabaseChildSourcePreviewIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
     }
@@ -134,6 +138,14 @@ struct AppView: View {
         completedSupabaseChildBridgeSeed = true
     }
 
+    private func enableSupabaseChildSourcePreviewIfNeeded() {
+        guard Self.usesSupabaseChildSourcePreview else {
+            return
+        }
+
+        AppChildStore.usesSupabaseChildSourcePreview = true
+    }
+
     private func normalizeSelectedTab() {
         guard !visibleTabs.contains(selectedTab) else {
             return
@@ -179,6 +191,10 @@ struct AppView: View {
 
     private static var seedsSupabaseChildBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-child-bridge")
+    }
+
+    private static var usesSupabaseChildSourcePreview: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-use-supabase-child-source")
     }
 
     private static var launchRole: AppUserRole? {

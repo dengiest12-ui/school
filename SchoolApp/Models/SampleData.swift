@@ -169,6 +169,7 @@ struct ChildSummary: Identifiable, Hashable, Codable {
 enum AppChildStore {
     private static let childrenKey = "school.shared.children.v1"
     private static let selectedChildIDKey = "school.shared.selectedChildID"
+    private static let usesSupabaseChildSourcePreviewKey = "school.supabase.useChildSourcePreview.v1"
 
     static var children: [ChildSummary] {
         get {
@@ -194,13 +195,32 @@ enum AppChildStore {
         }
     }
 
+    static var effectiveChildren: [ChildSummary] {
+        let supabaseChildren = AppSupabaseChildContextBridge.childSummaries(
+            classContexts: AppSupabaseClassContextBridge.contexts
+        )
+        return usesSupabaseChildSourcePreview && !supabaseChildren.isEmpty ? supabaseChildren : children
+    }
+
     static var selectedChildID: String {
         get { UserDefaults.standard.string(forKey: selectedChildIDKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: selectedChildIDKey) }
     }
 
+    static var usesSupabaseChildSourcePreview: Bool {
+        get { UserDefaults.standard.bool(forKey: usesSupabaseChildSourcePreviewKey) }
+        set { UserDefaults.standard.set(newValue, forKey: usesSupabaseChildSourcePreviewKey) }
+    }
+
+    static var sourceModeText: String {
+        usesSupabaseChildSourcePreview && !AppSupabaseChildContextBridge.contexts.isEmpty
+            ? "Источник: Supabase child bridge preview"
+            : "Источник: локальные дети"
+    }
+
     static var selectedChild: ChildSummary {
-        selectedChild(in: children) ?? children[0]
+        let list = effectiveChildren
+        return selectedChild(in: list) ?? list[0]
     }
 
     static func selectedChild(in list: [ChildSummary]) -> ChildSummary? {
@@ -222,6 +242,7 @@ enum AppChildStore {
     static func clear() {
         UserDefaults.standard.removeObject(forKey: childrenKey)
         UserDefaults.standard.removeObject(forKey: selectedChildIDKey)
+        UserDefaults.standard.removeObject(forKey: usesSupabaseChildSourcePreviewKey)
         AppSupabaseClassContextBridge.clear()
         AppSupabaseChildContextBridge.clear()
     }
@@ -394,6 +415,25 @@ enum AppSupabaseChildContextBridge {
             : contexts.map(\.summary).joined(separator: ", ")
     }
 
+    static func childSummaries(classContexts: [SupabaseClassContextBridgeItem]) -> [ChildSummary] {
+        contexts.compactMap { context in
+            guard let id = UUID(uuidString: context.childID) else {
+                return nil
+            }
+
+            let roleTitle = classContexts.first { $0.classID == context.classID }?.roleDisplayTitle ?? "Родитель"
+            return ChildSummary(
+                id: id,
+                name: context.childName,
+                className: context.gradeTitle,
+                school: context.classTitle,
+                avatarText: String(context.childName.prefix(1)),
+                classCode: context.inviteCode,
+                parentRoleTitle: roleTitle
+            )
+        }
+    }
+
     static func replace(with contexts: [SupabaseChildContextBridgeItem]) {
         self.contexts = contexts
     }
@@ -402,7 +442,7 @@ enum AppSupabaseChildContextBridge {
         replace(
             with: [
                 SupabaseChildContextBridgeItem(
-                    childID: "qa-smoke-child",
+                    childID: "40000000-0000-4000-8000-000000000001",
                     childName: "Smoke Child",
                     gradeTitle: "3Б",
                     classID: "qa-3b-2026",
