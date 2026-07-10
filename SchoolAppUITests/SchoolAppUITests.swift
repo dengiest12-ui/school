@@ -357,6 +357,26 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "collection expense заблокирован", in: app, attempts: 6))
     }
 
+    func testSupabaseClassFileMetadataWriteBlocksBeforeClientKey() {
+        let app = launchApp(arguments: [
+            "-qa-seed-supabase-class-bridge",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(findStaticText("Class file metadata write", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "/class_files", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "Signed class file metadata write is blocked", in: app, attempts: 10))
+
+        let writeButton = app.buttons["sync.supabase-class-file-metadata-write"]
+        scrollUntilVisible(writeButton, in: app, attempts: 10)
+        XCTAssertTrue(writeButton.waitForExistence(timeout: 4))
+        writeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "class file metadata заблокирован", in: app, attempts: 6))
+    }
+
     func testSupabaseStoredSeedSessionCanBeClearedAfterRelaunch() {
         let firstLaunch = launchApp(arguments: [
             "-qa-reset-supabase-session-store",
