@@ -3231,6 +3231,140 @@ private struct SupabaseAnnouncementPublishWriteResult: Hashable {
     }
 }
 
+private struct SupabaseAnnouncementUpdateWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseAnnouncementUpdateWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        guard AppSupabaseAnnouncementBridge.primaryAnnouncement != nil else {
+            return missingAnnouncement(config: config)
+        }
+
+        return SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will edit an existing announcement only if RLS confirms teacher or parent-committee rights.",
+            nextStep: "Refresh signed announcements before replacing the local announcement edit form",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed announcement update write is blocked before network access.",
+            nextStep: "Add client apikey, signed manager session and announcement bridge",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot edit class announcements.",
+            nextStep: "Inject a teacher or parent-committee Supabase access token before edit proof",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func missingAnnouncement(config: SupabaseBackendConfig) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "announcement missing",
+            statusColorName: "orange",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase announcement bridge item is available to edit.",
+            nextStep: "Run signed announcements probe first, then retry update write",
+            targetPreview: announcementTargetPreview
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, announcement: SupabaseAnnouncementBridgeItem, statusCode: Int) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "updated",
+            statusColorName: "green",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "HTTP \(statusCode), manager bearer accepted",
+            detail: "RLS accepted the teacher/committee announcement update.",
+            nextStep: "Refresh signed announcements before replacing the local edit form",
+            targetPreview: announcement.summary
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, announcement: SupabaseAnnouncementBridgeItem?, statusCode: Int, message: String) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: statusCode == 401 || statusCode == 403 ? "manager auth/session required" : "\(config.clientKeyKind) apikey and manager bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Use teacher/committee session or verify announcements_update_manager RLS" : "Check announcements Data API exposure and update RLS response",
+            targetPreview: announcement?.summary ?? announcementTargetPreview
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, announcement: SupabaseAnnouncementBridgeItem?, message: String) -> SupabaseAnnouncementUpdateWriteResult {
+        SupabaseAnnouncementUpdateWriteResult(
+            title: "Announcement update write",
+            status: "network",
+            statusColorName: "red",
+            method: "PATCH",
+            path: "/announcements?id=eq.<announcement>",
+            url: "\(config.restBaseURL)/announcements",
+            headerState: "\(config.clientKeyKind) apikey and manager bearer prepared",
+            detail: message,
+            nextStep: "Keep local announcement edit queued and retry after network/backend healthcheck",
+            targetPreview: announcement?.summary ?? announcementTargetPreview
+        )
+    }
+
+    private static var announcementTargetPreview: String {
+        AppSupabaseAnnouncementBridge.primaryAnnouncement?.summary ?? AppSupabaseAnnouncementBridge.previewText
+    }
+}
+
 private struct SupabaseSignedHomeworkProbe: Hashable {
     var title: String
     var status: String
@@ -6293,6 +6427,69 @@ private struct SupabaseAnnouncementPublishWriteClient {
             return .serverError(config: config, body: body, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, body: body, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseAnnouncementUpdateBody: Encodable, Hashable {
+    var title: String
+    var body: String
+    var is_urgent: Bool
+}
+
+private struct SupabaseAnnouncementUpdateWriteClient {
+    static func updatePrimaryAnnouncement(config: SupabaseBackendConfig) async -> SupabaseAnnouncementUpdateWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let announcement = AppSupabaseAnnouncementBridge.primaryAnnouncement else {
+            return .missingAnnouncement(config: config)
+        }
+
+        var components = URLComponents(string: "\(config.restBaseURL)/announcements")
+        components?.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(announcement.id)")
+        ]
+
+        guard let url = components?.url else {
+            return .networkError(config: config, announcement: announcement, message: "Invalid Supabase announcements update URL")
+        }
+
+        let body = SupabaseAnnouncementUpdateBody(
+            title: "\(announcement.title) / правка QA",
+            body: "Проверка signed update gate из iOS Sync Center.",
+            is_urgent: announcement.isUrgent
+        )
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, announcement: announcement, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, announcement: announcement, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, announcement: announcement, message: error.localizedDescription)
         }
     }
 }
@@ -12811,6 +13008,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
     @State private var usesSupabaseChildSourcePreview = AppChildStore.usesSupabaseChildSourcePreview
@@ -12860,6 +13058,7 @@ private struct SyncCenterSheet: View {
         _supabaseClassFileMetadataWrite = State(initialValue: SupabaseClassFileMetadataWriteResult.planned(config: launchSupabaseConfig))
         _supabaseClassPhotoMetadataWrite = State(initialValue: SupabaseClassPhotoMetadataWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementPublishWrite = State(initialValue: SupabaseAnnouncementPublishWriteResult.planned(config: launchSupabaseConfig))
+        _supabaseAnnouncementUpdateWrite = State(initialValue: SupabaseAnnouncementUpdateWriteResult.planned(config: launchSupabaseConfig))
         _supabaseAnnouncementReadAck = State(initialValue: SupabaseAnnouncementReadAckResult.planned(config: launchSupabaseConfig))
         _supabaseRlsSmoke = State(initialValue: SupabaseRlsSmokeProbe.make(config: launchSupabaseConfig))
 
@@ -13234,6 +13433,7 @@ private struct SyncCenterSheet: View {
             supabaseSignedChildrenCard(supabaseSignedChildren)
             supabaseSignedAnnouncementsCard(supabaseSignedAnnouncements)
             supabaseAnnouncementPublishWriteCard(supabaseAnnouncementPublishWrite)
+            supabaseAnnouncementUpdateWriteCard(supabaseAnnouncementUpdateWrite)
             supabaseSignedHomeworkCard(supabaseSignedHomework)
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
@@ -14297,6 +14497,70 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-announcement-publish-write")
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseAnnouncementUpdateWriteCard(_ result: SupabaseAnnouncementUpdateWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "pencil.line")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.54)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text("Announcement edit: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(3)
+                .minimumScaleFactor(0.52)
+
+            Button {
+                Task {
+                    await runSupabaseAnnouncementUpdateWrite()
+                }
+            } label: {
+                Label("Обновить объявление", systemImage: "pencil.line")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-announcement-update-write")
         }
         .padding(10)
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -15604,6 +15868,7 @@ private struct SyncCenterSheet: View {
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
+        supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementReadAck = SupabaseAnnouncementReadAckResult.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
@@ -15696,6 +15961,7 @@ private struct SyncCenterSheet: View {
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: signedConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: signedConfig)
         supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: signedConfig)
+        supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: signedConfig)
 
         let photos = await SupabaseSignedPhotosClient.probePhotos(config: signedConfig)
         supabaseSignedPhotos = photos
@@ -15759,6 +16025,7 @@ private struct SyncCenterSheet: View {
         supabaseClassFileMetadataWrite = SupabaseClassFileMetadataWriteResult.planned(config: supabaseConfig)
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
+        supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed classes заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed classes завершен: \(result.headerState). \(result.nextStep)"
@@ -15791,6 +16058,7 @@ private struct SyncCenterSheet: View {
             AppSupabaseAnnouncementBridge.replace(with: result.mappedAnnouncements)
         }
         supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
+        supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase signed announcements заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
             : "Supabase signed announcements завершен: \(result.headerState). \(result.nextStep)"
@@ -15935,6 +16203,17 @@ private struct SyncCenterSheet: View {
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
             ? "Supabase announcement publish заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
             : "Supabase announcement publish завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseAnnouncementUpdateWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase announcement update: готовлю signed PATCH /announcements для учителя/родкомитета."
+        let result = await SupabaseAnnouncementUpdateWriteClient.updatePrimaryAnnouncement(config: supabaseConfig)
+        supabaseAnnouncementUpdateWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "announcement missing"
+            ? "Supabase announcement update заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и announcement bridge."
+            : "Supabase announcement update завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor
