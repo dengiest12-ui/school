@@ -1650,6 +1650,12 @@ private struct SupabaseClassRoomRow: Decodable, Hashable {
     var invite_code: String?
 }
 
+private struct SupabaseProfileRow: Decodable, Hashable {
+    var id: String
+    var display_name: String
+    var phone: String?
+}
+
 private struct SupabaseErrorResponse: Decodable, Hashable {
     var code: String?
     var message: String?
@@ -1815,6 +1821,141 @@ private struct SupabaseSessionRefreshProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedProfileProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedProfileProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        return SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will check whether RLS exposes exactly the current user's profile row.",
+            nextStep: "Run signed profile probe before mapping Supabase session into local account state",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedProfileProbe {
+        SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed REST request is blocked before network access.",
+            nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
+            rowsPreview: "0 rows"
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedProfileProbe {
+        SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove user RLS for a profile row.",
+            nextStep: "Inject a seed user's Supabase access token before signed RLS proof",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseSignedProfileProbe {
+        SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the app cannot target the expected profile row yet.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed profile probe",
+            rowsPreview: "not requested"
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseProfileRow], statusCode: Int) -> SupabaseSignedProfileProbe {
+        let countStatus = rows.count == 1 ? "profile" : "RLS check"
+        let preview = rows.isEmpty
+            ? "[]"
+            : rows.map { row in "\(row.display_name.isEmpty ? row.id : row.display_name) (\(row.phone ?? "no phone"))" }.joined(separator: ", ")
+
+        return SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: countStatus,
+            statusColorName: rows.count == 1 ? "green" : "orange",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: rows.count == 1 ? "RLS returned exactly the requested profile row." : "Signed request responded, but returned \(rows.count) profile rows.",
+            nextStep: rows.count == 1 ? "Repeat with class_rooms and map signed rows into repository" : "Check profile seed, RLS policy and SUPABASE_USER_ID before trusting session",
+            rowsPreview: preview
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedProfileProbe {
+        SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, grants, migration and RLS response",
+            rowsPreview: "not decoded"
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedProfileProbe {
+        SupabaseSignedProfileProbe(
+            title: "Signed profile probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/profiles?id=eq.<SUPABASE_USER_ID>&select=id,display_name,phone",
+            url: "\(config.restBaseURL)/profiles",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local profile state active and retry after network/backend healthcheck",
+            rowsPreview: "not requested"
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -1958,6 +2099,59 @@ private struct SupabaseAuthClient {
             let message = decodedError?.message
                 ?? String(data: data, encoding: .utf8)
                 ?? "Supabase Auth returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedProfileClient {
+    static func probeProfile(config: SupabaseBackendConfig) async -> SupabaseSignedProfileProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/profiles") else {
+            return .networkError(config: config, message: "Invalid Supabase profiles URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(userID)"),
+            URLQueryItem(name: "select", value: "id,display_name,phone")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase profiles query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseProfileRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
             return .serverError(config: config, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, message: error.localizedDescription)
@@ -8379,6 +8573,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseAuthSession = SupabaseAuthSessionProbe.make(config: SupabaseBackendConfig.make())
     @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
@@ -8760,6 +8955,7 @@ private struct SyncCenterSheet: View {
 
             supabaseAuthSessionCard(supabaseAuthSession)
             supabaseSessionRefreshCard(supabaseSessionRefresh)
+            supabaseSignedProfileCard(supabaseSignedProfile)
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
@@ -8800,6 +8996,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-refresh-session")
+
+            Button {
+                Task {
+                    await runSupabaseSignedProfileProbe()
+                }
+            } label: {
+                Label("Проверить signed profile", systemImage: "person.text.rectangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-profile")
 
             Button {
                 Task {
@@ -9284,6 +9494,56 @@ private struct SyncCenterSheet: View {
         }
         .padding(10)
         .background(moreColor(for: refresh.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseSignedProfileCard(_ result: SupabaseSignedProfileProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "person.text.rectangle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.60)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func supabaseRlsSmokeCard(_ smoke: SupabaseRlsSmokeProbe) -> some View {
@@ -9851,6 +10111,7 @@ private struct SyncCenterSheet: View {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
@@ -9863,6 +10124,7 @@ private struct SyncCenterSheet: View {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = supabaseConfig.hasAccessToken
@@ -9875,6 +10137,7 @@ private struct SyncCenterSheet: View {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
@@ -9886,10 +10149,27 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabaseSignedProfileProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase signed profile: готовлю GET /profiles с user bearer token без замены локального профиля."
+        let result = await SupabaseSignedProfileClient.probeProfile(config: supabaseConfig)
+        supabaseSignedProfile = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
+            ? "Supabase signed profile заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
+            : "Supabase signed profile завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."

@@ -163,6 +163,9 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText("Auth refresh probe", in: app))
         XCTAssertTrue(findStaticText(containing: "grant_type=refresh_token", in: app))
         XCTAssertTrue(findStaticText(containing: "SUPABASE_REFRESH_TOKEN", in: app))
+        XCTAssertTrue(findStaticText("Signed profile probe", in: app))
+        XCTAssertTrue(findStaticText(containing: "/profiles", in: app))
+        XCTAssertTrue(findStaticText(containing: "SUPABASE_USER_ID", in: app))
         XCTAssertTrue(findStaticText("RLS smoke seed", in: app))
         XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
         XCTAssertTrue(findStaticText(containing: "anon sees 0 classes", in: app))
@@ -194,6 +197,14 @@ final class SchoolAppUITests: XCTestCase {
 
         XCTAssertTrue(findStaticText(containing: "client key и SUPABASE_REFRESH_TOKEN", in: app))
         XCTAssertTrue(findStaticText(containing: "missing SUPABASE_PUBLISHABLE_KEY", in: app))
+
+        let signedProfileButton = app.buttons["sync.supabase-signed-profile"]
+        scrollUntilVisible(signedProfileButton, in: app)
+        XCTAssertTrue(signedProfileButton.waitForExistence(timeout: 4))
+        signedProfileButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "client key, SUPABASE_ACCESS_TOKEN", in: app))
+        XCTAssertTrue(findStaticText(containing: "Signed REST request is blocked", in: app))
 
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)
