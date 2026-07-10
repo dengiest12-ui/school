@@ -3515,6 +3515,159 @@ private struct SupabaseSignedHomeworkProbe: Hashable {
     }
 }
 
+private struct SupabaseHomeworkPublishWriteResult: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var targetPreview: String
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseHomeworkPublishWriteResult {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        guard AppSupabaseClassContextBridge.primaryContext != nil else {
+            return missingClassContext(config: config)
+        }
+
+        return SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "ready",
+            statusColorName: "blue",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will create homework only if RLS confirms teacher or parent-committee rights.",
+            nextStep: "Refresh signed homework before replacing the local homework add form",
+            targetPreview: homeworkTargetPreview
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed homework publish write is blocked before network access.",
+            nextStep: "Add client apikey, signed manager session and class bridge",
+            targetPreview: homeworkTargetPreview
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot create class homework.",
+            nextStep: "Inject a teacher or parent-committee Supabase access token before homework proof",
+            targetPreview: homeworkTargetPreview
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the homework body needs the signed author id.",
+            nextStep: "Provide SUPABASE_USER_ID for the manager seed user and retry homework write",
+            targetPreview: homeworkTargetPreview
+        )
+    }
+
+    static func missingClassContext(config: SupabaseBackendConfig) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "class missing",
+            statusColorName: "orange",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "apikey \(config.clientKeyKind) ready, manager bearer \(config.accessTokenPreview ?? "set")",
+            detail: "No Supabase class bridge item is available for homework.",
+            nextStep: "Run signed class scope probe first, then retry homework write",
+            targetPreview: homeworkTargetPreview
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, body: SupabaseHomeworkPublishBody, statusCode: Int) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "published",
+            statusColorName: "green",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "HTTP \(statusCode), manager bearer accepted",
+            detail: "RLS accepted the teacher/committee homework row.",
+            nextStep: "Refresh signed homework before replacing the local add form",
+            targetPreview: "\(body.class_id), \(body.subject)"
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, body: SupabaseHomeworkPublishBody?, statusCode: Int, message: String) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: statusCode == 401 || statusCode == 403 ? "manager auth/session required" : "\(config.clientKeyKind) apikey and manager bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Use teacher/committee session or verify homework_insert_manager RLS" : "Check homework_items Data API exposure and RLS response",
+            targetPreview: body.map { "\($0.class_id), homework blocked" } ?? homeworkTargetPreview
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, body: SupabaseHomeworkPublishBody?, message: String) -> SupabaseHomeworkPublishWriteResult {
+        SupabaseHomeworkPublishWriteResult(
+            title: "Homework publish write",
+            status: "network",
+            statusColorName: "red",
+            method: "POST",
+            path: "/homework_items",
+            url: "\(config.restBaseURL)/homework_items",
+            headerState: "\(config.clientKeyKind) apikey and manager bearer prepared",
+            detail: message,
+            nextStep: "Keep local homework queued and retry after network/backend healthcheck",
+            targetPreview: body.map { "\($0.class_id), homework queued" } ?? homeworkTargetPreview
+        )
+    }
+
+    private static var homeworkTargetPreview: String {
+        AppSupabaseClassContextBridge.primaryContext?.summary ?? "no saved class"
+    }
+}
+
 private struct SupabaseSignedCalendarEventsProbe: Hashable {
     var title: String
     var status: String
@@ -5752,6 +5905,76 @@ private struct SupabaseSignedHomeworkClient {
             return .serverError(config: config, statusCode: statusCode, message: message)
         } catch {
             return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseHomeworkPublishBody: Encodable, Hashable {
+    var class_id: String
+    var author_user_id: String
+    var subject: String
+    var title: String
+    var details: String
+    var due_at: String
+    var assignee_child_id: String?
+}
+
+private struct SupabaseHomeworkPublishWriteClient {
+    static func publishProbeHomework(config: SupabaseBackendConfig) async -> SupabaseHomeworkPublishWriteResult {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard let classContext = AppSupabaseClassContextBridge.primaryContext else {
+            return .missingClassContext(config: config)
+        }
+
+        let body = SupabaseHomeworkPublishBody(
+            class_id: classContext.classID,
+            author_user_id: userID,
+            subject: "Математика",
+            title: "QA задание из Sync Center",
+            details: "Проверка signed homework publish gate из iOS.",
+            due_at: "2026-07-20T15:00:00Z",
+            assignee_child_id: nil
+        )
+
+        guard let url = URL(string: "\(config.restBaseURL)/homework_items") else {
+            return .networkError(config: config, body: body, message: "Invalid Supabase homework_items URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                return .success(config: config, body: body, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, body: body, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, body: body, message: error.localizedDescription)
         }
     }
 }
@@ -12998,6 +13221,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseHomeworkPublishWrite = SupabaseHomeworkPublishWriteResult.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: SupabaseBackendConfig.make())
@@ -13048,6 +13272,7 @@ private struct SyncCenterSheet: View {
         _supabaseSignedChildren = State(initialValue: SupabaseSignedChildrenProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedAnnouncements = State(initialValue: SupabaseSignedAnnouncementsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedHomework = State(initialValue: SupabaseSignedHomeworkProbe.planned(config: launchSupabaseConfig))
+        _supabaseHomeworkPublishWrite = State(initialValue: SupabaseHomeworkPublishWriteResult.planned(config: launchSupabaseConfig))
         _supabaseSignedCalendarEvents = State(initialValue: SupabaseSignedCalendarEventsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedCollections = State(initialValue: SupabaseSignedCollectionsProbe.planned(config: launchSupabaseConfig))
         _supabaseSignedPhotos = State(initialValue: SupabaseSignedPhotosProbe.planned(config: launchSupabaseConfig))
@@ -13435,6 +13660,7 @@ private struct SyncCenterSheet: View {
             supabaseAnnouncementPublishWriteCard(supabaseAnnouncementPublishWrite)
             supabaseAnnouncementUpdateWriteCard(supabaseAnnouncementUpdateWrite)
             supabaseSignedHomeworkCard(supabaseSignedHomework)
+            supabaseHomeworkPublishWriteCard(supabaseHomeworkPublishWrite)
             supabaseSignedCalendarEventsCard(supabaseSignedCalendarEvents)
             supabaseSignedCollectionsCard(supabaseSignedCollections)
             supabaseCollectionPaymentWriteCard(supabaseCollectionPaymentWrite)
@@ -14617,6 +14843,70 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                 .lineLimit(2)
                 .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func supabaseHomeworkPublishWriteCard(_ result: SupabaseHomeworkPublishWriteResult) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "book.closed.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.68)
+
+            Text("Homework: \(result.targetPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(3)
+                .minimumScaleFactor(0.52)
+
+            Button {
+                Task {
+                    await runSupabaseHomeworkPublishWrite()
+                }
+            } label: {
+                Label("Опубликовать ДЗ", systemImage: "book.closed.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-homework-publish-write")
         }
         .padding(10)
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -15858,6 +16148,7 @@ private struct SyncCenterSheet: View {
         supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseSignedAnnouncements = SupabaseSignedAnnouncementsProbe.planned(config: supabaseConfig)
         supabaseSignedHomework = SupabaseSignedHomeworkProbe.planned(config: supabaseConfig)
+        supabaseHomeworkPublishWrite = SupabaseHomeworkPublishWriteResult.planned(config: supabaseConfig)
         supabaseSignedCalendarEvents = SupabaseSignedCalendarEventsProbe.planned(config: supabaseConfig)
         supabaseSignedCollections = SupabaseSignedCollectionsProbe.planned(config: supabaseConfig)
         supabaseSignedPhotos = SupabaseSignedPhotosProbe.planned(config: supabaseConfig)
@@ -15943,6 +16234,7 @@ private struct SyncCenterSheet: View {
         if homework.mappedHomework.isEmpty == false {
             AppSupabaseHomeworkBridge.replace(with: homework.mappedHomework)
         }
+        supabaseHomeworkPublishWrite = SupabaseHomeworkPublishWriteResult.planned(config: signedConfig)
 
         let calendarEvents = await SupabaseSignedCalendarEventsClient.probeCalendarEvents(config: signedConfig)
         supabaseSignedCalendarEvents = calendarEvents
@@ -16026,6 +16318,7 @@ private struct SyncCenterSheet: View {
         supabaseClassPhotoMetadataWrite = SupabaseClassPhotoMetadataWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementPublishWrite = SupabaseAnnouncementPublishWriteResult.planned(config: supabaseConfig)
         supabaseAnnouncementUpdateWrite = SupabaseAnnouncementUpdateWriteResult.planned(config: supabaseConfig)
+        supabaseHomeworkPublishWrite = SupabaseHomeworkPublishWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed classes заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed classes завершен: \(result.headerState). \(result.nextStep)"
@@ -16073,9 +16366,21 @@ private struct SyncCenterSheet: View {
         if result.mappedHomework.isEmpty == false {
             AppSupabaseHomeworkBridge.replace(with: result.mappedHomework)
         }
+        supabaseHomeworkPublishWrite = SupabaseHomeworkPublishWriteResult.planned(config: supabaseConfig)
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "class missing"
             ? "Supabase signed homework заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и class bridge."
             : "Supabase signed homework завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
+    private func runSupabaseHomeworkPublishWrite() async {
+        reloadSupabaseProbeState()
+        syncStatus = "Supabase homework publish: готовлю signed POST /homework_items для учителя/родкомитета."
+        let result = await SupabaseHomeworkPublishWriteClient.publishProbeHomework(config: supabaseConfig)
+        supabaseHomeworkPublishWrite = result
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing" || result.status == "class missing"
+            ? "Supabase homework publish заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN, SUPABASE_USER_ID и class bridge."
+            : "Supabase homework publish завершен: \(result.headerState). \(result.nextStep)"
     }
 
     @MainActor

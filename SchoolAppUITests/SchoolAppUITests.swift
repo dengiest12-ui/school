@@ -355,6 +355,27 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "announcement update заблокирован", in: app, attempts: 6))
     }
 
+    func testSupabaseHomeworkPublishWriteBlocksBeforeClientKey() {
+        let app = launchApp(arguments: [
+            "-qa-seed-supabase-class-bridge",
+            "-qa-tab", "more",
+            "-qa-more-sync",
+            "-qa-more-sync-supabase"
+        ])
+
+        XCTAssertTrue(findStaticText("Homework publish write", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "/homework_items", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "Signed homework publish write is blocked", in: app, attempts: 10))
+        XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app, attempts: 6))
+
+        let writeButton = app.buttons["sync.supabase-homework-publish-write"]
+        scrollUntilVisible(writeButton, in: app, attempts: 10)
+        XCTAssertTrue(writeButton.waitForExistence(timeout: 4))
+        writeButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "homework publish заблокирован", in: app, attempts: 6))
+    }
+
     func testSupabaseCollectionPaymentWriteBlocksBeforeClientKey() {
         let app = launchApp(arguments: [
             "-qa-seed-supabase-child-bridge",

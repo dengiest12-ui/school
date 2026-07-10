@@ -135,6 +135,7 @@ Date: 2026-07-10
 - Targeted UI test: `testSupabaseAnnouncementUpdateWriteBlocksBeforeClientKey` passed in `.build/SupabaseAnnouncementUpdateWriteUITest.xcresult`.
 - Targeted UI test: `testSupabaseAnnouncementReadAckBlocksBeforeClientKey` passed in `.build/SupabaseAnnouncementReadAckOnlyUITest.xcresult`.
 - Targeted UI test: `testSupabaseHomeworkBridgeShowsWithoutReplacingLocalHomework` passed in `.build/SupabaseHomeworkBridgeUITest.xcresult`.
+- Targeted UI test: `testSupabaseHomeworkPublishWriteBlocksBeforeClientKey` passed in `.build/SupabaseHomeworkPublishWriteUITest.xcresult`.
 - Targeted UI test: `testSupabaseCalendarBridgeShowsWithoutReplacingLocalEvents` passed in `.build/SupabaseCalendarBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabaseCollectionBridgeShowsWithoutGrantingParentManageRights` passed in `.build/SupabaseCollectionsBridgeUITest.xcresult`.
 - Targeted UI test: `testSupabasePhotoBridgeShowsWithoutGrantingParentDeleteRights` passed in `.build/SupabasePhotosBridgeUITest.xcresult`.
@@ -158,6 +159,7 @@ Additional iOS verification:
 - Onboarding now has a first real Supabase email/password path: without a successful Auth response the app stays on the account step, and after success the returned session is written to Keychain before role/class selection unlocks.
 - Onboarding now runs a post-auth handoff: using the fresh Supabase session it loads signed profile, class memberships and children, saves account/class/child bridge contexts, enables the Supabase child source preview for that launch and shows the selected account/child/class summary before role/class selection.
 - The app now has a signed homework bridge: Sync Center can request `GET /homework_items` by saved Supabase class context and the Homework screen shows the mapped preview separately from local homework until a full repository switch is ready.
+- The sync-center now has a signed homework publish gate: without client key/session/user id/class bridge it blocks before network, and with a signed teacher or parent-committee session it prepares `POST /homework_items` while RLS `homework_insert_manager` remains the authority.
 - The app now has a signed calendar bridge: Sync Center can request `GET /calendar_events` by saved Supabase class context and the Calendar screen shows the mapped preview separately from local events until a full repository switch is ready.
 - The app now has a signed collections bridge: Sync Center can request `GET /collections` by saved Supabase class context and the Class collections screen shows the mapped preview separately from local collections while preserving parent no-manage restrictions.
 - The app now has a signed class photos bridge: Sync Center can request `GET /class_photos` by saved Supabase class context and the Class photos screen shows mapped metadata separately from local albums while preserving parent no-delete/no-create restrictions.
