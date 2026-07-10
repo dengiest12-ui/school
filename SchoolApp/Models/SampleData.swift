@@ -222,6 +222,71 @@ enum AppChildStore {
     static func clear() {
         UserDefaults.standard.removeObject(forKey: childrenKey)
         UserDefaults.standard.removeObject(forKey: selectedChildIDKey)
+        AppSupabaseClassContextBridge.clear()
+    }
+}
+
+struct SupabaseClassContextBridgeItem: Identifiable, Hashable, Codable {
+    var id: String { classID }
+
+    let classID: String
+    let classTitle: String
+    let role: String
+    let inviteCode: String
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        "\(classTitle) [\(role), \(inviteCode)]"
+    }
+}
+
+enum AppSupabaseClassContextBridge {
+    private static let bridgeKey = "school.supabase.classContextBridge.v1"
+
+    static var contexts: [SupabaseClassContextBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseClassContextBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var statusText: String {
+        contexts.isEmpty
+            ? "Bridge waiting: local children untouched"
+            : "Bridge ready: \(contexts.count) context(s), local children untouched"
+    }
+
+    static var previewText: String {
+        contexts.isEmpty
+            ? "no saved class context"
+            : contexts.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with contexts: [SupabaseClassContextBridgeItem]) {
+        self.contexts = contexts
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
     }
 }
 

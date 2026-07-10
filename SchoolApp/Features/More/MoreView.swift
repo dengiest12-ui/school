@@ -1674,6 +1674,17 @@ private struct SupabaseLocalClassContextPreview: Hashable {
         "\(classTitle) [\(role), \(inviteCode)]"
     }
 
+    func bridgeItem(mappedAt: String) -> SupabaseClassContextBridgeItem {
+        SupabaseClassContextBridgeItem(
+            classID: classID,
+            classTitle: classTitle,
+            role: role,
+            inviteCode: inviteCode,
+            source: "signed class_members RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+
     static func make(from rows: [SupabaseClassMembershipRow]) -> [SupabaseLocalClassContextPreview] {
         rows
             .filter { $0.status == "active" }
@@ -2000,6 +2011,8 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
     var nextStep: String
     var rowsPreview: String
     var localContextPreview: String
+    var bridgePreview: String
+    var mappedContexts: [SupabaseLocalClassContextPreview]
 
     static func planned(config: SupabaseBackendConfig) -> SupabaseSignedClassScopeProbe {
         if config.hasClientApiKey == false {
@@ -2025,7 +2038,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: "Signed request will check class membership rows and embedded class_rooms under RLS.",
             nextStep: "Run signed class scope probe before mapping Supabase classes into local repository",
             rowsPreview: "not requested",
-            localContextPreview: "waiting for signed class rows"
+            localContextPreview: "waiting for signed class rows",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 
@@ -2041,7 +2056,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: "Signed class scope request is blocked before network access.",
             nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
             rowsPreview: "0 rows",
-            localContextPreview: "blocked before mapper"
+            localContextPreview: "blocked before mapper",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 
@@ -2057,7 +2074,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: "Client key alone cannot prove membership RLS for class rows.",
             nextStep: "Inject a seed user's Supabase access token before signed class proof",
             rowsPreview: "not requested",
-            localContextPreview: "waiting for user bearer token"
+            localContextPreview: "waiting for user bearer token",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 
@@ -2073,7 +2092,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: "Access token exists, but the app cannot target the expected class membership rows yet.",
             nextStep: "Provide SUPABASE_USER_ID for the seed user and retry signed class scope probe",
             rowsPreview: "not requested",
-            localContextPreview: "waiting for Supabase user id"
+            localContextPreview: "waiting for Supabase user id",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 
@@ -2100,7 +2121,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: contexts.isEmpty ? "RLS returned no active class memberships for this user." : "Mapped \(contexts.count) active class context(s) from signed RLS rows.",
             nextStep: contexts.isEmpty ? "Check seed membership and class_members RLS before trusting session" : "Use mapped class contexts as the source for child/class switching after repository wiring",
             rowsPreview: preview,
-            localContextPreview: mappedPreview
+            localContextPreview: mappedPreview,
+            bridgePreview: contexts.isEmpty ? "Bridge waiting: local children untouched" : "Bridge ready: \(contexts.count) context(s), local children untouched",
+            mappedContexts: contexts
         )
     }
 
@@ -2116,7 +2139,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: message,
             nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed user session and retry" : "Check Data API exposure, grants, embeds and class_members RLS response",
             rowsPreview: "not decoded",
-            localContextPreview: "mapper skipped after server error"
+            localContextPreview: "mapper skipped after server error",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 
@@ -2132,7 +2157,9 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
             detail: message,
             nextStep: "Keep local class state active and retry after network/backend healthcheck",
             rowsPreview: "not requested",
-            localContextPreview: "mapper skipped after network error"
+            localContextPreview: "mapper skipped after network error",
+            bridgePreview: "Bridge waiting: local children untouched",
+            mappedContexts: []
         )
     }
 }
@@ -9848,6 +9875,12 @@ private struct SyncCenterSheet: View {
                 .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
                 .lineLimit(2)
                 .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
         }
         .padding(10)
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -10487,6 +10520,12 @@ private struct SyncCenterSheet: View {
         syncStatus = "Supabase signed classes: готовлю GET /class_members с embedded class_rooms без замены локальных классов."
         let result = await SupabaseSignedClassScopeClient.probeClassScope(config: supabaseConfig)
         supabaseSignedClassScope = result
+        if result.mappedContexts.isEmpty == false {
+            let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+            AppSupabaseClassContextBridge.replace(
+                with: result.mappedContexts.map { $0.bridgeItem(mappedAt: mappedAt) }
+            )
+        }
         syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
             ? "Supabase signed classes заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
             : "Supabase signed classes завершен: \(result.headerState). \(result.nextStep)"
