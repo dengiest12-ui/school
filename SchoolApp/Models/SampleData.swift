@@ -223,6 +223,7 @@ enum AppChildStore {
         UserDefaults.standard.removeObject(forKey: childrenKey)
         UserDefaults.standard.removeObject(forKey: selectedChildIDKey)
         AppSupabaseClassContextBridge.clear()
+        AppSupabaseChildContextBridge.clear()
     }
 }
 
@@ -315,6 +316,97 @@ enum AppSupabaseClassContextBridge {
                     classID: "qa-3b-2026",
                     classTitle: "QA-3B-2026",
                     role: "parent",
+                    inviteCode: "QA-3B-2026",
+                    source: "qa launch argument",
+                    mappedAt: "QA"
+                )
+            ]
+        )
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: bridgeKey)
+    }
+}
+
+struct SupabaseChildContextBridgeItem: Identifiable, Hashable, Codable {
+    var id: String { childID }
+
+    let childID: String
+    let childName: String
+    let gradeTitle: String
+    let classID: String
+    let classTitle: String
+    let inviteCode: String
+    let source: String
+    let mappedAt: String
+
+    var summary: String {
+        "\(childName), \(gradeTitle) -> \(classTitle) [\(inviteCode)]"
+    }
+
+    var handoffText: String {
+        "Supabase ребенок готов: \(childName), \(gradeTitle) -> \(classTitle)"
+    }
+}
+
+enum AppSupabaseChildContextBridge {
+    private static let bridgeKey = "school.supabase.childContextBridge.v1"
+
+    static var contexts: [SupabaseChildContextBridgeItem] {
+        get {
+            guard
+                let data = UserDefaults.standard.data(forKey: bridgeKey),
+                let decoded = try? JSONDecoder().decode([SupabaseChildContextBridgeItem].self, from: data)
+            else {
+                return []
+            }
+
+            return decoded
+        }
+        set {
+            guard newValue.isEmpty == false else {
+                clear()
+                return
+            }
+
+            guard let data = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+
+            UserDefaults.standard.set(data, forKey: bridgeKey)
+        }
+    }
+
+    static var primaryContext: SupabaseChildContextBridgeItem? {
+        contexts.first
+    }
+
+    static var statusText: String {
+        contexts.isEmpty
+            ? "Child bridge waiting: local selected child untouched"
+            : "Child bridge ready: \(contexts.count) child context(s), local selected child untouched"
+    }
+
+    static var previewText: String {
+        contexts.isEmpty
+            ? "no saved child context"
+            : contexts.map(\.summary).joined(separator: ", ")
+    }
+
+    static func replace(with contexts: [SupabaseChildContextBridgeItem]) {
+        self.contexts = contexts
+    }
+
+    static func seedSmokeContext() {
+        replace(
+            with: [
+                SupabaseChildContextBridgeItem(
+                    childID: "qa-smoke-child",
+                    childName: "Smoke Child",
+                    gradeTitle: "3Б",
+                    classID: "qa-3b-2026",
+                    classTitle: "QA-3B-2026",
                     inviteCode: "QA-3B-2026",
                     source: "qa launch argument",
                     mappedAt: "QA"

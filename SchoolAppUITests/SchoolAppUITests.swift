@@ -204,6 +204,22 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(findStaticText(containing: "blocked before mapper", in: app))
         XCTAssertTrue(findStaticText(containing: "Bridge waiting", in: app))
 
+        XCTAssertTrue(findStaticText("Signed children probe", in: app))
+        XCTAssertTrue(findStaticText(containing: "/children", in: app))
+        XCTAssertTrue(findStaticText(containing: "parent_user_id", in: app))
+        XCTAssertTrue(findStaticText(containing: "Mapped child", in: app))
+        XCTAssertTrue(findStaticText(containing: "local selected child untouched", in: app))
+
+        let signedChildrenButton = app.buttons["sync.supabase-signed-children"]
+        scrollUntilVisible(signedChildrenButton, in: app, attempts: 8)
+        XCTAssertTrue(signedChildrenButton.waitForExistence(timeout: 4))
+        signedChildrenButton.tap()
+
+        XCTAssertTrue(findStaticText(containing: "signed children заблокирован", in: app))
+        XCTAssertTrue(findStaticText(containing: "Signed children request is blocked", in: app))
+        XCTAssertTrue(findStaticText(containing: "blocked before child mapper", in: app))
+        XCTAssertTrue(findStaticText(containing: "Child bridge waiting", in: app))
+
         let liveProbeButton = app.buttons["sync.supabase-live-probe"]
         scrollUntilVisible(liveProbeButton, in: app)
         XCTAssertTrue(liveProbeButton.waitForExistence(timeout: 4))
@@ -248,6 +264,25 @@ final class SchoolAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Миша: родитель, код 3B-1254"].exists)
         XCTAssertTrue(findStaticText(containing: "Supabase готов: QA-3B-2026", in: app))
+    }
+
+    func testSupabaseChildBridgeShowsWithoutReplacingSelectedChild() {
+        let app = launchApp(arguments: [
+            "-qa-reset-children-store",
+            "-qa-seed-supabase-child-bridge",
+            "-qa-role", "parent",
+            "-qa-tab", "today"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Миша, 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(findStaticText(containing: "Supabase ребенок готов: Smoke Child", in: app))
+        XCTAssertTrue(findStaticText(containing: "QA-3B-2026", in: app))
+
+        app.buttons["tab.classRoom"].tap()
+
+        XCTAssertTrue(app.staticTexts["Класс 3Б"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Миша: родитель, код 3B-1254"].exists)
+        XCTAssertTrue(findStaticText(containing: "Supabase ребенок готов: Smoke Child", in: app))
     }
 
     func testAnnouncementAcknowledgementPersistsAfterRelaunch() {

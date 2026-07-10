@@ -19,6 +19,7 @@ TESTS=(
   "testSyncNetworkErrorKeepsQueuedMutation"
   "testSupabaseReadinessShowsSchemaAndMissingKeyGate"
   "testSelectedChildPersistsAcrossTabsAndChangesClassContext"
+  "testSupabaseChildBridgeShowsWithoutReplacingSelectedChild"
   "testAnnouncementAcknowledgementPersistsAfterRelaunch"
   "testCollectionExpensePersistsAfterRelaunch"
   "testManualHomeworkPersistsAfterRelaunch"

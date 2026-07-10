@@ -8,6 +8,7 @@ struct AppView: View {
     @State private var completedForcedOnboarding = false
     @State private var completedChildrenReset = false
     @State private var completedSupabaseBridgeSeed = false
+    @State private var completedSupabaseChildBridgeSeed = false
 
     init(initialTab: AppTab = AppView.launchTab()) {
         if Self.resetsChildren {
@@ -16,9 +17,13 @@ struct AppView: View {
         if Self.seedsSupabaseBridge {
             AppSupabaseClassContextBridge.seedSmokeContext()
         }
+        if Self.seedsSupabaseChildBridge {
+            AppSupabaseChildContextBridge.seedSmokeContext()
+        }
         _selectedTab = State(initialValue: initialTab)
         _completedChildrenReset = State(initialValue: Self.resetsChildren)
         _completedSupabaseBridgeSeed = State(initialValue: Self.seedsSupabaseBridge)
+        _completedSupabaseChildBridgeSeed = State(initialValue: Self.seedsSupabaseChildBridge)
     }
 
     var body: some View {
@@ -32,6 +37,7 @@ struct AppView: View {
         .onAppear(perform: resetOnboardingIfNeeded)
         .onAppear(perform: resetChildrenIfNeeded)
         .onAppear(perform: seedSupabaseBridgeIfNeeded)
+        .onAppear(perform: seedSupabaseChildBridgeIfNeeded)
         .tint(SchoolTheme.success)
         .preferredColorScheme(.light)
     }
@@ -119,6 +125,15 @@ struct AppView: View {
         completedSupabaseBridgeSeed = true
     }
 
+    private func seedSupabaseChildBridgeIfNeeded() {
+        guard Self.seedsSupabaseChildBridge, !completedSupabaseChildBridgeSeed else {
+            return
+        }
+
+        AppSupabaseChildContextBridge.seedSmokeContext()
+        completedSupabaseChildBridgeSeed = true
+    }
+
     private func normalizeSelectedTab() {
         guard !visibleTabs.contains(selectedTab) else {
             return
@@ -160,6 +175,10 @@ struct AppView: View {
 
     private static var seedsSupabaseBridge: Bool {
         ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-class-bridge")
+    }
+
+    private static var seedsSupabaseChildBridge: Bool {
+        ProcessInfo.processInfo.arguments.contains("-qa-seed-supabase-child-bridge")
     }
 
     private static var launchRole: AppUserRole? {

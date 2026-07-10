@@ -524,18 +524,40 @@ struct TodayView: View {
 
     @ViewBuilder
     private var supabaseBridgeCard: some View {
-        if let bridgeContext = AppSupabaseClassContextBridge.primaryContext {
-            HStack(spacing: 8) {
-                Image(systemName: "link.badge.plus")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(SchoolTheme.accent)
-                Text(bridgeContext.handoffText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(SchoolTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .accessibilityIdentifier("today.supabase.bridge")
-                Spacer()
+        let bridgeContext = AppSupabaseClassContextBridge.primaryContext
+        let childContext = AppSupabaseChildContextBridge.primaryContext
+
+        if bridgeContext != nil || childContext != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                if let bridgeContext {
+                    HStack(spacing: 8) {
+                        Image(systemName: "link.badge.plus")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(SchoolTheme.accent)
+                        Text(bridgeContext.handoffText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.accent)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .accessibilityIdentifier("today.supabase.bridge")
+                        Spacer()
+                    }
+                }
+
+                if let childContext {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(SchoolTheme.success)
+                        Text(childContext.handoffText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(SchoolTheme.success)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .accessibilityIdentifier("today.supabase.childBridge")
+                        Spacer()
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)

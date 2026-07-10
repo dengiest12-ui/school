@@ -375,6 +375,13 @@ struct ClassRoomView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.70)
                 }
+                if let childContext = AppSupabaseChildContextBridge.primaryContext {
+                    Text(childContext.handoffText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(SchoolTheme.success)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                }
             }
 
             Spacer()

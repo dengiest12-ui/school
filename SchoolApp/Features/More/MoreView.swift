@@ -1664,6 +1664,14 @@ private struct SupabaseClassMembershipRow: Decodable, Hashable {
     var class_rooms: SupabaseClassRoomRow?
 }
 
+private struct SupabaseChildRow: Decodable, Hashable {
+    var id: String
+    var class_id: String
+    var display_name: String
+    var grade_title: String
+    var class_rooms: SupabaseClassRoomRow?
+}
+
 private struct SupabaseLocalClassContextPreview: Hashable {
     var classID: String
     var classTitle: String
@@ -1696,6 +1704,45 @@ private struct SupabaseLocalClassContextPreview: Hashable {
                     inviteCode: row.class_rooms?.invite_code ?? "no code"
                 )
             }
+    }
+}
+
+private struct SupabaseLocalChildContextPreview: Hashable {
+    var childID: String
+    var childName: String
+    var gradeTitle: String
+    var classID: String
+    var classTitle: String
+    var inviteCode: String
+
+    var summary: String {
+        "\(childName), \(gradeTitle) -> \(classTitle) [\(inviteCode)]"
+    }
+
+    func bridgeItem(mappedAt: String) -> SupabaseChildContextBridgeItem {
+        SupabaseChildContextBridgeItem(
+            childID: childID,
+            childName: childName,
+            gradeTitle: gradeTitle,
+            classID: classID,
+            classTitle: classTitle,
+            inviteCode: inviteCode,
+            source: "signed children RLS probe",
+            mappedAt: mappedAt
+        )
+    }
+
+    static func make(from rows: [SupabaseChildRow]) -> [SupabaseLocalChildContextPreview] {
+        rows.map { row in
+            SupabaseLocalChildContextPreview(
+                childID: row.id,
+                childName: row.display_name,
+                gradeTitle: row.grade_title,
+                classID: row.class_id,
+                classTitle: row.class_rooms?.title ?? row.class_id,
+                inviteCode: row.class_rooms?.invite_code ?? "no code"
+            )
+        }
     }
 }
 
@@ -2164,6 +2211,170 @@ private struct SupabaseSignedClassScopeProbe: Hashable {
     }
 }
 
+private struct SupabaseSignedChildrenProbe: Hashable {
+    var title: String
+    var status: String
+    var statusColorName: String
+    var method: String
+    var path: String
+    var url: String
+    var headerState: String
+    var detail: String
+    var nextStep: String
+    var rowsPreview: String
+    var localContextPreview: String
+    var bridgePreview: String
+    var mappedChildren: [SupabaseLocalChildContextPreview]
+
+    static func planned(config: SupabaseBackendConfig) -> SupabaseSignedChildrenProbe {
+        if config.hasClientApiKey == false {
+            return missingKey(config: config)
+        }
+
+        if config.hasAccessToken == false {
+            return missingAccessToken(config: config)
+        }
+
+        if config.userID?.isEmpty != false {
+            return missingUserID(config: config)
+        }
+
+        return SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "ready",
+            statusColorName: "blue",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Signed request will check parent-owned children and embedded class_rooms under RLS.",
+            nextStep: "Run signed children probe before replacing local child picker with Supabase children",
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for signed child rows",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+
+    static func missingKey(config: SupabaseBackendConfig) -> SupabaseSignedChildrenProbe {
+        SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "blocked",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "missing SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY",
+            detail: "Signed children request is blocked before network access.",
+            nextStep: "Add client apikey, then provide SUPABASE_ACCESS_TOKEN and SUPABASE_USER_ID",
+            rowsPreview: "0 rows",
+            localContextPreview: "blocked before child mapper",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+
+    static func missingAccessToken(config: SupabaseBackendConfig) -> SupabaseSignedChildrenProbe {
+        SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "token missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "apikey \(config.clientKeyKind) ready, missing SUPABASE_ACCESS_TOKEN",
+            detail: "Client key alone cannot prove parent-child RLS.",
+            nextStep: "Inject a seed user's Supabase access token before signed children proof",
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for user bearer token",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+
+    static func missingUserID(config: SupabaseBackendConfig) -> SupabaseSignedChildrenProbe {
+        SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "user id missing",
+            statusColorName: "orange",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "apikey \(config.clientKeyKind) ready, user bearer \(config.accessTokenPreview ?? "set")",
+            detail: "Access token exists, but the app cannot target parent_user_id yet.",
+            nextStep: "Provide SUPABASE_USER_ID for the seed parent and retry signed children probe",
+            rowsPreview: "not requested",
+            localContextPreview: "waiting for Supabase user id",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+
+    static func success(config: SupabaseBackendConfig, rows: [SupabaseChildRow], statusCode: Int) -> SupabaseSignedChildrenProbe {
+        let children = SupabaseLocalChildContextPreview.make(from: rows)
+        let preview = rows.isEmpty
+            ? "[]"
+            : rows.map { row in
+                let classTitle = row.class_rooms?.title ?? row.class_id
+                let invite = row.class_rooms?.invite_code ?? "no code"
+                return "\(row.display_name), \(row.grade_title) -> \(classTitle) [\(invite)]"
+            }.joined(separator: ", ")
+        let mappedPreview = children.isEmpty ? "no child context" : children.map(\.summary).joined(separator: ", ")
+
+        return SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: children.isEmpty ? "no children" : "mapped",
+            statusColorName: children.isEmpty ? "orange" : "green",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "HTTP \(statusCode), user bearer accepted",
+            detail: children.isEmpty ? "RLS returned no children for this parent user." : "Mapped \(children.count) child context(s) from signed RLS rows.",
+            nextStep: children.isEmpty ? "Check children seed and RLS before trusting child picker" : "Use mapped child contexts for Supabase-backed child/class switching after repository wiring",
+            rowsPreview: preview,
+            localContextPreview: mappedPreview,
+            bridgePreview: children.isEmpty ? "Child bridge waiting: local selected child untouched" : "Child bridge ready: \(children.count) child context(s), local selected child untouched",
+            mappedChildren: children
+        )
+    }
+
+    static func serverError(config: SupabaseBackendConfig, statusCode: Int, message: String) -> SupabaseSignedChildrenProbe {
+        SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "HTTP \(statusCode)",
+            statusColorName: statusCode == 401 || statusCode == 403 ? "orange" : "red",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: statusCode == 401 || statusCode == 403 ? "auth/session required" : "\(config.clientKeyKind) apikey and user bearer sent",
+            detail: message,
+            nextStep: statusCode == 401 || statusCode == 403 ? "Refresh or reissue seed parent session and retry" : "Check Data API exposure, embeds and children RLS response",
+            rowsPreview: "not decoded",
+            localContextPreview: "child mapper skipped after server error",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+
+    static func networkError(config: SupabaseBackendConfig, message: String) -> SupabaseSignedChildrenProbe {
+        SupabaseSignedChildrenProbe(
+            title: "Signed children probe",
+            status: "network",
+            statusColorName: "red",
+            method: "GET",
+            path: "/children?parent_user_id=eq.<SUPABASE_USER_ID>&select=id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)",
+            url: "\(config.restBaseURL)/children",
+            headerState: "\(config.clientKeyKind) apikey and user bearer prepared",
+            detail: message,
+            nextStep: "Keep local child state active and retry after network/backend healthcheck",
+            rowsPreview: "not requested",
+            localContextPreview: "child mapper skipped after network error",
+            bridgePreview: "Child bridge waiting: local selected child untouched",
+            mappedChildren: []
+        )
+    }
+}
+
 private struct SupabaseRlsSmokeProbe: Hashable {
     var title: String
     var status: String
@@ -2407,6 +2618,60 @@ private struct SupabaseSignedClassScopeClient {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(statusCode) {
                 let rows = try JSONDecoder().decode([SupabaseClassMembershipRow].self, from: data)
+                return .success(config: config, rows: rows, statusCode: statusCode)
+            }
+
+            let decodedError = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let message = decodedError?.message
+                ?? String(data: data, encoding: .utf8)
+                ?? "Supabase returned HTTP \(statusCode)"
+            return .serverError(config: config, statusCode: statusCode, message: message)
+        } catch {
+            return .networkError(config: config, message: error.localizedDescription)
+        }
+    }
+}
+
+private struct SupabaseSignedChildrenClient {
+    static func probeChildren(config: SupabaseBackendConfig) async -> SupabaseSignedChildrenProbe {
+        guard let apiKey = config.clientApiKey, apiKey.isEmpty == false else {
+            return .missingKey(config: config)
+        }
+
+        guard let accessToken = config.accessToken, accessToken.isEmpty == false else {
+            return .missingAccessToken(config: config)
+        }
+
+        guard let userID = config.userID, userID.isEmpty == false else {
+            return .missingUserID(config: config)
+        }
+
+        guard var components = URLComponents(string: "\(config.restBaseURL)/children") else {
+            return .networkError(config: config, message: "Invalid Supabase children URL")
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "parent_user_id", value: "eq.\(userID)"),
+            URLQueryItem(name: "select", value: "id,class_id,display_name,grade_title,class_rooms(id,title,invite_code)"),
+            URLQueryItem(name: "order", value: "created_at.asc")
+        ]
+
+        guard let url = components.url else {
+            return .networkError(config: config, message: "Invalid Supabase children query")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
+        request.addValue(apiKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(statusCode) {
+                let rows = try JSONDecoder().decode([SupabaseChildRow].self, from: data)
                 return .success(config: config, rows: rows, statusCode: statusCode)
             }
 
@@ -3973,6 +4238,15 @@ private struct ParentProfileSheet: View {
                                     color: SchoolTheme.accent,
                                     title: bridgeContext.handoffText,
                                     detail: "Пока хранится отдельно от локальных детей"
+                                )
+                            }
+
+                            if let childContext = AppSupabaseChildContextBridge.primaryContext {
+                                profileInfoRow(
+                                    icon: "person.crop.circle.badge.checkmark",
+                                    color: SchoolTheme.success,
+                                    title: childContext.handoffText,
+                                    detail: "Child bridge хранится отдельно от выбранного локального ребенка"
                                 )
                             }
 
@@ -8846,6 +9120,7 @@ private struct SyncCenterSheet: View {
     @State private var supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: SupabaseBackendConfig.make())
+    @State private var supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: SupabaseBackendConfig.make())
     @State private var supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: SupabaseBackendConfig.make())
 
     init(operations: [SyncOperationSummary], onSave: @escaping ([SyncOperationSummary]) -> Void) {
@@ -9229,6 +9504,7 @@ private struct SyncCenterSheet: View {
             supabaseSessionRefreshCard(supabaseSessionRefresh)
             supabaseSignedProfileCard(supabaseSignedProfile)
             supabaseSignedClassScopeCard(supabaseSignedClassScope)
+            supabaseSignedChildrenCard(supabaseSignedChildren)
             supabaseRlsSmokeCard(supabaseRlsSmoke)
             supabaseLiveProbeCard(supabaseLiveProbe)
 
@@ -9297,6 +9573,20 @@ private struct SyncCenterSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("sync.supabase-signed-class-scope")
+
+            Button {
+                Task {
+                    await runSupabaseSignedChildrenProbe()
+                }
+            } label: {
+                Label("Проверить signed children", systemImage: "figure.2.and.child.holdinghands")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SchoolTheme.success)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(SchoolTheme.success.opacity(0.11), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sync.supabase-signed-children")
 
             Button {
                 Task {
@@ -9895,6 +10185,68 @@ private struct SyncCenterSheet: View {
         .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    private func supabaseSignedChildrenCard(_ result: SupabaseSignedChildrenProbe) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(result.title, systemImage: "figure.2.and.child.holdinghands")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(SchoolTheme.graphite)
+                Spacer()
+                StatusBadge(text: result.status, color: moreColor(for: result.statusColorName))
+            }
+
+            Text("\(result.method) \(result.path)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.50)
+
+            Text(result.url)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text(result.headerState)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(moreColor(for: result.statusColorName))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.detail)
+                .font(.caption2)
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(result.nextStep)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(SchoolTheme.muted)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text("Rows: \(result.rowsPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text("Mapped child: \(result.localContextPreview)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+
+            Text(result.bridgePreview)
+                .font(.caption2.monospaced())
+                .foregroundStyle(SchoolTheme.graphite.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.64)
+        }
+        .padding(10)
+        .background(moreColor(for: result.statusColorName).opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     private func supabaseRlsSmokeCard(_ smoke: SupabaseRlsSmokeProbe) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -10462,6 +10814,7 @@ private struct SyncCenterSheet: View {
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         dryRunResult = SyncDryRunResult.make(environment: environment, operations: operations)
@@ -10476,6 +10829,7 @@ private struct SyncCenterSheet: View {
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = supabaseConfig.hasAccessToken
@@ -10490,6 +10844,7 @@ private struct SyncCenterSheet: View {
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase auth refresh: готовлю POST /token?grant_type=refresh_token без замены локальной сессии."
@@ -10507,6 +10862,7 @@ private struct SyncCenterSheet: View {
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase signed profile: готовлю GET /profiles с user bearer token без замены локального профиля."
@@ -10524,6 +10880,7 @@ private struct SyncCenterSheet: View {
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase signed classes: готовлю GET /class_members с embedded class_rooms без замены локальных классов."
@@ -10541,12 +10898,37 @@ private struct SyncCenterSheet: View {
     }
 
     @MainActor
+    private func runSupabaseSignedChildrenProbe() async {
+        supabaseConfig = SupabaseBackendConfig.make()
+        supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
+        supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
+        supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
+        supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
+        supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
+        supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
+        syncStatus = "Supabase signed children: готовлю GET /children с embedded class_rooms без замены локального выбора ребенка."
+        let result = await SupabaseSignedChildrenClient.probeChildren(config: supabaseConfig)
+        supabaseSignedChildren = result
+        if result.mappedChildren.isEmpty == false {
+            let mappedAt = Date.now.formatted(date: .numeric, time: .shortened)
+            AppSupabaseChildContextBridge.replace(
+                with: result.mappedChildren.map { $0.bridgeItem(mappedAt: mappedAt) }
+            )
+        }
+        syncStatus = result.status == "blocked" || result.status == "token missing" || result.status == "user id missing"
+            ? "Supabase signed children заблокирован: нужен client key, SUPABASE_ACCESS_TOKEN и SUPABASE_USER_ID."
+            : "Supabase signed children завершен: \(result.headerState). \(result.nextStep)"
+    }
+
+    @MainActor
     private func runSupabaseLiveProbe() async {
         supabaseConfig = SupabaseBackendConfig.make()
         supabaseAuthSession = SupabaseAuthSessionProbe.make(config: supabaseConfig)
         supabaseSessionRefresh = SupabaseSessionRefreshProbe.planned(config: supabaseConfig)
         supabaseSignedProfile = SupabaseSignedProfileProbe.planned(config: supabaseConfig)
         supabaseSignedClassScope = SupabaseSignedClassScopeProbe.planned(config: supabaseConfig)
+        supabaseSignedChildren = SupabaseSignedChildrenProbe.planned(config: supabaseConfig)
         supabaseRlsSmoke = SupabaseRlsSmokeProbe.make(config: supabaseConfig)
         supabaseLiveProbe = SupabaseLiveProbeResult.planned(config: supabaseConfig)
         syncStatus = "Supabase live probe: готовлю GET /class_rooms через URLSession без замены локальных данных."
